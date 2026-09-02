@@ -81,11 +81,38 @@ flows.
 
 Pull requests targeting `main` and pushes to `main` run the backend format,
 vet, test, and build checks, the frontend typecheck, lint, and production build,
-plus a backend Docker build check. The workflows are in
+plus backend and frontend Docker build checks. The workflows are in
 `.github/workflows/checks.yml`.
 
-Version tags such as `v0.1.0` or `v0.1.0-beta.1` publish the backend/worker image
+Version tags such as `v0.1.0` or `v0.1.0-beta.1` publish both component images
 to `ghcr.io/justlabv1/justprojects` and create a GitHub Release with Linux
-`amd64` and `arm64` API/worker bundles. The same release workflow can be started
-manually with a version input. For branch snapshots, use
-`.github/workflows/build-image-manual.yml`.
+`amd64` and `arm64` API/worker bundles. The component tags are:
+
+- `backend-1.0.0` and `backend-latest` (or `backend-beta` for beta releases).
+- `frontend-1.0.0` and `frontend-latest` (or `frontend-beta` for beta releases).
+
+The frontend image is a standalone Next.js server. Its default production build
+uses same-origin `/api/v1` requests, so an ingress or reverse proxy should route
+that path to the backend image. An explicit `NEXT_PUBLIC_API_URL` can be passed
+as a Docker build argument when the frontend and backend use different public
+origins. The same release workflow can be started manually with a version input.
+For branch snapshots of both images, use `.github/workflows/build-image-manual.yml`.
+
+## OpenShip
+
+The root `openship.json` points OpenShip at the production stack in
+`deploy/openship/docker-compose.yml`. It runs Postgres, the backend API, the
+outbox worker, the frontend image, and an nginx edge service. The edge service
+is the only public endpoint and routes `/api/*` to the backend.
+
+Before deploying, configure these OpenShip environment variables:
+
+- `POSTGRES_PASSWORD`
+- `APP_ENCRYPTION_KEY`
+- `FRONTEND_URL`
+- `API_URL`
+- `ALLOWED_ORIGINS`
+
+`JUSTPROJECTS_VERSION` defaults to `latest` and selects the matching
+`backend-*` and `frontend-*` image tags. Validate the configuration with
+`openship config validate` before deploying.

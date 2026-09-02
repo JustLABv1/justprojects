@@ -1,0 +1,108 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: justprojects
+      POSTGRES_USER: justprojects
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the OpenShip environment}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U justprojects -d justprojects"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  backend:
+    image: ${JUSTPROJECTS_IMAGE_REPOSITORY:-ghcr.io/justlabv1/justprojects}:backend-${JUSTPROJECTS_VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_SERVER: postgres
+      DATABASE_PORT: "5432"
+      DATABASE_NAME: justprojects
+      DATABASE_USER: justprojects
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the OpenShip environment}
+      DATABASE_SSLMODE: ${DATABASE_SSLMODE:-disable}
+      FRONTEND_URL: ${FRONTEND_URL:?Set FRONTEND_URL in the OpenShip environment}
+      API_URL: ${API_URL:?Set API_URL in the OpenShip environment}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set ALLOWED_ORIGINS in the OpenShip environment}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-justprojects_session}
+      SESSION_TTL: ${SESSION_TTL:-720h}
+      SECURE_COOKIES: ${SECURE_COOKIES:-true}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?Set APP_ENCRYPTION_KEY in the OpenShip environment}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_SLUG: ${GITHUB_APP_SLUG:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
+      GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_REDIRECT_URL: ${OIDC_REDIRECT_URL:-}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/readyz >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  worker:
+    image: ${JUSTPROJECTS_IMAGE_REPOSITORY:-ghcr.io/justlabv1/justprojects}:backend-${JUSTPROJECTS_VERSION:-latest}
+    restart: unless-stopped
+    command: ["/app/worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_SERVER: postgres
+      DATABASE_PORT: "5432"
+      DATABASE_NAME: justprojects
+      DATABASE_USER: justprojects
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the OpenShip environment}
+      DATABASE_SSLMODE: ${DATABASE_SSLMODE:-disable}
+      WORKER_POLL_INTERVAL: ${WORKER_POLL_INTERVAL:-5s}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?Set APP_ENCRYPTION_KEY in the OpenShip environment}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+
+  frontend:
+    image: ${JUSTPROJECTS_IMAGE_REPOSITORY:-ghcr.io/justlabv1/justprojects}:frontend-${JUSTPROJECTS_VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  nginx:
+    build:
+      context: nginx
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    ports:
+      - "80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:

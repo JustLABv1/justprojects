@@ -23,9 +23,17 @@ import type {
   TenantMember,
 } from "@/lib/types"
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
+const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL
+const API_URL = (
+  configuredApiUrl ??
+  (process.env.NODE_ENV === "development" ? "http://localhost:8080" : "")
+).replace(/\/$/, "")
 
-export const isApiConfigured = API_URL.length > 0
+// Production images use same-origin /api/v1 requests by default. A reverse
+// proxy or ingress should route that path to the backend service. Local
+// development keeps the direct localhost backend default unless overridden.
+export const isApiConfigured =
+  API_URL.length > 0 || process.env.NODE_ENV !== "development"
 
 export class ApiError extends Error {
   status: number
