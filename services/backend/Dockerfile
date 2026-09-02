@@ -15,6 +15,7 @@ WORKDIR /app
 COPY --from=build /out/api /app/api
 COPY --from=build /out/worker /app/worker
 COPY --from=build /src/internal/db/migrations /app/internal/db/migrations
+RUN apk add --no-cache ca-certificates
 USER app
 EXPOSE 8080
 ENTRYPOINT ["/app/api"]

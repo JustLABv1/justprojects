@@ -37,6 +37,7 @@ func ExchangeOAuthCode(ctx context.Context, clientID, clientSecret, code string)
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", userAgent)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return OAuthToken{}, err

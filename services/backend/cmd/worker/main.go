@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -52,7 +53,11 @@ func main() {
 					return processor.ProcessJob(jobCtx, job)
 				})
 				if processErr != nil {
-					logger.Error("process outbox", "error", processErr)
+					if errors.Is(processErr, queue.ErrDeferred) {
+						logger.Info("defer outbox processing", "reason", processErr)
+					} else {
+						logger.Error("process outbox", "error", processErr)
+					}
 					break
 				}
 				if !processed {

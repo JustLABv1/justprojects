@@ -15,6 +15,16 @@ type Queue struct {
 	Store *db.Store
 }
 
+// ErrDeferred tells the worker that a job was safely rescheduled and that it
+// should stop claiming more work for this poll cycle.
+var ErrDeferred = errors.New("outbox job deferred")
+
+// RetryAtProvider lets integrations provide a provider-specific retry time
+// without making the generic queue depend on any integration package.
+type RetryAtProvider interface {
+	RetryAt() (time.Time, bool)
+}
+
 func (q Queue) Enqueue(ctx context.Context, kind string, payload map[string]any) error {
 	now := time.Now().UTC()
 	job := &db.OutboxJob{
@@ -73,6 +83,21 @@ func (q Queue) Fail(ctx context.Context, jobID uuid.UUID, jobErr error, retry bo
 	return err
 }
 
+func (q Queue) DeferUntil(ctx context.Context, jobID uuid.UUID, jobErr error, retryAt time.Time) error {
+	now := time.Now().UTC()
+	if !retryAt.After(now) {
+		retryAt = now.Add(time.Minute)
+	}
+	_, err := q.Store.DB.NewUpdate().Model((*db.OutboxJob)(nil)).
+		Set("status = 'pending'").
+		Set("last_error = ?", jobErr.Error()).
+		Set("locked_at = NULL").
+		Set("run_at = ?", retryAt).
+		Set("updated_at = ?", now).
+		Where("id = ?", jobID).Exec(ctx)
+	return err
+}
+
 func (q Queue) RunOnce(ctx context.Context, process func(context.Context, *db.OutboxJob) error) (bool, error) {
 	job, err := q.Claim(ctx)
 	if err != nil {
@@ -82,6 +107,15 @@ func (q Queue) RunOnce(ctx context.Context, process func(context.Context, *db.Ou
 		return false, err
 	}
 	if err = process(ctx, job); err != nil {
+		var retryAtProvider RetryAtProvider
+		if errors.As(err, &retryAtProvider) {
+			if retryAt, ok := retryAtProvider.RetryAt(); ok {
+				if deferErr := q.DeferUntil(ctx, job.ID, err, retryAt); deferErr != nil {
+					return true, deferErr
+				}
+				return true, fmt.Errorf("%w until %s", ErrDeferred, retryAt.UTC().Format(time.RFC3339))
+			}
+		}
 		return true, q.Fail(ctx, job.ID, fmt.Errorf("process %s: %w", job.Kind, err), job.Attempts < 8)
 	}
 	return true, q.Succeed(ctx, job.ID)

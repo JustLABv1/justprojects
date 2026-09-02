@@ -205,6 +205,9 @@ const english = {
     "Keep issue titles, state, labels, assignees, milestones, and links moving in both directions.",
   "integrations.connectedAs": "Connected as {account}",
   "integrations.noConnection": "No {provider} connection yet",
+  "integrations.noConnectionsTitle": "Connect your first provider",
+  "integrations.noConnectionsDescription":
+    "Connect GitHub or GitLab to choose repositories, start imports, and keep project work in sync.",
   "integrations.appLeastPrivilege": "GitHub App · least-privilege issue access",
   "integrations.oauthScopes": "OAuth · access depends on the scopes granted",
   "integrations.patToken": "Personal access token",
@@ -247,10 +250,39 @@ const english = {
     "Conflicting fields pause until an authorized person resolves them.",
   "integrations.tokenDialogTitle": "Add a {provider} connection",
   "integrations.tokenDialogDescription":
-    "Credentials are encrypted by the backend and scoped to your tenant.",
+    "Connect a provider in three steps. Credentials are encrypted by the backend and scoped to your tenant.",
+  "integrations.connectionStepLabel": "Connection setup",
+  "integrations.connectionStepProvider": "Provider",
+  "integrations.connectionStepInstructions": "Token guide",
+  "integrations.connectionStepCredentials": "Credentials",
+  "integrations.chooseProvider": "Choose a provider",
+  "integrations.chooseProviderDescription":
+    "Select where the repositories you want to sync are hosted.",
+  "integrations.tokenGuideTitle": "Create a {provider} access token",
+  "integrations.tokenGuideDescription":
+    "Follow the provider's steps, then return here with the token ready to paste.",
+  "integrations.githubTokenGuideStep1":
+    "Open GitHub Settings → Developer settings → Fine-grained tokens and create a token.",
+  "integrations.githubTokenGuideStep2":
+    "Limit access to the repositories you want to sync and grant Issues: Read and write plus Metadata: Read.",
+  "integrations.githubTokenGuideStep3":
+    "Set an expiration date, generate the token, and copy it immediately.",
+  "integrations.gitlabTokenGuideStep1":
+    "Open User settings → Access tokens and create a token with an expiration date.",
+  "integrations.gitlabTokenGuideStep2":
+    "Grant the api scope so JustProjects can read and update issues and milestones.",
+  "integrations.gitlabTokenGuideStep3":
+    "Create the token and copy it immediately; it will not be shown again.",
+  "integrations.openTokenSettings": "Open {provider} token settings",
+  "integrations.readProviderGuide": "Read provider guide",
+  "integrations.tokenGuideCopy":
+    "Copy the token before leaving the provider. JustProjects never displays it again after submission.",
+  "integrations.connectionDetails": "Connection details",
+  "integrations.connectionDetailsDescription":
+    "Enter the token here. JustProjects validates it with {provider} before encrypting and saving it.",
   "integrations.provider": "Provider",
   "integrations.connectionName": "Connection name",
-  "integrations.connectionNamePlaceholder": "e.g. Production GitLab",
+  "integrations.connectionNamePlaceholder": "e.g. Main connection",
   "integrations.baseUrl": "GitLab base URL",
   "integrations.baseUrlHint":
     "Use GitLab.com or the URL of your self-hosted instance.",
@@ -261,8 +293,14 @@ const english = {
   "integrations.webhookSecretHint":
     "Use the same secret when configuring the provider webhook.",
   "integrations.cancel": "Cancel",
+  "integrations.back": "Back",
+  "integrations.continue": "Continue",
   "integrations.saveConnection": "Save connection",
+  "integrations.validateAndSave": "Validate & save connection",
+  "integrations.tokenValidationHint":
+    "The token is validated against {provider} before the connection is saved.",
   "integrations.saving": "Saving...",
+  "integrations.validating": "Validating...",
   "integrations.importQueued":
     "Import queued for {repository}. Run {runId} is processing in the background.",
   "integrations.repositoryLoadError": "Repositories could not be loaded.",
@@ -917,6 +955,9 @@ const german: Record<keyof typeof english, string> = {
     "Titel, Status, Labels, Zuständige, Meilensteine und Links in beide Richtungen synchronisieren.",
   "integrations.connectedAs": "Verbunden als {account}",
   "integrations.noConnection": "Noch keine {provider}-Verbindung",
+  "integrations.noConnectionsTitle": "Ersten Provider verbinden",
+  "integrations.noConnectionsDescription":
+    "Verbinde GitHub oder GitLab, um Repositories auszuwählen, Importe zu starten und deine Projektarbeit synchron zu halten.",
   "integrations.appLeastPrivilege":
     "GitHub App · Zugriff nach dem Prinzip der geringsten Rechte",
   "integrations.oauthScopes":
@@ -961,10 +1002,39 @@ const german: Record<keyof typeof english, string> = {
     "Konfliktfelder pausieren, bis eine berechtigte Person sie auflöst.",
   "integrations.tokenDialogTitle": "{provider}-Verbindung hinzufügen",
   "integrations.tokenDialogDescription":
-    "Zugangsdaten werden vom Backend verschlüsselt und auf deinen Mandanten begrenzt.",
+    "Verbinde einen Provider in drei Schritten. Zugangsdaten werden vom Backend verschlüsselt und auf deinen Mandanten begrenzt.",
+  "integrations.connectionStepLabel": "Verbindung einrichten",
+  "integrations.connectionStepProvider": "Provider",
+  "integrations.connectionStepInstructions": "Token-Anleitung",
+  "integrations.connectionStepCredentials": "Zugangsdaten",
+  "integrations.chooseProvider": "Provider auswählen",
+  "integrations.chooseProviderDescription":
+    "Wähle, wo die zu synchronisierenden Repositories gehostet werden.",
+  "integrations.tokenGuideTitle": "{provider}-Zugriffstoken erstellen",
+  "integrations.tokenGuideDescription":
+    "Folge den Schritten des Providers und komme anschließend mit dem fertigen Token hierher zurück.",
+  "integrations.githubTokenGuideStep1":
+    "Öffne in den GitHub-Einstellungen Developer settings → Fine-grained tokens und erstelle einen Token.",
+  "integrations.githubTokenGuideStep2":
+    "Beschränke den Zugriff auf die benötigten Repositories und erteile Issues: Lesen und Schreiben sowie Metadata: Lesen.",
+  "integrations.githubTokenGuideStep3":
+    "Lege ein Ablaufdatum fest, erstelle den Token und kopiere ihn sofort.",
+  "integrations.gitlabTokenGuideStep1":
+    "Öffne User settings → Access tokens und erstelle einen Token mit Ablaufdatum.",
+  "integrations.gitlabTokenGuideStep2":
+    "Erteile den Scope api, damit JustProjects Issues und Meilensteine lesen und aktualisieren kann.",
+  "integrations.gitlabTokenGuideStep3":
+    "Erstelle den Token und kopiere ihn sofort; danach wird er nicht erneut angezeigt.",
+  "integrations.openTokenSettings": "{provider}-Token-Einstellungen öffnen",
+  "integrations.readProviderGuide": "Provider-Anleitung lesen",
+  "integrations.tokenGuideCopy":
+    "Kopiere den Token, bevor du den Provider verlässt. JustProjects zeigt ihn nach dem Absenden nicht erneut an.",
+  "integrations.connectionDetails": "Verbindungsdetails",
+  "integrations.connectionDetailsDescription":
+    "Gib den Token hier ein. JustProjects validiert ihn bei {provider}, bevor er verschlüsselt und gespeichert wird.",
   "integrations.provider": "Provider",
   "integrations.connectionName": "Name der Verbindung",
-  "integrations.connectionNamePlaceholder": "z. B. Produktions-GitLab",
+  "integrations.connectionNamePlaceholder": "z. B. Hauptverbindung",
   "integrations.baseUrl": "GitLab-Basis-URL",
   "integrations.baseUrlHint":
     "Nutze GitLab.com oder die URL deiner selbst gehosteten Instanz.",
@@ -975,8 +1045,14 @@ const german: Record<keyof typeof english, string> = {
   "integrations.webhookSecretHint":
     "Beim Provider-Webhook dasselbe Geheimnis verwenden.",
   "integrations.cancel": "Abbrechen",
+  "integrations.back": "Zurück",
+  "integrations.continue": "Weiter",
   "integrations.saveConnection": "Verbindung speichern",
+  "integrations.validateAndSave": "Verbindung prüfen & speichern",
+  "integrations.tokenValidationHint":
+    "Der Token wird bei {provider} geprüft, bevor die Verbindung gespeichert wird.",
   "integrations.saving": "Wird gespeichert...",
+  "integrations.validating": "Wird geprüft...",
   "integrations.importQueued":
     "Import für {repository} eingereiht. Lauf {runId} wird im Hintergrund verarbeitet.",
   "integrations.repositoryLoadError":

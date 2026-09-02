@@ -160,13 +160,20 @@ func milestoneFromRaw(remote rawMilestone) integrations.Milestone {
 
 func (c *Client) ListMilestones(ctx context.Context, owner, repo string) ([]integrations.Milestone, error) {
 	var response []rawMilestone
-	path := "/projects/" + projectPath(owner, repo) + "/milestones?state=all&per_page=100"
-	if err := c.do(ctx, http.MethodGet, path, nil, "", &response); err != nil {
-		return nil, err
-	}
-	items := make([]integrations.Milestone, 0, len(response))
-	for _, remote := range response {
-		items = append(items, milestoneFromRaw(remote))
+	const pageSize = 100
+	items := make([]integrations.Milestone, 0, pageSize)
+	for page := 1; ; page++ {
+		response = nil
+		path := "/projects/" + projectPath(owner, repo) + "/milestones?state=all&per_page=" + strconv.Itoa(pageSize) + "&page=" + strconv.Itoa(page)
+		if err := c.do(ctx, http.MethodGet, path, nil, "", &response); err != nil {
+			return nil, err
+		}
+		for _, remote := range response {
+			items = append(items, milestoneFromRaw(remote))
+		}
+		if len(response) < pageSize {
+			break
+		}
 	}
 	return items, nil
 }
@@ -207,13 +214,20 @@ func issueFromRaw(remote rawIssue) integrations.Issue {
 
 func (c *Client) ListIssues(ctx context.Context, owner, repo string) ([]integrations.Issue, error) {
 	var response []rawIssue
-	path := "/projects/" + projectPath(owner, repo) + "/issues?scope=all&state=all&per_page=100&order_by=updated_at"
-	if err := c.do(ctx, http.MethodGet, path, nil, "", &response); err != nil {
-		return nil, err
-	}
-	items := make([]integrations.Issue, 0, len(response))
-	for _, remote := range response {
-		items = append(items, issueFromRaw(remote))
+	const pageSize = 100
+	items := make([]integrations.Issue, 0, pageSize)
+	for page := 1; ; page++ {
+		response = nil
+		path := "/projects/" + projectPath(owner, repo) + "/issues?scope=all&state=all&per_page=" + strconv.Itoa(pageSize) + "&page=" + strconv.Itoa(page) + "&order_by=updated_at"
+		if err := c.do(ctx, http.MethodGet, path, nil, "", &response); err != nil {
+			return nil, err
+		}
+		for _, remote := range response {
+			items = append(items, issueFromRaw(remote))
+		}
+		if len(response) < pageSize {
+			break
+		}
 	}
 	return items, nil
 }

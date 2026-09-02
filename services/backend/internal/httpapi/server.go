@@ -2627,6 +2627,19 @@ func (s *Server) createGitHubTokenConnection(c *gin.Context) {
 	}
 	remoteUser, err := gh.NewClient(strings.TrimSpace(input.AccessToken)).User(c.Request.Context())
 	if err != nil || remoteUser.ID == 0 {
+		slog.Default().Warn("github access token validation failed", "error", err)
+		if gh.IsRateLimited(err) {
+			message := "github api rate limit exceeded; try again later"
+			if reset, ok := gh.RateLimitReset(err); ok {
+				message = fmt.Sprintf("github api rate limit exceeded; try again after %s", reset.Format(time.RFC3339))
+			}
+			writeError(c, http.StatusTooManyRequests, errors.New(message))
+			return
+		}
+		if gh.IsInvalidCredentials(err) {
+			writeError(c, http.StatusBadRequest, errors.New("github rejected the access token; check that it was copied completely and has not expired or been revoked"))
+			return
+		}
 		writeError(c, http.StatusBadGateway, errors.New("could not validate github access token"))
 		return
 	}
@@ -2649,6 +2662,7 @@ func (s *Server) createGitLabConnection(c *gin.Context) {
 	}
 	remoteUser, err := client.User(c.Request.Context())
 	if err != nil || remoteUser.ID == 0 {
+		slog.Default().Warn("gitlab access token validation failed", "error", err)
 		writeError(c, http.StatusBadGateway, errors.New("could not validate gitlab access token"))
 		return
 	}
@@ -2726,6 +2740,18 @@ func (s *Server) githubOAuthCallback(c *gin.Context) {
 	}
 	remoteUser, err := gh.NewClient(token.AccessToken).User(c.Request.Context())
 	if err != nil {
+		if gh.IsRateLimited(err) {
+			message := "github api rate limit exceeded; try again later"
+			if reset, ok := gh.RateLimitReset(err); ok {
+				message = fmt.Sprintf("github api rate limit exceeded; try again after %s", reset.Format(time.RFC3339))
+			}
+			writeError(c, http.StatusTooManyRequests, errors.New(message))
+			return
+		}
+		if gh.IsInvalidCredentials(err) {
+			writeError(c, http.StatusBadRequest, errors.New("github rejected the access token; try connecting again"))
+			return
+		}
 		writeError(c, http.StatusBadGateway, errors.New("could not load github account"))
 		return
 	}

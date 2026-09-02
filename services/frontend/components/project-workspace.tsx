@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import {
+  RiArrowRightLine,
   RiArrowRightUpLine,
   RiCalendarLine,
   RiCheckboxMultipleLine,
@@ -11,6 +12,7 @@ import {
   RiErrorWarningLine,
   RiExternalLinkLine,
   RiFilter3Line,
+  RiGitRepositoryLine,
   RiGitlabLine,
   RiGithubLine as RiGitHubLine,
   RiInformationLine,
@@ -1625,17 +1627,27 @@ function IntegrationsView({
               </Button>
             </div>
           </FrameHeader>
-          <div className="space-y-5">
+          <div className="mt-4 space-y-3">
             {availableConnections.length === 0 ? (
-              <div className="border-t border-dashed pt-5 text-sm">
-                <p className="font-medium">
-                  {t("integrations.noConnection", {
-                    provider: "GitHub / GitLab",
-                  })}
+              <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-dashed bg-muted/20 px-6 py-10 text-center">
+                <span className="flex size-12 items-center justify-center rounded-2xl border bg-background text-primary shadow-xs">
+                  <RiLinkM className="size-5" aria-hidden="true" />
+                </span>
+                <p className="mt-4 text-sm font-semibold">
+                  {t("integrations.noConnectionsTitle")}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t("integrations.connectAppOrToken")}
+                <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
+                  {t("integrations.noConnectionsDescription")}
                 </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-5 gap-1.5"
+                  onClick={() => setConnectionDialogOpen(true)}
+                >
+                  <RiLinkM className="size-3.5" aria-hidden="true" />
+                  {t("integrations.addConnection")}
+                </Button>
               </div>
             ) : (
               availableConnections.map((connection) => {
@@ -1645,23 +1657,31 @@ function IntegrationsView({
                   ? t("integrations.github")
                   : t("integrations.gitlab")
                 return (
-                  <div
+                  <article
                     key={connection.id}
                     className={cn(
-                      "border-t pt-5",
+                      "rounded-2xl border bg-background p-5 transition-colors",
                       selectedConnectionId === connection.id &&
-                        "border-s-2 border-s-primary ps-3"
+                        "border-primary/40 bg-primary/5 ring-2 ring-primary/10"
                     )}
                   >
                     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                      <div className="flex items-start gap-3">
-                        <span className="flex size-10 items-center justify-center rounded-xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">
+                      <div className="flex min-w-0 items-start gap-3.5">
+                        <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-xs dark:bg-white dark:text-slate-950">
                           <ProviderIcon className="size-5" aria-hidden="true" />
                         </span>
-                        <div className="min-w-0">
-                          <p className="font-medium">
-                            {connection.name || providerName}
-                          </p>
+                        <div className="min-w-0 pt-0.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate font-medium">
+                              {connection.name || providerName}
+                            </p>
+                            <Badge
+                              variant="outline"
+                              className="h-5 px-1.5 text-[10px]"
+                            >
+                              {providerName}
+                            </Badge>
+                          </div>
                           <p className="mt-1 truncate text-xs text-muted-foreground">
                             {connection.externalAccountLogin
                               ? t("integrations.connectedAs", {
@@ -1674,7 +1694,7 @@ function IntegrationsView({
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 sm:pt-0.5">
                         <Badge variant="secondary" className="w-fit gap-1.5">
                           <span className="size-1.5 rounded-full bg-emerald-500" />
                           {t("status.active")}
@@ -1682,14 +1702,14 @@ function IntegrationsView({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-destructive hover:text-destructive"
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => void disconnect(connection)}
                         >
                           {t("integrations.disconnect")}
                         </Button>
                       </div>
                     </div>
-                    <div className="mt-4 grid gap-3 border-t pt-4 sm:grid-cols-3">
+                    <div className="mt-5 grid gap-3 rounded-xl border bg-muted/25 p-3.5 sm:grid-cols-3">
                       <ConnectionStat
                         label={t("integrations.authMethod")}
                         value={
@@ -1755,12 +1775,12 @@ function IntegrationsView({
                         </Button>
                       </div>
                     )}
-                  </div>
+                  </article>
                 )
               })
             )}
           </div>
-          <div className="mt-5 border-t pt-5">
+          <div className="mt-8 border-t pt-7">
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
               <div>
                 <p className="text-sm font-medium">
@@ -1818,7 +1838,7 @@ function IntegrationsView({
               retry={() => void loadRepositories()}
             />
           )}
-          <div className="mt-5 border-t pt-5">
+          <div className="mt-6 border-t pt-8">
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
               <div>
                 <p className="text-sm font-medium">
@@ -1845,18 +1865,18 @@ function IntegrationsView({
               </Button>
             </div>
             {!isApiConfigured ? (
-              <p className="mt-4 border-y border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
+              <div className="mt-5 rounded-xl border border-dashed bg-muted/20 px-4 py-6 text-center text-xs text-muted-foreground">
                 {t("integrations.backendRequired")}
-              </p>
+              </div>
             ) : repositories.length === 0 ? (
-              <p className="mt-4 border-y border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
+              <div className="mt-5 rounded-xl border border-dashed bg-muted/20 px-4 py-6 text-center text-xs text-muted-foreground">
                 {loadingRepositories
                   ? t("integrations.loadingRepositories")
                   : t("integrations.connectThenRefresh")}
-              </p>
+              </div>
             ) : (
               <ul
-                className="mt-4 max-h-72 divide-y overflow-y-auto border-y"
+                className="mt-5 grid max-h-80 gap-2.5 overflow-y-auto pr-1"
                 aria-label={t("integrations.repositories")}
               >
                 {repositories.map((repository) => {
@@ -1865,22 +1885,44 @@ function IntegrationsView({
                   return (
                     <li
                       key={repository.id}
-                      className="flex flex-col justify-between gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center"
+                      className="group flex flex-col justify-between gap-4 rounded-xl border bg-background/70 p-4 transition-colors hover:border-primary/30 hover:bg-muted/20 sm:flex-row sm:items-center"
                     >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">
-                          {repository.fullName}
-                        </p>
-                        <p className="mt-0.5 text-[11px] text-muted-foreground">
-                          {repository.private
-                            ? t("integrations.privateRepository")
-                            : t("integrations.publicRepository")}
-                          {isAttached ? ` · ${t("integrations.attached")}` : ""}
-                        </p>
+                      <div className="flex min-w-0 items-start gap-3">
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground transition-colors group-hover:border-primary/25 group-hover:text-primary">
+                          <RiGitRepositoryLine
+                            className="size-4"
+                            aria-hidden="true"
+                          />
+                        </span>
+                        <div className="min-w-0 pt-0.5">
+                          <p className="truncate text-sm font-medium">
+                            {repository.fullName}
+                          </p>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                            <Badge
+                              variant={
+                                repository.private ? "secondary" : "outline"
+                              }
+                              className="h-5 px-1.5 text-[10px]"
+                            >
+                              {repository.private
+                                ? t("integrations.privateRepository")
+                                : t("integrations.publicRepository")}
+                            </Badge>
+                            {isAttached && (
+                              <Badge
+                                variant="outline"
+                                className="h-5 border-primary/25 bg-primary/5 px-1.5 text-[10px] text-primary"
+                              >
+                                {t("integrations.attached")}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
                       </div>
                       <Button
                         size="sm"
-                        variant={isAttached ? "outline" : "default"}
+                        variant="outline"
                         className="w-full shrink-0 gap-1.5 sm:w-auto"
                         onClick={() => void attachAndImport(repository)}
                         disabled={Boolean(importingRepositoryId)}
@@ -1894,6 +1936,10 @@ function IntegrationsView({
                         {isAttached
                           ? t("integrations.runImport")
                           : t("integrations.attachImport")}
+                        <RiArrowRightLine
+                          className="size-3.5"
+                          aria-hidden="true"
+                        />
                       </Button>
                     </li>
                   )
