@@ -216,6 +216,7 @@ export function ProjectWorkspace({
     {}
   )
   const [notice, setNotice] = useState<string>()
+  const [refreshingTasks, setRefreshingTasks] = useState(false)
 
   const loadWorkspace = useCallback(
     async (projectId: string) => {
@@ -373,6 +374,61 @@ export function ProjectWorkspace({
     }
   }
 
+  const refreshTasks = useCallback(
+    async (projectId: string, quiet = false) => {
+      if (!isApiConfigured || !projectId) return
+      if (!quiet) setRefreshingTasks(true)
+      try {
+        const result = await listTasks(projectId)
+        setData((current) =>
+          current.project.id === projectId
+            ? { ...current, tasks: result.items ?? [] }
+            : current
+        )
+        setResourceErrors((current) => {
+          if (!current.tasks) return current
+          const next = { ...current }
+          delete next.tasks
+          return next
+        })
+      } catch {
+        setResourceErrors((current) => ({
+          ...current,
+          tasks: t("workspace.resourceLoadError"),
+        }))
+      } finally {
+        if (!quiet) setRefreshingTasks(false)
+      }
+    },
+    [t]
+  )
+
+  const refreshMilestones = useCallback(
+    async (projectId: string) => {
+      if (!isApiConfigured || !projectId) return
+      try {
+        const result = await listMilestones(projectId)
+        setData((current) =>
+          current.project.id === projectId
+            ? { ...current, milestones: result.items ?? [] }
+            : current
+        )
+        setResourceErrors((current) => {
+          if (!current.milestones) return current
+          const next = { ...current }
+          delete next.milestones
+          return next
+        })
+      } catch {
+        setResourceErrors((current) => ({
+          ...current,
+          milestones: t("workspace.resourceLoadError"),
+        }))
+      }
+    },
+    [t]
+  )
+
   const onViewChange = (view: WorkspaceView) => {
     router.push(`/app/projects/${data.project.key.toLowerCase()}/${view}`)
   }
@@ -409,10 +465,11 @@ export function ProjectWorkspace({
   }
 
   const handleCreateTask = async (input: NewTaskInput) => {
+    const projectId = data.project.id
     const status =
       data.statuses.find((item) => item.id === input.statusId) ??
       data.statuses[0]
-    const created = await createTask(data.project.id, input)
+    const created = await createTask(projectId, input)
     setData((current) => ({
       ...current,
       tasks: [
@@ -425,6 +482,9 @@ export function ProjectWorkspace({
       ],
     }))
     setNotice(t("dialog.createTask"))
+    // Keep the immediate optimistic result responsive, then reconcile it with
+    // the server so derived fields and other views receive authoritative data.
+    void refreshTasks(projectId, true)
   }
 
   const handleCreateProject = async (input: NewProjectInput) => {
@@ -444,7 +504,8 @@ export function ProjectWorkspace({
   }
 
   const handleCreateMilestone = async (input: NewMilestoneInput) => {
-    const created = await createMilestone(data.project.id, {
+    const projectId = data.project.id
+    const created = await createMilestone(projectId, {
       name: input.name,
       description: input.description,
       startDate: input.startDate || undefined,
@@ -456,9 +517,11 @@ export function ProjectWorkspace({
       milestones: [...current.milestones, created],
     }))
     setNotice(t("dialog.createMilestone"))
+    void refreshMilestones(projectId)
   }
 
   const handleTaskStatusChange = async (taskId: string, statusId: string) => {
+    const projectId = data.project.id
     const previous = data.tasks
     const nextStatus = data.statuses.find((status) => status.id === statusId)
     if (!nextStatus) return
@@ -478,7 +541,7 @@ export function ProjectWorkspace({
     const task = previous.find((item) => item.id === taskId)
     if (!task) return
     try {
-      const updated = await updateTask(data.project.id, taskId, {
+      const updated = await updateTask(projectId, taskId, {
         statusId,
         version: task.version,
       })
@@ -488,6 +551,7 @@ export function ProjectWorkspace({
           item.id === taskId ? { ...item, ...updated } : item
         ),
       }))
+      void refreshTasks(projectId, true)
     } catch {
       setData((current) => ({ ...current, tasks: previous }))
       setError(t("workspace.saveStatusError"))
@@ -636,6 +700,8 @@ export function ProjectWorkspace({
                   onDateFilterChange={setDateFilter}
                   taskMode={taskMode}
                   onTaskModeChange={setTaskMode}
+                  refreshing={refreshingTasks}
+                  onRefresh={() => void refreshTasks(data.project.id)}
                 />
                 {taskMode === "board" ? (
                   <KanbanBoardView
@@ -806,6 +872,7 @@ function OverviewView({
               <KanbanBoardView
                 tasks={data.tasks.slice(0, 6)}
                 statuses={data.statuses}
+                compact
                 onTaskStatusChange={() => undefined}
                 onSelectTask={onSelectTask}
               />
@@ -901,6 +968,8 @@ function TaskToolbar({
   onDateFilterChange,
   taskMode,
   onTaskModeChange,
+  refreshing,
+  onRefresh,
 }: {
   query: string
   onQueryChange: (value: string) => void
@@ -910,6 +979,8 @@ function TaskToolbar({
   onDateFilterChange: (value: DateSelectorValue | undefined) => void
   taskMode: "board" | "list"
   onTaskModeChange: (value: "board" | "list") => void
+  refreshing: boolean
+  onRefresh: () => void
 }) {
   const { locale, t } = useI18n()
   const dateFormat = locale === "de" ? "dd.MM.yyyy" : "MMM d, yyyy"
@@ -1086,6 +1157,22 @@ function TaskToolbar({
               />
             </PopoverContent>
           </Popover>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={onRefresh}
+            disabled={refreshing}
+            aria-label={t("tasks.refresh")}
+          >
+            <RiRefreshLine
+              className={cn("size-3.5", refreshing && "animate-spin")}
+              aria-hidden="true"
+            />
+            <span className="hidden sm:inline">
+              {refreshing ? t("tasks.refreshing") : t("tasks.refresh")}
+            </span>
+          </Button>
           <Tabs
             value={taskMode}
             onValueChange={(value) =>

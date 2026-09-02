@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { RiDraggable, RiMore2Line, RiTimeLine } from "@remixicon/react"
+import { useEffect, useMemo, useState } from "react"
+import { RiDraggable, RiTimeLine } from "@remixicon/react"
 
 import { useI18n } from "@/components/language-provider"
 
@@ -10,13 +10,11 @@ import {
   KanbanBoard,
   KanbanColumn,
   KanbanColumnContent,
-  KanbanColumnHandle,
   KanbanItem,
   KanbanItemHandle,
   KanbanOverlay,
 } from "@/components/reui/kanban"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import type { ProjectStatus, Task } from "@/lib/types"
@@ -27,14 +25,16 @@ export function KanbanBoardView({
   statuses,
   onTaskStatusChange,
   onSelectTask,
+  compact = false,
 }: {
   tasks: Task[]
   statuses: ProjectStatus[]
   onTaskStatusChange: (taskId: string, statusId: string) => void
   onSelectTask?: (task: Task) => void
+  compact?: boolean
 }) {
   const { t } = useI18n()
-  const initialColumns = useMemo(() => {
+  const columnsFromTasks = useMemo(() => {
     const columns: Record<string, Task[]> = Object.fromEntries(
       statuses.map((status) => [status.id, []])
     )
@@ -44,7 +44,15 @@ export function KanbanBoardView({
     }
     return columns
   }, [statuses, tasks])
-  const [columns, setColumns] = useState<Record<string, Task[]>>(initialColumns)
+  const [columns, setColumns] =
+    useState<Record<string, Task[]>>(columnsFromTasks)
+
+  useEffect(() => {
+    // Kanban keeps a local order while dragging, but parent mutations such as
+    // task creation and server refreshes must still appear without a reload.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setColumns(columnsFromTasks)
+  }, [columnsFromTasks])
 
   const activeTask = (id: string) =>
     tasks.find((task) => task.id === id) ??
@@ -96,7 +104,14 @@ export function KanbanBoardView({
         },
       }}
     >
-      <KanbanBoard className="grid auto-rows-fr gap-3 overflow-x-auto pb-2 sm:grid-cols-2 xl:grid-cols-5">
+      <KanbanBoard
+        className={cn(
+          "gap-3 overflow-x-auto pb-2",
+          compact
+            ? "auto-cols-[minmax(220px,1fr)] grid-flow-col grid-rows-1 sm:grid-cols-none"
+            : "auto-rows-fr sm:grid-cols-2 xl:grid-cols-5"
+        )}
+      >
         {statuses.map((status) => {
           const items = columns[status.id] ?? []
           return (
@@ -104,7 +119,10 @@ export function KanbanBoardView({
               key={status.id}
               value={status.id}
               disabled
-              className="min-w-[250px] rounded-2xl bg-muted/45 p-2.5"
+              className={cn(
+                "rounded-2xl bg-muted/45 p-2.5 opacity-100!",
+                compact ? "min-w-[220px]" : "min-w-[250px]"
+              )}
             >
               <div className="flex items-center gap-2 px-1 pb-2">
                 <span
@@ -119,15 +137,6 @@ export function KanbanBoardView({
                 >
                   {items.length}
                 </Badge>
-                <KanbanColumnHandle
-                  className="ms-auto opacity-100!"
-                  cursor={false}
-                >
-                  <RiDraggable
-                    className="size-3.5 text-muted-foreground/50"
-                    aria-hidden="true"
-                  />
-                </KanbanColumnHandle>
               </div>
               <KanbanColumnContent value={status.id} className="min-h-32">
                 {items.map((task) => (
@@ -135,6 +144,7 @@ export function KanbanBoardView({
                     key={task.id}
                     task={task}
                     onSelect={onSelectTask}
+                    compact={compact}
                   />
                 ))}
                 {items.length === 0 && (
@@ -150,7 +160,9 @@ export function KanbanBoardView({
       <KanbanOverlay>
         {({ value }) => {
           const task = activeTask(String(value))
-          return task ? <KanbanTaskCard task={task} overlay /> : null
+          return task ? (
+            <KanbanTaskCard task={task} overlay compact={compact} />
+          ) : null
         }}
       </KanbanOverlay>
     </Kanban>
@@ -161,17 +173,22 @@ function KanbanTaskCard({
   task,
   overlay = false,
   onSelect,
+  compact = false,
 }: {
   task: Task
   overlay?: boolean
   onSelect?: (task: Task) => void
+  compact?: boolean
 }) {
   const { locale, t } = useI18n()
   return (
-    <KanbanItem value={task.id} className={cn("group", overlay && "w-[250px]")}>
+    <KanbanItem
+      value={task.id}
+      className={cn("group", overlay && (compact ? "w-[220px]" : "w-[250px]"))}
+    >
       <Card
         className={cn(
-          "gap-3 rounded-xl border bg-card p-3 shadow-none transition hover:border-primary/30 hover:shadow-sm",
+          "gap-3 rounded-xl border bg-background p-3 shadow-sm ring-1 ring-border/40 transition hover:border-primary/40 hover:shadow-md",
           overlay && "rotate-2 shadow-xl"
         )}
       >
@@ -187,16 +204,8 @@ function KanbanTaskCard({
             className="min-w-0 flex-1 text-start text-sm leading-snug font-medium hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             onClick={() => onSelect?.(task)}
           >
-            {task.title}
+            <span className="line-clamp-2">{task.title}</span>
           </button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="-me-1 -mt-1 shrink-0 opacity-0 transition group-hover:opacity-100"
-            aria-label={t("kanban.moreActions", { title: task.title })}
-          >
-            <RiMore2Line className="size-4" aria-hidden="true" />
-          </Button>
         </div>
         {task.description && (
           <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
