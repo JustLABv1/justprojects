@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { LanguageProvider } from "@/components/language-provider"
+import { ToastProvider } from "@/components/toast-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
@@ -26,7 +27,9 @@ export default function RootLayout({
       <body>
         <ThemeProvider>
           <LanguageProvider>
-            <TooltipProvider>{children}</TooltipProvider>
+            <ToastProvider>
+              <TooltipProvider>{children}</TooltipProvider>
+            </ToastProvider>
           </LanguageProvider>
         </ThemeProvider>
       </body>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { RiDraggable, RiTimeLine } from "@remixicon/react"
+import { RiDraggable, RiEditLine, RiTimeLine } from "@remixicon/react"
 
 import { useI18n } from "@/components/language-provider"
 
@@ -15,6 +15,7 @@ import {
   KanbanOverlay,
 } from "@/components/reui/kanban"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import type { ProjectStatus, Task } from "@/lib/types"
@@ -25,12 +26,14 @@ export function KanbanBoardView({
   statuses,
   onTaskStatusChange,
   onSelectTask,
+  onEditTask,
   compact = false,
 }: {
   tasks: Task[]
   statuses: ProjectStatus[]
   onTaskStatusChange: (taskId: string, statusId: string) => void
   onSelectTask?: (task: Task) => void
+  onEditTask?: (task: Task) => void
   compact?: boolean
 }) {
   const { t } = useI18n()
@@ -144,6 +147,7 @@ export function KanbanBoardView({
                     key={task.id}
                     task={task}
                     onSelect={onSelectTask}
+                    onEdit={onEditTask}
                     compact={compact}
                   />
                 ))}
@@ -173,11 +177,13 @@ function KanbanTaskCard({
   task,
   overlay = false,
   onSelect,
+  onEdit,
   compact = false,
 }: {
   task: Task
   overlay?: boolean
   onSelect?: (task: Task) => void
+  onEdit?: (task: Task) => void
   compact?: boolean
 }) {
   const { locale, t } = useI18n()
@@ -206,6 +212,19 @@ function KanbanTaskCard({
           >
             <span className="line-clamp-2">{task.title}</span>
           </button>
+          {onEdit && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-7 shrink-0 text-muted-foreground hover:text-foreground"
+              aria-label={t("tasks.edit", { title: task.title })}
+              title={t("tasks.edit", { title: task.title })}
+              onClick={() => onEdit(task)}
+            >
+              <RiEditLine className="size-4" aria-hidden="true" />
+            </Button>
+          )}
         </div>
         {task.description && (
           <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
@@ -236,7 +255,15 @@ function KanbanTaskCard({
               ? formatShortDate(task.dueDate, locale)
               : t("kanban.noDueDate")}
           </span>
-          <UserAvatar name={task.assigneeName} size="sm" />
+          <span
+            className="flex min-w-0 items-center gap-1.5"
+            title={task.assigneeName || t("details.unassigned")}
+          >
+            <UserAvatar name={task.assigneeName} size="sm" />
+            <span className="max-w-24 truncate">
+              {task.assigneeName || t("details.unassigned")}
+            </span>
+          </span>
         </div>
       </Card>
     </KanbanItem>

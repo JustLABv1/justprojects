@@ -7,7 +7,6 @@ import {
   RiCalendarLine,
   RiCheckLine,
   RiFlagLine,
-  RiGithubLine,
   RiLockLine,
   RiShareBoxLine,
 } from "@remixicon/react"
@@ -87,11 +86,11 @@ export function PublicProjectPage({
             JustProjects
           </Link>
           <div className="flex items-center gap-2">
-            <LanguageSwitcher />
             <Badge variant="outline" className="gap-1.5 bg-background/60">
               <RiLockLine className="size-3" aria-hidden="true" />
               {t("public.readOnlyView")}
             </Badge>
+            <LanguageSwitcher />
           </div>
         </header>
         {loading ? (
@@ -127,22 +126,15 @@ export function PublicProjectPage({
                 {payload.project.description ??
                   t("public.transparentDescription")}
               </p>
-              <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                <span className="inline-flex items-center gap-1.5">
-                  <RiCalendarLine className="size-4" aria-hidden="true" />
-                  {t("public.target")}{" "}
-                  {payload.project.targetDate
-                    ? formatDate(payload.project.targetDate, locale)
-                    : t("public.dateToConfirm")}
-                </span>
-                <span aria-hidden="true">·</span>
-                <span className="inline-flex items-center gap-1.5">
-                  <RiGithubLine className="size-4" aria-hidden="true" />
-                  {t("public.providerDelivery", {
-                    provider: "GitHub / GitLab",
-                  })}
-                </span>
-              </div>
+              {payload.project.targetDate && (
+                <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <RiCalendarLine className="size-4" aria-hidden="true" />
+                    {t("public.target")}{" "}
+                    {formatDate(payload.project.targetDate, locale)}
+                  </span>
+                </div>
+              )}
             </section>
             <section className="mt-10 grid gap-4 sm:grid-cols-[1.3fr_0.7fr]">
               <Card className="gap-5 rounded-3xl border-0 bg-slate-950 p-6 text-white shadow-xl shadow-slate-950/10 sm:p-8 dark:bg-slate-900">
@@ -197,13 +189,19 @@ export function PublicProjectPage({
                       })
                     : t("public.dateSoon")}
                 </p>
-                <div className="mt-auto flex items-center gap-2 text-xs font-medium text-primary">
+                <a
+                  href="#delivery-plan"
+                  className="mt-auto flex items-center gap-2 text-xs font-medium text-primary underline-offset-4 transition-colors hover:text-primary/80 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
                   {t("public.seeDeliveryPlan")}{" "}
                   <RiArrowRightLine className="size-3.5" aria-hidden="true" />
-                </div>
+                </a>
               </Card>
             </section>
-            <div className="mt-10 grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
+            <div
+              id="delivery-plan"
+              className="mt-10 grid scroll-mt-8 gap-8 lg:grid-cols-[1.15fr_0.85fr]"
+            >
               <section>
                 <div className="mb-4 flex items-end justify-between gap-4">
                   <div>

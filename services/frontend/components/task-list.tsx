@@ -5,6 +5,7 @@ import {
   RiArrowDownSLine,
   RiArrowRightSLine,
   RiCheckboxCircleLine,
+  RiEditLine,
   RiIndentIncrease,
 } from "@remixicon/react"
 
@@ -19,10 +20,12 @@ export function TaskList({
   tasks,
   statuses,
   onSelectTask,
+  onEditTask,
 }: {
   tasks: Task[]
   statuses: ProjectStatus[]
   onSelectTask?: (task: Task) => void
+  onEditTask?: (task: Task) => void
 }) {
   const { locale, t } = useI18n()
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
@@ -97,6 +100,9 @@ export function TaskList({
               </th>
               <th scope="col" className="px-3 py-3">
                 <span className="sr-only">{t("tasks.visibility")}</span>
+              </th>
+              <th scope="col" className="w-12 px-3 py-3">
+                <span className="sr-only">{t("tasks.edit")}</span>
               </th>
             </tr>
           </thead>
@@ -184,13 +190,33 @@ export function TaskList({
                     {task.dueDate ? formatDate(task.dueDate, locale) : "—"}
                   </td>
                   <td className="px-3 py-3">
-                    <UserAvatar name={task.assigneeName} size="sm" />
+                    <span
+                      className="flex items-center gap-1.5"
+                      title={task.assigneeName || t("details.unassigned")}
+                    >
+                      <UserAvatar name={task.assigneeName} size="sm" />
+                      <span className="max-w-28 truncate text-xs text-muted-foreground">
+                        {task.assigneeName || t("details.unassigned")}
+                      </span>
+                    </span>
                   </td>
                   <td className="px-3 py-3 text-right">
                     {task.visibility === "customer" && (
                       <Badge variant="secondary" className="h-5 text-[10px]">
                         {t("tasks.customer")}
                       </Badge>
+                    )}
+                  </td>
+                  <td className="px-3 py-3 text-right">
+                    {onEditTask && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t("tasks.edit", { title: task.title })}
+                        onClick={() => onEditTask(task)}
+                      >
+                        <RiEditLine className="size-4" aria-hidden="true" />
+                      </Button>
                     )}
                   </td>
                 </tr>

@@ -7,6 +7,7 @@ import {
   RiCalendarLine,
   RiCheckboxMultipleLine,
   RiDraggable,
+  RiEditLine,
   RiErrorWarningLine,
   RiExternalLinkLine,
   RiFilter3Line,
@@ -46,6 +47,7 @@ import { AppShell } from "@/components/app-shell"
 import { FeedbackNotice } from "@/components/feedback-notice"
 import { GitConnectionDialog } from "@/components/git-connection-dialog"
 import { KanbanBoardView } from "@/components/kanban-board"
+import { useToast } from "@/components/toast-provider"
 import {
   Kanban,
   KanbanBoard,
@@ -58,6 +60,7 @@ import {
 import {
   MilestoneDialog,
   type NewMilestoneInput,
+  type UpdateMilestoneInput,
 } from "@/components/milestone-dialog"
 import {
   ProjectDialog,
@@ -66,7 +69,11 @@ import {
 import { RoadmapView } from "@/components/roadmap-view"
 import { StatusPill } from "@/components/status-pill"
 import { SyncActivity } from "@/components/sync-activity"
-import { TaskDialog, type NewTaskInput } from "@/components/task-dialog"
+import {
+  TaskDialog,
+  type NewTaskInput,
+  type UpdateTaskInput,
+} from "@/components/task-dialog"
 import { TaskList } from "@/components/task-list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -108,6 +115,7 @@ import {
   getProject,
   getSession,
   importGitProject,
+  issuePublicPageAccessLink,
   isApiConfigured,
   listGitConnections,
   listInvitations,
@@ -126,11 +134,13 @@ import {
   updateProject,
   updateProjectStatus,
   updateTenantMemberRole,
+  updateMilestone,
   updateTask,
 } from "@/lib/api"
 import type {
   GitConnection,
   GitRepository,
+  Milestone,
   Project,
   ProjectRepository,
   ProjectStatus,
@@ -204,6 +214,10 @@ export function ProjectWorkspace({
   const [projectDialogOpen, setProjectDialogOpen] = useState(false)
   const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
+  const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(
+    null
+  )
   const [query, setQuery] = useState("")
   const [taskFilters, setTaskFilters] = useState<{
     statusId?: string
@@ -215,8 +229,8 @@ export function ProjectWorkspace({
   const [resourceErrors, setResourceErrors] = useState<Record<string, string>>(
     {}
   )
-  const [notice, setNotice] = useState<string>()
   const [refreshingTasks, setRefreshingTasks] = useState(false)
+  const { showToast } = useToast()
 
   const loadWorkspace = useCallback(
     async (projectId: string) => {
@@ -374,6 +388,15 @@ export function ProjectWorkspace({
     }
   }
 
+  const openTaskEditor = (task: Task) => {
+    setSelectedTask(null)
+    setEditingTask(task)
+  }
+
+  const openMilestoneEditor = (milestone: Milestone) => {
+    setEditingMilestone(milestone)
+  }
+
   const refreshTasks = useCallback(
     async (projectId: string, quiet = false) => {
       if (!isApiConfigured || !projectId) return
@@ -453,7 +476,10 @@ export function ProjectWorkspace({
         version: previous.version,
       })
       setData((current) => ({ ...current, project: updated }))
-      setNotice(t("integrations.connectionSaved"))
+      showToast({
+        kind: "success",
+        message: t("integrations.connectionSaved"),
+      })
     } catch {
       setData((current) => ({ ...current, project: previous }))
       setError(t("integrations.connectionError"))
@@ -481,10 +507,71 @@ export function ProjectWorkspace({
         },
       ],
     }))
-    setNotice(t("dialog.createTask"))
+    showToast({ kind: "success", message: t("workspace.taskCreated") })
     // Keep the immediate optimistic result responsive, then reconcile it with
     // the server so derived fields and other views receive authoritative data.
     void refreshTasks(projectId, true)
+  }
+
+  const handleUpdateTask = async (input: UpdateTaskInput) => {
+    const task = editingTask
+      ? (data.tasks.find((item) => item.id === editingTask.id) ?? editingTask)
+      : undefined
+    if (!task) return
+    const projectId = data.project.id
+    const previous = data.tasks
+    const nextStatus = data.statuses.find(
+      (status) => status.id === input.statusId
+    )
+    const optimistic: Task = {
+      ...task,
+      title: input.title,
+      description: input.description,
+      statusId: input.statusId,
+      statusName: nextStatus?.name ?? task.statusName,
+      statusCategory: nextStatus?.category ?? task.statusCategory,
+      milestoneId: input.milestoneId ?? null,
+      priority: input.priority,
+      startDate: input.startDate || null,
+      dueDate: input.dueDate || null,
+      estimateMinutes: input.estimateMinutes ?? null,
+      visibility: input.visibility,
+    }
+    setData((current) => ({
+      ...current,
+      tasks: current.tasks.map((item) =>
+        item.id === task.id ? optimistic : item
+      ),
+    }))
+    try {
+      const updated = await updateTask(projectId, task.id, {
+        title: input.title,
+        description: input.description,
+        statusId: input.statusId,
+        milestoneId: input.milestoneId ?? "",
+        priority: input.priority,
+        startDate: input.startDate,
+        dueDate: input.dueDate,
+        estimateMinutes: input.estimateMinutes ?? 0,
+        visibility: input.visibility,
+        version: input.version,
+      })
+      setData((current) => ({
+        ...current,
+        tasks: current.tasks.map((item) =>
+          item.id === updated.id ? updated : item
+        ),
+      }))
+      setSelectedTask((current) =>
+        current?.id === updated.id ? updated : current
+      )
+      showToast({ kind: "success", message: t("workspace.taskUpdated") })
+      void refreshTasks(projectId, true)
+    } catch (caught) {
+      setData((current) => ({ ...current, tasks: previous }))
+      setError(t("workspace.saveTaskError"))
+      throw caught
+    }
   }
 
   const handleCreateProject = async (input: NewProjectInput) => {
@@ -499,7 +586,10 @@ export function ProjectWorkspace({
       ...current,
       projects: [created, ...current.projects],
     }))
-    setNotice(`${created.name} · ${t("workspace.loading")}`)
+    showToast({
+      kind: "success",
+      message: `${created.name} · ${t("workspace.projectCreated")}`,
+    })
     router.push(`/app/projects/${created.key.toLowerCase()}/overview`)
   }
 
@@ -510,14 +600,69 @@ export function ProjectWorkspace({
       description: input.description,
       startDate: input.startDate || undefined,
       dueDate: input.dueDate || undefined,
+      status: input.status,
       visibility: input.visibility,
     })
     setData((current) => ({
       ...current,
       milestones: [...current.milestones, created],
     }))
-    setNotice(t("dialog.createMilestone"))
+    showToast({
+      kind: "success",
+      message: t("workspace.milestoneCreated"),
+    })
     void refreshMilestones(projectId)
+  }
+
+  const handleUpdateMilestone = async (input: UpdateMilestoneInput) => {
+    const milestone = editingMilestone
+      ? (data.milestones.find((item) => item.id === editingMilestone.id) ??
+        editingMilestone)
+      : undefined
+    if (!milestone) return
+    const projectId = data.project.id
+    const previous = data.milestones
+    const optimistic: Milestone = {
+      ...milestone,
+      name: input.name,
+      description: input.description,
+      startDate: input.startDate || null,
+      dueDate: input.dueDate || null,
+      status: input.status,
+      visibility: input.visibility,
+    }
+    setData((current) => ({
+      ...current,
+      milestones: current.milestones.map((item) =>
+        item.id === milestone.id ? optimistic : item
+      ),
+    }))
+    try {
+      const updated = await updateMilestone(projectId, milestone.id, {
+        name: input.name,
+        description: input.description,
+        startDate: input.startDate,
+        dueDate: input.dueDate,
+        status: input.status,
+        visibility: input.visibility,
+        version: input.version,
+      })
+      setData((current) => ({
+        ...current,
+        milestones: current.milestones.map((item) =>
+          item.id === updated.id ? updated : item
+        ),
+      }))
+      showToast({
+        kind: "success",
+        message: t("workspace.milestoneUpdated"),
+      })
+      void refreshMilestones(projectId)
+    } catch (caught) {
+      setData((current) => ({ ...current, milestones: previous }))
+      setError(t("workspace.saveMilestoneError"))
+      throw caught
+    }
   }
 
   const handleTaskStatusChange = async (taskId: string, statusId: string) => {
@@ -653,6 +798,16 @@ export function ProjectWorkspace({
               statuses={data.statuses}
               milestones={data.milestones}
               onCreate={handleCreateTask}
+              trigger={false}
+            />
+            <TaskDialog
+              open={Boolean(editingTask)}
+              onOpenChange={(open) => !open && setEditingTask(null)}
+              statuses={data.statuses}
+              milestones={data.milestones}
+              task={editingTask ?? undefined}
+              onUpdate={handleUpdateTask}
+              trigger={false}
             />
           </div>
         </div>
@@ -664,7 +819,6 @@ export function ProjectWorkspace({
             retry={() => void loadWorkspace(data.project.id)}
           />
         )}
-        {notice && <FeedbackNotice kind="success" message={notice} />}
         {Object.entries(resourceErrors).map(([resource, message]) => (
           <FeedbackNotice
             key={resource}
@@ -687,6 +841,7 @@ export function ProjectWorkspace({
                 progress={progress}
                 onOpenTasks={() => onViewChange("tasks")}
                 onSelectTask={setSelectedTask}
+                onEditTask={openTaskEditor}
               />
             )}
             {activeView === "tasks" && (
@@ -711,12 +866,14 @@ export function ProjectWorkspace({
                       void handleTaskStatusChange(taskId, statusId)
                     }
                     onSelectTask={setSelectedTask}
+                    onEditTask={openTaskEditor}
                   />
                 ) : (
                   <TaskList
                     tasks={filteredTasks}
                     statuses={data.statuses}
                     onSelectTask={setSelectedTask}
+                    onEditTask={openTaskEditor}
                   />
                 )}
               </div>
@@ -727,6 +884,7 @@ export function ProjectWorkspace({
                 tasks={data.tasks}
                 milestones={data.milestones}
                 onCreateMilestone={() => setMilestoneDialogOpen(true)}
+                onEditMilestone={openMilestoneEditor}
               />
             )}
             {activeView === "integrations" && (
@@ -761,6 +919,7 @@ export function ProjectWorkspace({
         onTaskStatusChange={(taskId, statusId) =>
           void handleTaskStatusChange(taskId, statusId)
         }
+        onEditTask={openTaskEditor}
       />
       <ProjectDialog
         open={projectDialogOpen}
@@ -772,6 +931,12 @@ export function ProjectWorkspace({
         onOpenChange={setMilestoneDialogOpen}
         onCreate={handleCreateMilestone}
       />
+      <MilestoneDialog
+        open={Boolean(editingMilestone)}
+        onOpenChange={(open) => !open && setEditingMilestone(null)}
+        milestone={editingMilestone ?? undefined}
+        onUpdate={handleUpdateMilestone}
+      />
     </AppShell>
   )
 }
@@ -781,11 +946,13 @@ function OverviewView({
   progress,
   onOpenTasks,
   onSelectTask,
+  onEditTask,
 }: {
   data: WorkspaceData
   progress: number
   onOpenTasks: () => void
   onSelectTask: (task: Task) => void
+  onEditTask: (task: Task) => void
 }) {
   const { locale, t } = useI18n()
   const activeTasks = data.tasks.filter(
@@ -875,6 +1042,7 @@ function OverviewView({
                 compact
                 onTaskStatusChange={() => undefined}
                 onSelectTask={onSelectTask}
+                onEditTask={onEditTask}
               />
             </div>
           </FramePanel>
@@ -1239,9 +1407,9 @@ function IntegrationsView({
   const [selectedConnectionId, setSelectedConnectionId] = useState(
     project.connectionId ?? ""
   )
-  const [message, setMessage] = useState<string>()
   const [error, setError] = useState<string>()
   const { t } = useI18n()
+  const { showToast } = useToast()
 
   useEffect(() => {
     // Keep the provider list and project selection in sync after a workspace refresh.
@@ -1279,7 +1447,6 @@ function IntegrationsView({
 
   const connectGitHub = async () => {
     setConnecting(true)
-    setMessage(undefined)
     setError(undefined)
     try {
       if (!isApiConfigured) {
@@ -1297,7 +1464,6 @@ function IntegrationsView({
 
   const installGitHubApp = async () => {
     setInstalling(true)
-    setMessage(undefined)
     setError(undefined)
     try {
       if (!isApiConfigured) {
@@ -1315,7 +1481,6 @@ function IntegrationsView({
 
   const attachAndImport = async (repository: GitRepository) => {
     setImportingRepositoryId(repository.id)
-    setMessage(undefined)
     setError(undefined)
     try {
       const isAttached = attachedRepositories.some(
@@ -1329,12 +1494,13 @@ function IntegrationsView({
         ])
       }
       const run = await importGitProject(project.id, repository.id)
-      setMessage(
-        t("integrations.importQueued", {
+      showToast({
+        kind: "success",
+        message: t("integrations.importQueued", {
           repository: repository.fullName,
           runId: run.runId.slice(0, 8),
-        })
-      )
+        }),
+      })
     } catch {
       setError(t("integrations.repositoryLoadError"))
     } finally {
@@ -1360,12 +1526,16 @@ function IntegrationsView({
       void selectConnection(connection.id)
     }
     setError(undefined)
-    setMessage(t("integrations.connectionSaved"))
+    if (project.connectionId) {
+      showToast({
+        kind: "success",
+        message: t("integrations.connectionSaved"),
+      })
+    }
   }
 
   const disconnect = async (connection: GitConnection) => {
     if (!isApiConfigured) return
-    setMessage(undefined)
     setError(undefined)
     try {
       await deleteGitConnection(connection.id)
@@ -1378,7 +1548,7 @@ function IntegrationsView({
         setSelectedConnectionId("")
         await onProjectConnectionChange(null)
       }
-      setMessage(t("integrations.disconnect"))
+      showToast({ kind: "success", message: t("integrations.disconnect") })
     } catch {
       setError(t("integrations.connectionError"))
     }
@@ -1606,7 +1776,6 @@ function IntegrationsView({
               retry={() => void loadRepositories()}
             />
           )}
-          {message && <FeedbackNotice kind="success" message={message} />}
           <div className="mt-5 border-t pt-5">
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
               <div>
@@ -1781,11 +1950,12 @@ function ProjectSettings({
   )
   const [slug, setSlug] = useState(() => defaultPublicPageSlug(project.key))
   const [publicUrl, setPublicUrl] = useState<string>()
+  const [pageUrls, setPageUrls] = useState<Record<string, string>>({})
   const [pages, setPages] = useState<PublicPageSummary[]>([])
   const [loadingPages, setLoadingPages] = useState(false)
+  const [loadingPageLinkId, setLoadingPageLinkId] = useState<string>()
   const [revokingPageId, setRevokingPageId] = useState<string>()
   const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<string>()
   const [error, setError] = useState<string>()
 
   const [statusName, setStatusName] = useState("")
@@ -1794,6 +1964,7 @@ function ProjectSettings({
   const [savingStatus, setSavingStatus] = useState(false)
   const activePages = pages.filter((page) => !page.revoked)
   const activePage = activePages[0]
+  const { showToast } = useToast()
 
   const loadPages = useCallback(async () => {
     if (!isApiConfigured) return
@@ -1818,8 +1989,15 @@ function ProjectSettings({
     void loadPages()
   }, [loadPages])
 
+  useEffect(() => {
+    // A generated access URL belongs to one project and must not appear when
+    // the user switches to another project in the same settings view.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPublicUrl(undefined)
+    setPageUrls({})
+  }, [projectId])
+
   const savePublicPage = async () => {
-    setMessage(undefined)
     setError(undefined)
     if (!isApiConfigured) {
       setError(t("settings.apiRequired"))
@@ -1841,9 +2019,13 @@ function ProjectSettings({
         slug,
       })
       setPublicUrl(created.url)
+      setPageUrls((current) => ({
+        ...current,
+        [created.page.id]: created.url,
+      }))
       setSlug(created.page.slug)
       setPages((current) => [created.page, ...current])
-      setMessage(t("settings.pageCreated"))
+      showToast({ kind: "success", message: t("settings.pageCreated") })
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 409) {
         setError(t("settings.slugInUse"))
@@ -1857,7 +2039,6 @@ function ProjectSettings({
 
   const revokePage = async (page: PublicPageSummary) => {
     setRevokingPageId(page.id)
-    setMessage(undefined)
     setError(undefined)
     try {
       await revokePublicPage(page.id)
@@ -1866,14 +2047,20 @@ function ProjectSettings({
           item.id === page.id ? { ...item, revoked: true } : item
         )
       )
-      setMessage(
-        t("settings.revokeMessage", {
+      setPageUrls((current) => {
+        const next = { ...current }
+        delete next[page.id]
+        return next
+      })
+      showToast({
+        kind: "success",
+        message: t("settings.revokeMessage", {
           mode:
             page.accessMode === "login"
               ? t("settings.authenticated")
               : t("settings.publicLinkLabel"),
-        })
-      )
+        }),
+      })
     } catch {
       setError(t("settings.revokeError"))
     } finally {
@@ -1881,11 +2068,28 @@ function ProjectSettings({
     }
   }
 
+  const generatePageLink = async (page: PublicPageSummary) => {
+    setLoadingPageLinkId(page.id)
+    setError(undefined)
+    try {
+      const result = await issuePublicPageAccessLink(page.id)
+      setPageUrls((current) => ({ ...current, [page.id]: result.url }))
+      setPublicUrl(result.url)
+      showToast({
+        kind: "success",
+        message: t("settings.accessLinkGenerated"),
+      })
+    } catch {
+      setError(t("settings.accessLinkError"))
+    } finally {
+      setLoadingPageLinkId(undefined)
+    }
+  }
+
   const saveStatus = async () => {
     const name = statusName.trim()
     if (!name || !isApiConfigured) return
     setSavingStatus(true)
-    setMessage(undefined)
     setError(undefined)
     try {
       const status = await createProjectStatus(projectId, {
@@ -1897,6 +2101,7 @@ function ProjectSettings({
         [...statuses, status].sort((a, b) => a.position - b.position)
       )
       setStatusName("")
+      showToast({ kind: "success", message: t("settings.statusCreated") })
     } catch {
       setError(t("settings.workflowError"))
     } finally {
@@ -1906,10 +2111,9 @@ function ProjectSettings({
 
   return (
     <>
-      {(error || message) && (
+      {error && (
         <div className="mb-5 space-y-3">
-          {error && <FeedbackNotice kind="error" message={error} />}
-          {message && <FeedbackNotice kind="success" message={message} />}
+          <FeedbackNotice kind="error" message={error} />
         </div>
       )}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
@@ -2090,8 +2294,47 @@ function ProjectSettings({
                             <p className="truncate text-xs font-medium">
                               {page.title || t("settings.customerStatusPage")}
                             </p>
+                            {pageUrls[page.id] ? (
+                              <a
+                                href={pageUrls[page.id]}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-1 block truncate text-xs text-primary underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2"
+                              >
+                                {pageUrls[page.id]}
+                              </a>
+                            ) : page.accessMode === "login" ? (
+                              <a
+                                href={`/p/${page.slug}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-1 block truncate text-xs text-primary underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2"
+                              >
+                                /p/{page.slug}
+                              </a>
+                            ) : (
+                              <div className="mt-1 flex flex-wrap items-center gap-2">
+                                <span className="truncate text-xs text-muted-foreground">
+                                  /p/{page.slug}
+                                </span>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 rounded-lg px-2 text-[11px]"
+                                  onClick={() => void generatePageLink(page)}
+                                  disabled={Boolean(loadingPageLinkId)}
+                                >
+                                  {loadingPageLinkId === page.id && (
+                                    <RiLoader4Line
+                                      className="size-3 animate-spin"
+                                      aria-hidden="true"
+                                    />
+                                  )}
+                                  {t("settings.generateAccessLink")}
+                                </Button>
+                              </div>
+                            )}
                             <p className="mt-0.5 text-[10px] text-muted-foreground">
-                              /p/{page.slug} ·{" "}
                               {page.accessMode === "login"
                                 ? t("settings.authenticated")
                                 : t("settings.publicLinkLabel")}
@@ -2184,7 +2427,6 @@ function ProjectSettings({
               statuses={statuses}
               onStatusesChange={onStatusesChange}
               onError={(nextError) => {
-                setMessage(undefined)
                 setError(nextError)
               }}
             />
@@ -2442,9 +2684,9 @@ function WorkspaceAccessPanel({
   const [role, setRole] = useState<"admin" | "member" | "viewer">("member")
   const [loading, setLoading] = useState(Boolean(isApiConfigured))
   const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<string>()
   const [error, setError] = useState<string>()
   const [inviteUrl, setInviteUrl] = useState<string>()
+  const { showToast } = useToast()
 
   const roleLabel = (memberRole: string) => {
     switch (memberRole) {
@@ -2489,7 +2731,6 @@ function WorkspaceAccessPanel({
   const invite = async () => {
     if (!email.trim()) return
     setSaving(true)
-    setMessage(undefined)
     setError(undefined)
     setInviteUrl(undefined)
     try {
@@ -2497,7 +2738,7 @@ function WorkspaceAccessPanel({
       setInvitations((current) => [result.invitation, ...current])
       setEmail("")
       setInviteUrl(result.acceptUrl)
-      setMessage(t("settings.inviteCreated"))
+      showToast({ kind: "success", message: t("settings.inviteCreated") })
     } catch {
       setError(t("settings.inviteError"))
     } finally {
@@ -2519,6 +2760,7 @@ function WorkspaceAccessPanel({
             : item
         )
       )
+      showToast({ kind: "success", message: t("settings.memberUpdated") })
     } catch {
       setError(t("settings.memberError"))
     }
@@ -2722,11 +2964,6 @@ function WorkspaceAccessPanel({
             </div>
           </div>
         )}
-        {message && (
-          <div className="mt-5">
-            <FeedbackNotice kind="success" message={message} />
-          </div>
-        )}
         {inviteUrl && (
           <a
             className="mt-2 block truncate text-xs text-primary hover:underline"
@@ -2759,11 +2996,13 @@ function TaskDetailsSheet({
   statuses,
   onOpenChange,
   onTaskStatusChange,
+  onEditTask,
 }: {
   task: Task | null
   statuses: ProjectStatus[]
   onOpenChange: (open: boolean) => void
   onTaskStatusChange: (taskId: string, statusId: string) => void
+  onEditTask: (task: Task) => void
 }) {
   const { locale, t } = useI18n()
   const status = statuses.find((item) => item.id === task?.statusId)
@@ -2771,14 +3010,27 @@ function TaskDetailsSheet({
     <Sheet open={Boolean(task)} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
         <SheetHeader>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="font-mono text-[10px]">
-              {task?.id.slice(0, 8)}
-            </Badge>
-            {task?.visibility === "customer" && (
-              <Badge variant="secondary" className="text-[10px]">
-                {t("dialog.customerVisible")}
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <Badge variant="outline" className="font-mono text-[10px]">
+                {task?.id.slice(0, 8)}
               </Badge>
+              {task?.visibility === "customer" && (
+                <Badge variant="secondary" className="text-[10px]">
+                  {t("dialog.customerVisible")}
+                </Badge>
+              )}
+            </div>
+            {task && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1.5"
+                onClick={() => onEditTask(task)}
+              >
+                <RiEditLine className="size-3.5" aria-hidden="true" />
+                {t("details.edit")}
+              </Button>
             )}
           </div>
           <SheetTitle>{task?.title ?? t("details.task")}</SheetTitle>
@@ -2819,6 +3071,14 @@ function TaskDetailsSheet({
               <DetailField
                 label={t("dialog.priority")}
                 value={localizedPriority(task.priority, t)}
+              />
+              <DetailField
+                label={t("dialog.startDate")}
+                value={
+                  task.startDate
+                    ? formatDate(task.startDate, locale)
+                    : t("settings.notSet")
+                }
               />
               <DetailField
                 label={t("dialog.dueDate")}

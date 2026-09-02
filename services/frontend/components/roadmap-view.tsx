@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import { RiAddLine, RiFlagLine } from "@remixicon/react"
+import { RiAddLine, RiEditLine, RiFlagLine } from "@remixicon/react"
 import { de as germanDateLocale, enUS } from "date-fns/locale"
 
 import { Gantt } from "@/components/reui/gantt/gantt"
@@ -23,11 +23,13 @@ export function RoadmapView({
   tasks,
   milestones,
   onCreateMilestone,
+  onEditMilestone,
 }: {
   project: Project
   tasks: Task[]
   milestones: Milestone[]
   onCreateMilestone: () => void
+  onEditMilestone: (milestone: Milestone) => void
 }) {
   const { locale, t } = useI18n()
   const startDate = useMemo(
@@ -120,16 +122,32 @@ export function RoadmapView({
                   </span>
                   <p className="text-sm font-medium">{milestone.name}</p>
                 </div>
-                <Badge
-                  variant={
-                    milestone.status === "closed" ? "secondary" : "outline"
-                  }
-                  className="h-5 text-[10px]"
-                >
-                  {milestone.status === "closed"
-                    ? t("roadmap.complete")
-                    : t("roadmap.upcoming")}
-                </Badge>
+                <div className="flex items-center gap-1.5">
+                  <Badge
+                    variant={
+                      milestone.status === "closed" ? "secondary" : "outline"
+                    }
+                    className="h-5 text-[10px]"
+                  >
+                    {milestone.status === "closed"
+                      ? t("roadmap.complete")
+                      : t("roadmap.upcoming")}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-7 text-muted-foreground hover:text-foreground"
+                    aria-label={t("roadmap.editMilestone", {
+                      name: milestone.name,
+                    })}
+                    title={t("roadmap.editMilestone", {
+                      name: milestone.name,
+                    })}
+                    onClick={() => onEditMilestone(milestone)}
+                  >
+                    <RiEditLine className="size-4" aria-hidden="true" />
+                  </Button>
+                </div>
               </div>
               <p className="ps-9 text-xs text-muted-foreground">
                 {milestone.dueDate

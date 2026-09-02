@@ -484,6 +484,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public-pages/{pageId}/access-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["issuePublicPageAccessLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/public-pages/{pageId}/viewers": {
         parameters: {
             query?: never;
@@ -1227,6 +1243,10 @@ export interface components {
         PublicPageCreated: {
             page: components["schemas"]["PublicPage"];
             token: string;
+            /** Format: uri */
+            url: string;
+        };
+        PublicPageAccessLink: {
             /** Format: uri */
             url: string;
         };
@@ -2372,6 +2392,28 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    issuePublicPageAccessLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pageId: components["parameters"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A usable public page URL. Link-mode pages receive a newly rotated token. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPageAccessLink"];
+                };
             };
         };
     };

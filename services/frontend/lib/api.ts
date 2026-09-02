@@ -240,12 +240,14 @@ export function updateTask(
     title: string
     description: string
     statusId: string
-    parentId: string
-    milestoneId: string
+    parentId: string | null
+    milestoneId: string | null
     priority: string
     startDate: string
     dueDate: string
     estimateMinutes: number
+    assigneeId: string | null
+    labelIds: string[]
     visibility: string
     position: number
     version: number
@@ -255,6 +257,28 @@ export function updateTask(
     method: "PATCH",
     body: JSON.stringify(input),
   })
+}
+
+export function updateMilestone(
+  projectId: string,
+  milestoneId: string,
+  input: Partial<{
+    name: string
+    description: string
+    startDate: string
+    dueDate: string
+    status: "open" | "closed"
+    visibility: string
+    version: number
+  }>
+) {
+  return request<Milestone>(
+    `/projects/${projectId}/milestones/${milestoneId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }
+  )
 }
 
 export function listMilestones(projectId: string) {
@@ -268,6 +292,7 @@ export function createMilestone(
     description?: string
     startDate?: string
     dueDate?: string
+    status?: "open" | "closed"
     visibility?: string
   }
 ) {
@@ -413,6 +438,12 @@ export function listPublicPages(projectId: string) {
 
 export function revokePublicPage(pageId: string) {
   return request<void>(`/public-pages/${pageId}/revoke`, { method: "POST" })
+}
+
+export function issuePublicPageAccessLink(pageId: string) {
+  return request<{ url: string }>(`/public-pages/${pageId}/access-link`, {
+    method: "POST",
+  })
 }
 
 export function listSyncRuns() {

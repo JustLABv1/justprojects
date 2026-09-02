@@ -115,6 +115,7 @@ func (s *Server) Router() *gin.Engine {
 	protected.GET("/public-pages/:pageId/viewers", s.listPublicPageViewers)
 	protected.POST("/public-pages/:pageId/viewers", s.addPublicPageViewer)
 	protected.DELETE("/public-pages/:pageId/viewers/:userId", s.removePublicPageViewer)
+	protected.POST("/public-pages/:pageId/access-link", s.issuePublicPageAccessLink)
 	protected.POST("/public-pages/:pageId/revoke", s.revokePublicPage)
 	protected.GET("/sync/conflicts", s.listConflicts)
 	protected.POST("/sync/conflicts/:conflictId/resolve", s.resolveConflict)
@@ -2102,6 +2103,53 @@ func (s *Server) revokePublicPage(c *gin.Context) {
 	}
 	_ = s.audit(c, "public_page.revoked", "public_page", page.ID, nil)
 	c.Status(http.StatusNoContent)
+}
+
+// issuePublicPageAccessLink re-issues the one-time raw token for an active
+// link-mode page. The database stores only the hash, so this is the only safe
+// way to make a previously-created link usable again after the original URL
+// has been lost. Issuing a link intentionally rotates the previous token.
+func (s *Server) issuePublicPageAccessLink(c *gin.Context) {
+	pageID, ok := pathUUID(c, "pageId")
+	if !ok {
+		return
+	}
+	page, ok := s.publicPageForManage(c, pageID)
+	if !ok {
+		return
+	}
+	if page.Revoked {
+		notFound(c)
+		return
+	}
+
+	pageURL := s.Config.FrontendURL + "/p/" + page.Slug
+	if page.AccessMode == "link" {
+		rawToken, err := randomToken(24)
+		if err != nil {
+			writeError(c, http.StatusInternalServerError, errors.New("could not create public page token"))
+			return
+		}
+		hash := sha256.Sum256([]byte(rawToken))
+		tokenHash := hex.EncodeToString(hash[:])
+		result, err := s.Store.DB.NewUpdate().Model((*db.PublicPage)(nil)).
+			Set("token_hash = ?", tokenHash).
+			Set("updated_at = ?", time.Now().UTC()).
+			Where("id = ? AND tenant_id = ? AND revoked = false", page.ID, s.principal(c).Tenant.ID).
+			Exec(c.Request.Context())
+		if err != nil {
+			writeError(c, http.StatusInternalServerError, errors.New("could not save public page token"))
+			return
+		}
+		if count, _ := result.RowsAffected(); count == 0 {
+			notFound(c)
+			return
+		}
+		pageURL += "?token=" + rawToken
+	}
+
+	_ = s.audit(c, "public_page.access_link_issued", "public_page", page.ID, map[string]any{"slug": page.Slug})
+	c.JSON(http.StatusOK, gin.H{"url": pageURL})
 }
 
 func (s *Server) publicPageForManage(c *gin.Context, pageID uuid.UUID) (db.PublicPage, bool) {

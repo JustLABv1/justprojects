@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { RiLoader4Line } from "@remixicon/react"
 
 import {
@@ -23,29 +23,38 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useI18n } from "@/components/language-provider"
+import type { Milestone } from "@/lib/types"
 
 export interface NewMilestoneInput {
   name: string
   description: string
   startDate: string
   dueDate: string
+  status: "open" | "closed"
   visibility: string
 }
+
+export type UpdateMilestoneInput = NewMilestoneInput & { version: number }
 
 export function MilestoneDialog({
   open,
   onOpenChange,
+  milestone,
   onCreate,
+  onUpdate,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreate: (input: NewMilestoneInput) => Promise<void> | void
+  milestone?: Milestone
+  onCreate?: (input: NewMilestoneInput) => Promise<void> | void
+  onUpdate?: (input: UpdateMilestoneInput) => Promise<void> | void
 }) {
   const { t } = useI18n()
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [startDate, setStartDate] = useState("")
   const [dueDate, setDueDate] = useState("")
+  const [status, setStatus] = useState<"open" | "closed">("open")
   const [visibility, setVisibility] = useState("internal")
   const [submitting, setSubmitting] = useState(false)
 
@@ -54,21 +63,41 @@ export function MilestoneDialog({
     setDescription("")
     setStartDate("")
     setDueDate("")
+    setStatus("open")
     setVisibility("internal")
   }
+
+  useEffect(() => {
+    if (!open || !milestone) return
+    // Populate the editor whenever a different roadmap milestone is selected.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setName(milestone.name)
+    setDescription(milestone.description ?? "")
+    setStartDate(milestone.startDate?.slice(0, 10) ?? "")
+    setDueDate(milestone.dueDate?.slice(0, 10) ?? "")
+    setStatus(milestone.status === "closed" ? "closed" : "open")
+    setVisibility(milestone.visibility)
+  }, [open, milestone])
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!name.trim()) return
+    if (milestone ? !onUpdate : !onCreate) return
     setSubmitting(true)
     try {
-      await onCreate({
+      const input: NewMilestoneInput = {
         name: name.trim(),
         description: description.trim(),
         startDate,
         dueDate,
+        status,
         visibility,
-      })
+      }
+      if (milestone) {
+        await onUpdate?.({ ...input, version: milestone.version })
+      } else {
+        await onCreate?.(input)
+      }
       reset()
       onOpenChange(false)
     } finally {
@@ -80,9 +109,15 @@ export function MilestoneDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>{t("dialog.createMilestone")}</DialogTitle>
+          <DialogTitle>
+            {milestone
+              ? t("dialog.editMilestone")
+              : t("dialog.createMilestone")}
+          </DialogTitle>
           <DialogDescription>
-            {t("dialog.milestoneDescription")}
+            {milestone
+              ? t("dialog.editMilestoneDescription")
+              : t("dialog.milestoneDescription")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
@@ -132,6 +167,27 @@ export function MilestoneDialog({
             </div>
           </div>
           <div className="space-y-2">
+            <Label htmlFor="milestone-status">{t("dialog.status")}</Label>
+            <Select
+              value={status}
+              onValueChange={(value) =>
+                setStatus(value === "closed" ? "closed" : "open")
+              }
+            >
+              <SelectTrigger id="milestone-status" className="w-full">
+                <SelectValue>
+                  {status === "closed"
+                    ? t("roadmap.complete")
+                    : t("roadmap.upcoming")}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="open">{t("roadmap.upcoming")}</SelectItem>
+                <SelectItem value="closed">{t("roadmap.complete")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="milestone-visibility">
               {t("dialog.customerVisibility")}
             </Label>
@@ -171,7 +227,13 @@ export function MilestoneDialog({
                   aria-hidden="true"
                 />
               )}
-              {submitting ? t("dialog.creating") : t("dialog.createMilestone")}
+              {submitting
+                ? milestone
+                  ? t("dialog.saving")
+                  : t("dialog.creating")
+                : milestone
+                  ? t("dialog.saveChanges")
+                  : t("dialog.createMilestone")}
             </Button>
           </DialogFooter>
         </form>

@@ -32,10 +32,13 @@ export interface NewTaskInput {
   statusId: string
   milestoneId?: string
   priority: string
+  startDate: string
   dueDate: string
   estimateMinutes?: number
   visibility: string
 }
+
+export type UpdateTaskInput = NewTaskInput & { version: number }
 
 export function TaskDialog({
   open,
@@ -43,7 +46,9 @@ export function TaskDialog({
   statuses,
   milestones,
   parentTask,
+  task,
   onCreate,
+  onUpdate,
   trigger = true,
 }: {
   open: boolean
@@ -51,7 +56,9 @@ export function TaskDialog({
   statuses: ProjectStatus[]
   milestones: Milestone[]
   parentTask?: Task
-  onCreate: (input: NewTaskInput) => Promise<void> | void
+  task?: Task
+  onCreate?: (input: NewTaskInput) => Promise<void> | void
+  onUpdate?: (input: UpdateTaskInput) => Promise<void> | void
   trigger?: boolean
 }) {
   const { t } = useI18n()
@@ -62,6 +69,7 @@ export function TaskDialog({
   const [statusId, setStatusId] = useState(defaultStatus?.id ?? "")
   const [milestoneId, setMilestoneId] = useState("none")
   const [priority, setPriority] = useState("medium")
+  const [startDate, setStartDate] = useState("")
   const [dueDate, setDueDate] = useState("")
   const [estimate, setEstimate] = useState("")
   const [visibility, setVisibility] = useState("internal")
@@ -74,6 +82,22 @@ export function TaskDialog({
         : priority === "urgent"
           ? t("priority.urgent")
           : t("priority.medium")
+
+  useEffect(() => {
+    if (!open || !task) return
+    // Populate the editor when a task is selected. Dates are already returned
+    // as ISO dates by the API, but slicing also handles full timestamps.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTitle(task.title)
+    setDescription(task.description ?? "")
+    setStatusId(task.statusId)
+    setMilestoneId(task.milestoneId ?? "none")
+    setPriority(task.priority)
+    setStartDate(task.startDate?.slice(0, 10) ?? "")
+    setDueDate(task.dueDate?.slice(0, 10) ?? "")
+    setEstimate(task.estimateMinutes?.toString() ?? "")
+    setVisibility(task.visibility)
+  }, [open, task])
 
   useEffect(() => {
     if (!statusId && defaultStatus) {
@@ -89,6 +113,7 @@ export function TaskDialog({
     setStatusId(defaultStatus?.id ?? "")
     setMilestoneId("none")
     setPriority("medium")
+    setStartDate("")
     setDueDate("")
     setEstimate("")
     setVisibility("internal")
@@ -97,18 +122,25 @@ export function TaskDialog({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!title.trim()) return
+    if (task ? !onUpdate : !onCreate) return
     setSubmitting(true)
     try {
-      await onCreate({
+      const input: NewTaskInput = {
         title: title.trim(),
         description: description.trim(),
         statusId,
         milestoneId: milestoneId === "none" ? undefined : milestoneId,
         priority,
+        startDate,
         dueDate,
         estimateMinutes: estimate ? Number(estimate) : undefined,
         visibility,
-      })
+      }
+      if (task) {
+        await onUpdate?.({ ...input, version: task.version })
+      } else {
+        await onCreate?.(input)
+      }
       reset()
       onOpenChange(false)
     } finally {
@@ -131,12 +163,18 @@ export function TaskDialog({
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>
-            {parentTask ? t("dialog.addChildTask") : t("dialog.createTask")}
+            {task
+              ? t("dialog.editTask")
+              : parentTask
+                ? t("dialog.addChildTask")
+                : t("dialog.createTask")}
           </DialogTitle>
           <DialogDescription>
-            {parentTask
-              ? t("dialog.childTaskDescription", { title: parentTask.title })
-              : t("dialog.taskDescription")}
+            {task
+              ? t("dialog.editTaskDescription")
+              : parentTask
+                ? t("dialog.childTaskDescription", { title: parentTask.title })
+                : t("dialog.taskDescription")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
@@ -228,6 +266,15 @@ export function TaskDialog({
               </Select>
             </div>
             <div className="space-y-2">
+              <Label htmlFor="task-start-date">{t("dialog.startDate")}</Label>
+              <Input
+                id="task-start-date"
+                type="date"
+                value={startDate}
+                onChange={(event) => setStartDate(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="task-due-date">{t("dialog.dueDate")}</Label>
               <Input
                 id="task-due-date"
@@ -289,7 +336,13 @@ export function TaskDialog({
                   aria-hidden="true"
                 />
               )}
-              {submitting ? t("dialog.creating") : t("dialog.createTask")}
+              {submitting
+                ? task
+                  ? t("dialog.saving")
+                  : t("dialog.creating")
+                : task
+                  ? t("dialog.saveChanges")
+                  : t("dialog.createTask")}
             </Button>
           </DialogFooter>
         </form>

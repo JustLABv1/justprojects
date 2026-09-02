@@ -609,6 +609,11 @@ type PublicPageCreated struct {
 	Url   string     `json:"url"`
 }
 
+// PublicPageAccessLink defines model for PublicPageAccessLink.
+type PublicPageAccessLink struct {
+	Url string `json:"url"`
+}
+
 // PublicPageList defines model for PublicPageList.
 type PublicPageList struct {
 	Items *[]PublicPage `json:"items,omitempty"`
@@ -1262,6 +1267,9 @@ type ServerInterface interface {
 
 	// (POST /public-pages/{pageId}/revoke)
 	RevokePublicPage(c *gin.Context, pageId PageId)
+
+	// (POST /public-pages/{pageId}/access-link)
+	IssuePublicPageAccessLink(c *gin.Context, pageId PageId)
 
 	// (GET /public-pages/{pageId}/viewers)
 	ListPublicPageViewers(c *gin.Context, pageId PageId)
@@ -2479,6 +2487,32 @@ func (siw *ServerInterfaceWrapper) RevokePublicPage(c *gin.Context) {
 	siw.Handler.RevokePublicPage(c, pageId)
 }
 
+// IssuePublicPageAccessLink operation middleware
+func (siw *ServerInterfaceWrapper) IssuePublicPageAccessLink(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "pageId" -------------
+	var pageId PageId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "pageId", c.Param("pageId"), &pageId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.IssuePublicPageAccessLink(c, pageId)
+}
+
 // ListPublicPageViewers operation middleware
 func (siw *ServerInterfaceWrapper) ListPublicPageViewers(c *gin.Context) {
 
@@ -3144,6 +3178,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/projects/:projectId/tasks", wrapper.CreateTask)
 	router.PATCH(options.BaseURL+"/projects/:projectId/tasks/:taskId", wrapper.UpdateTask)
 	router.POST(options.BaseURL+"/public-pages/:pageId/revoke", wrapper.RevokePublicPage)
+	router.POST(options.BaseURL+"/public-pages/:pageId/access-link", wrapper.IssuePublicPageAccessLink)
 	router.GET(options.BaseURL+"/public-pages/:pageId/viewers", wrapper.ListPublicPageViewers)
 	router.POST(options.BaseURL+"/public-pages/:pageId/viewers", wrapper.AddPublicPageViewer)
 	router.DELETE(options.BaseURL+"/public-pages/:pageId/viewers/:userId", wrapper.RemovePublicPageViewer)

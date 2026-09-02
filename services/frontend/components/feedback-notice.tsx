@@ -33,7 +33,7 @@ export function FeedbackNotice({
       role={isError ? "alert" : "status"}
       aria-live={isError ? "assertive" : "polite"}
       className={cn(
-        "flex items-start gap-3 border px-4 py-3 text-sm",
+        "flex items-start gap-3 rounded-xl border px-4 py-3 text-sm",
         isError
           ? "border-destructive/35 bg-destructive/8 text-destructive"
           : "border-primary/20 bg-primary/5 text-primary",

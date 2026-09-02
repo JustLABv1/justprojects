@@ -540,6 +540,17 @@ paths:
       operationId: revokePublicPage
       parameters: [{ $ref: '#/components/parameters/PageId' }]
       responses: { '204': { description: Public page revoked. } }
+  /public-pages/{pageId}/access-link:
+    post:
+      tags: [Public pages]
+      operationId: issuePublicPageAccessLink
+      parameters: [{ $ref: '#/components/parameters/PageId' }]
+      responses:
+        '200':
+          description: A usable public page URL. Link-mode pages receive a newly rotated token.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicPageAccessLink' }
   /public-pages/{pageId}/viewers:
     get:
       tags: [Public pages]
@@ -1310,6 +1321,11 @@ components:
       properties:
         page: { $ref: '#/components/schemas/PublicPage' }
         token: { type: string }
+        url: { type: string, format: uri }
+    PublicPageAccessLink:
+      type: object
+      required: [url]
+      properties:
         url: { type: string, format: uri }
     PublicPageList:
       type: object

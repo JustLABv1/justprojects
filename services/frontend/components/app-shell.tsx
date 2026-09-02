@@ -30,7 +30,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,7 +42,10 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -64,6 +66,8 @@ const navigation: Array<{
   { id: "integrations", label: "nav.integrations", icon: RiGitRepositoryLine },
   { id: "settings", label: "nav.settings", icon: RiSettings3Line },
 ]
+
+const createProjectValue = "__create_project__"
 
 export function AppShell({
   project,
@@ -155,9 +159,16 @@ export function AppShell({
           <label className="sr-only" htmlFor="workspace-project">
             {tenant?.name ?? t("nav.workspace")}
           </label>
+          <p className="mb-2 px-1 text-[10px] font-semibold tracking-[0.14em] text-sidebar-foreground/50 uppercase">
+            {tenant?.name ?? t("nav.workspace")}
+          </p>
           <Select
             value={project.id}
             onValueChange={(projectId) => {
+              if (projectId === createProjectValue) {
+                onCreateProject()
+                return
+              }
               if (projectId) onProjectChange(projectId)
             }}
           >
@@ -171,34 +182,21 @@ export function AppShell({
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {projects.map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  {item.key} · {item.name}
-                </SelectItem>
-              ))}
+              <SelectGroup>
+                <SelectLabel>{t("nav.project")}</SelectLabel>
+                {projects.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.key} · {item.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+              <SelectSeparator />
+              <SelectItem value={createProjectValue}>
+                <RiAddLine aria-hidden="true" />
+                {t("nav.createProject")}
+              </SelectItem>
             </SelectContent>
           </Select>
-          <div className="mt-3 flex items-center justify-between px-1 text-[11px] text-sidebar-foreground/60">
-            <span className="truncate">
-              {tenant?.name ?? t("nav.workspace")}
-            </span>
-            <div className="flex items-center gap-1.5">
-              <span className="rounded-full bg-sidebar-primary/10 px-2 py-0.5 text-sidebar-primary">
-                {project.status === "active"
-                  ? t("status.active")
-                  : project.status}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                className="text-sidebar-foreground/60 hover:text-sidebar-foreground"
-                onClick={onCreateProject}
-                aria-label={t("nav.createProject")}
-              >
-                <RiAddLine aria-hidden="true" />
-              </Button>
-            </div>
-          </div>
         </div>
 
         <nav className="flex-1 space-y-1 p-3" aria-label={t("nav.project")}>
@@ -233,19 +231,6 @@ export function AppShell({
               </Link>
             )
           })}
-
-          <Separator className="my-4 bg-sidebar-border" />
-          <button
-            type="button"
-            onClick={onCreateTask}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 transition hover:bg-sidebar-accent hover:text-sidebar-foreground"
-          >
-            <RiAddLine className="size-4" aria-hidden="true" />
-            {t("nav.addTask")}
-            <kbd className="ms-auto rounded border border-sidebar-border px-1.5 py-0.5 text-[10px] text-sidebar-foreground/50">
-              N
-            </kbd>
-          </button>
         </nav>
 
         <div className="border-t p-3">

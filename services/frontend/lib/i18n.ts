@@ -45,6 +45,13 @@ const english = {
   "workspace.projectNotFound": "Project not found in the current workspace.",
   "workspace.loadError": "Could not load the project.",
   "workspace.saveStatusError": "Could not save the status change.",
+  "workspace.saveTaskError": "Could not save the task.",
+  "workspace.saveMilestoneError": "Could not save the milestone.",
+  "workspace.projectCreated": "Project created.",
+  "workspace.taskCreated": "Task created.",
+  "workspace.milestoneCreated": "Milestone created.",
+  "workspace.taskUpdated": "Task updated.",
+  "workspace.milestoneUpdated": "Milestone updated.",
   "workspace.refreshError": "We could not refresh this workspace.",
   "workspace.resourceLoadError": "Some workspace data could not be loaded.",
   "workspace.resourceError": "{resource} could not be loaded.",
@@ -110,6 +117,7 @@ const english = {
   "tasks.due": "Due",
   "tasks.assignee": "Assignee",
   "tasks.visibility": "Visibility",
+  "tasks.edit": "Edit {title}",
   "tasks.markComplete": "Mark {title} complete",
   "tasks.collapse": "Collapse {title}",
   "tasks.expand": "Expand {title}",
@@ -278,8 +286,11 @@ const english = {
   "settings.createPublicPage": "Create public page",
   "settings.createNewPublicLink": "Create a new public link",
   "settings.openCustomerPage": "Open customer page",
+  "settings.generateAccessLink": "Generate secure link",
+  "settings.accessLinkGenerated": "A new secure access link is ready.",
+  "settings.accessLinkError": "The secure access link could not be generated.",
   "settings.activeLinkTokenHidden":
-    "An active link exists; its token is hidden after creation.",
+    "The readable path is shown below. Generate a secure access link to open it.",
   "settings.linkGeneratedOnCreate":
     "A secure link will appear here after creation.",
   "settings.existingPages": "Existing pages",
@@ -324,6 +335,7 @@ const english = {
   "settings.statusName": "Status name",
   "settings.statusCategory": "Semantic category",
   "settings.addStatus": "Add status",
+  "settings.statusCreated": "Status added to the workflow.",
   "settings.workflowError": "Could not update the workflow.",
   "settings.statusDragLabel": "Drag to reorder {name}",
   "settings.statusPickedUp": "Picked up {name}. Drag it to a new position.",
@@ -349,6 +361,7 @@ const english = {
   "settings.openInviteLink": "Open one-time invitation link",
   "settings.inviteError": "Could not create the invitation.",
   "settings.memberError": "Could not update the member role.",
+  "settings.memberUpdated": "Member role updated.",
   "settings.manageAccessHint":
     "Only workspace owners and administrators can manage membership.",
   "settings.pendingInvitations": "Pending invitations",
@@ -365,6 +378,9 @@ const english = {
     "Project-specific overrides are visible to workspace administrators.",
   "feedback.errorTitle": "Something needs attention",
   "feedback.successTitle": "Saved",
+  "feedback.infoTitle": "Heads up",
+  "feedback.dismiss": "Dismiss notification",
+  "feedback.notifications": "Notifications",
   "settings.role.owner": "Owner",
   "settings.role.admin": "Admin",
   "settings.role.member": "Member",
@@ -372,7 +388,13 @@ const english = {
   "dialog.newTask": "New task",
   "dialog.addChildTask": "Add a child task",
   "dialog.createTask": "Create a task",
+  "dialog.editTask": "Edit task",
+  "dialog.editTaskDescription":
+    "Update the details, schedule, or visibility for this task.",
   "dialog.createMilestone": "Create a milestone",
+  "dialog.editMilestone": "Edit milestone",
+  "dialog.editMilestoneDescription":
+    "Keep the checkpoint details and customer visibility up to date.",
   "dialog.createProject": "Create a project",
   "dialog.projectCreateError": "Could not create the project.",
   "dialog.task": "Task",
@@ -389,6 +411,8 @@ const english = {
   "dialog.customerVisible": "Customer visible",
   "dialog.create": "Create",
   "dialog.creating": "Creating...",
+  "dialog.saving": "Saving...",
+  "dialog.saveChanges": "Save changes",
   "dialog.cancel": "Cancel",
   "dialog.titleRequired": "Title is required.",
   "dialog.taskDescription":
@@ -423,6 +447,7 @@ const english = {
   "roadmap.timelineDescription":
     "Milestones and top-level work across the project timeline.",
   "roadmap.newMilestone": "New milestone",
+  "roadmap.editMilestone": "Edit {name}",
   "roadmap.complete": "Complete",
   "roadmap.upcoming": "Upcoming",
   "roadmap.dateToConfirm": "Date to be confirmed",
@@ -463,6 +488,7 @@ const english = {
   "roadmap.scaleQuarter": "Quarter",
   "roadmap.scaleYear": "Year",
   "details.task": "Task details",
+  "details.edit": "Edit task",
   "details.noDescription":
     "No description yet. Use the task editor to add context and delivery notes.",
   "details.workflowState": "Workflow state",
@@ -593,6 +619,14 @@ const german: Record<keyof typeof english, string> = {
   "workspace.loadError": "Das Projekt konnte nicht geladen werden.",
   "workspace.saveStatusError":
     "Die Statusänderung konnte nicht gespeichert werden.",
+  "workspace.saveTaskError": "Die Aufgabe konnte nicht gespeichert werden.",
+  "workspace.saveMilestoneError":
+    "Der Meilenstein konnte nicht gespeichert werden.",
+  "workspace.projectCreated": "Projekt erstellt.",
+  "workspace.taskCreated": "Aufgabe erstellt.",
+  "workspace.milestoneCreated": "Meilenstein erstellt.",
+  "workspace.taskUpdated": "Aufgabe aktualisiert.",
+  "workspace.milestoneUpdated": "Meilenstein aktualisiert.",
   "workspace.refreshError":
     "Der Arbeitsbereich konnte nicht aktualisiert werden.",
   "workspace.resourceLoadError":
@@ -660,6 +694,7 @@ const german: Record<keyof typeof english, string> = {
   "tasks.due": "Fällig",
   "tasks.assignee": "Zuständig",
   "tasks.visibility": "Sichtbarkeit",
+  "tasks.edit": "{title} bearbeiten",
   "tasks.markComplete": "{title} als erledigt markieren",
   "tasks.collapse": "{title} einklappen",
   "tasks.expand": "{title} aufklappen",
@@ -832,8 +867,12 @@ const german: Record<keyof typeof english, string> = {
   "settings.createPublicPage": "Öffentliche Seite erstellen",
   "settings.createNewPublicLink": "Neuen öffentlichen Link erstellen",
   "settings.openCustomerPage": "Kundenseite öffnen",
+  "settings.generateAccessLink": "Sicheren Link erzeugen",
+  "settings.accessLinkGenerated": "Ein neuer sicherer Zugriffslink ist bereit.",
+  "settings.accessLinkError":
+    "Der sichere Zugriffslink konnte nicht erzeugt werden.",
   "settings.activeLinkTokenHidden":
-    "Ein aktiver Link ist vorhanden; sein Token wird nach der Erstellung nicht mehr angezeigt.",
+    "Der lesbare Pfad steht unten. Erzeuge einen sicheren Zugriffslink, um ihn zu öffnen.",
   "settings.linkGeneratedOnCreate":
     "Nach der Erstellung wird hier ein sicherer Link angezeigt.",
   "settings.existingPages": "Bestehende Seiten",
@@ -881,6 +920,7 @@ const german: Record<keyof typeof english, string> = {
   "settings.statusName": "Statusname",
   "settings.statusCategory": "Semantische Kategorie",
   "settings.addStatus": "Status hinzufügen",
+  "settings.statusCreated": "Status zum Workflow hinzugefügt.",
   "settings.workflowError": "Der Workflow konnte nicht aktualisiert werden.",
   "settings.statusDragLabel": "{name} zum Sortieren ziehen",
   "settings.statusPickedUp":
@@ -909,6 +949,7 @@ const german: Record<keyof typeof english, string> = {
   "settings.inviteError": "Die Einladung konnte nicht erstellt werden.",
   "settings.memberError":
     "Die Mitgliederrolle konnte nicht aktualisiert werden.",
+  "settings.memberUpdated": "Mitgliederrolle aktualisiert.",
   "settings.manageAccessHint":
     "Nur Eigentümer und Administratoren können Mitgliedschaften verwalten.",
   "settings.pendingInvitations": "Ausstehende Einladungen",
@@ -925,6 +966,9 @@ const german: Record<keyof typeof english, string> = {
     "Projektspezifische Ausnahmen sind für Arbeitsbereichsadministratoren sichtbar.",
   "feedback.errorTitle": "Aufmerksamkeit erforderlich",
   "feedback.successTitle": "Gespeichert",
+  "feedback.infoTitle": "Hinweis",
+  "feedback.dismiss": "Benachrichtigung schließen",
+  "feedback.notifications": "Benachrichtigungen",
   "settings.role.owner": "Eigentümer",
   "settings.role.admin": "Administrator",
   "settings.role.member": "Mitglied",
@@ -932,7 +976,13 @@ const german: Record<keyof typeof english, string> = {
   "dialog.newTask": "Neue Aufgabe",
   "dialog.addChildTask": "Unteraufgabe hinzufügen",
   "dialog.createTask": "Aufgabe erstellen",
+  "dialog.editTask": "Aufgabe bearbeiten",
+  "dialog.editTaskDescription":
+    "Aktualisiere Details, Planung oder Sichtbarkeit dieser Aufgabe.",
   "dialog.createMilestone": "Meilenstein erstellen",
+  "dialog.editMilestone": "Meilenstein bearbeiten",
+  "dialog.editMilestoneDescription":
+    "Halte die Details und die Kundensichtbarkeit des Checkpoints aktuell.",
   "dialog.createProject": "Projekt erstellen",
   "dialog.projectCreateError": "Das Projekt konnte nicht erstellt werden.",
   "dialog.task": "Aufgabe",
@@ -949,6 +999,8 @@ const german: Record<keyof typeof english, string> = {
   "dialog.customerVisible": "Für Kunden sichtbar",
   "dialog.create": "Erstellen",
   "dialog.creating": "Wird erstellt...",
+  "dialog.saving": "Wird gespeichert...",
+  "dialog.saveChanges": "Änderungen speichern",
   "dialog.cancel": "Abbrechen",
   "dialog.titleRequired": "Ein Titel ist erforderlich.",
   "dialog.taskDescription":
@@ -985,6 +1037,7 @@ const german: Record<keyof typeof english, string> = {
   "roadmap.timelineDescription":
     "Meilensteine und übergeordnete Arbeit im Projektzeitplan.",
   "roadmap.newMilestone": "Neuer Meilenstein",
+  "roadmap.editMilestone": "{name} bearbeiten",
   "roadmap.complete": "Abgeschlossen",
   "roadmap.upcoming": "Bevorstehend",
   "roadmap.dateToConfirm": "Termin wird bestätigt",
@@ -1026,6 +1079,7 @@ const german: Record<keyof typeof english, string> = {
   "roadmap.scaleQuarter": "Quartal",
   "roadmap.scaleYear": "Jahr",
   "details.task": "Aufgabendetails",
+  "details.edit": "Aufgabe bearbeiten",
   "details.noDescription":
     "Noch keine Beschreibung. Ergänze Kontext und Liefernotizen im Aufgabeneditor.",
   "details.workflowState": "Workflowstatus",
