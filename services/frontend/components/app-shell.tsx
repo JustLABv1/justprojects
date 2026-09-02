@@ -8,6 +8,7 @@ import {
   RiCloseLine,
   RiComputerLine,
   RiGitRepositoryLine,
+  RiInboxArchiveLine,
   RiLayoutGridLine,
   RiMoonLine,
   RiMenuLine,
@@ -22,6 +23,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { LanguageSwitcher } from "@/components/language-switcher"
+import { NotificationBell } from "@/components/notification-bell"
 import {
   Dialog,
   DialogContent,
@@ -68,6 +70,7 @@ const navigation: Array<{
 ]
 
 const createProjectValue = "__create_project__"
+type ShellView = WorkspaceView | "portfolio" | "requests"
 
 export function AppShell({
   project,
@@ -80,18 +83,20 @@ export function AppShell({
   onCreateTask,
   onCreateProject,
   onLogout,
+  showNewTask = true,
   children,
 }: {
   project: Project
   projects: Project[]
   user?: User
   tenant?: Tenant
-  activeView: WorkspaceView
+  activeView: ShellView
   apiConnected?: boolean
   onProjectChange: (projectId: string) => void
   onCreateTask: () => void
   onCreateProject: () => void
   onLogout: () => void
+  showNewTask?: boolean
   children: ReactNode
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -200,6 +205,30 @@ export function AppShell({
         </div>
 
         <nav className="flex-1 space-y-1 p-3" aria-label={t("nav.project")}>
+          <Link
+            href="/app"
+            onClick={closeSidebar}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 transition hover:bg-sidebar-accent hover:text-sidebar-foreground",
+              activeView === "portfolio" &&
+                "bg-sidebar-primary/10 font-medium text-sidebar-primary"
+            )}
+          >
+            <RiLayoutGridLine className="size-4" aria-hidden="true" />
+            {t("nav.portfolio")}
+          </Link>
+          <Link
+            href="/app/requests"
+            onClick={closeSidebar}
+            className={cn(
+              "mb-3 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 transition hover:bg-sidebar-accent hover:text-sidebar-foreground",
+              activeView === "requests" &&
+                "bg-sidebar-primary/10 font-medium text-sidebar-primary"
+            )}
+          >
+            <RiInboxArchiveLine className="size-4" aria-hidden="true" />
+            {t("nav.requests")}
+          </Link>
           <p className="mb-2 px-2 text-[10px] font-semibold tracking-[0.16em] text-sidebar-foreground/45 uppercase">
             {t("nav.project")}
           </p>
@@ -318,7 +347,13 @@ export function AppShell({
             <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
               <span>{t("nav.workspace")}</span>
               <span aria-hidden="true">/</span>
-              <span className="font-medium text-foreground">{project.key}</span>
+              <span className="font-medium text-foreground">
+                {activeView === "portfolio"
+                  ? t("nav.portfolio")
+                  : activeView === "requests"
+                    ? t("nav.requests")
+                    : project.key}
+              </span>
               {apiConnected && (
                 <span className="ms-2 inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
                   <span
@@ -330,11 +365,18 @@ export function AppShell({
               )}
             </div>
             <div className="min-w-0 sm:hidden">
-              <p className="truncate text-sm font-semibold">{project.name}</p>
+              <p className="truncate text-sm font-semibold">
+                {activeView === "portfolio"
+                  ? t("nav.portfolio")
+                  : activeView === "requests"
+                    ? t("nav.requests")
+                    : project.name}
+              </p>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2">
+            <NotificationBell />
             <Button
               variant="outline"
               size="sm"
@@ -361,14 +403,16 @@ export function AppShell({
             >
               <RiSearchLine className="size-4" aria-hidden="true" />
             </Button>
-            <Button
-              size="sm"
-              className="hidden gap-1.5 sm:inline-flex"
-              onClick={onCreateTask}
-            >
-              <RiAddLine className="size-4" aria-hidden="true" />
-              {t("nav.newTask")}
-            </Button>
+            {showNewTask && (
+              <Button
+                size="sm"
+                className="hidden gap-1.5 sm:inline-flex"
+                onClick={onCreateTask}
+              >
+                <RiAddLine className="size-4" aria-hidden="true" />
+                {t("nav.newTask")}
+              </Button>
+            )}
           </div>
         </header>
         <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
@@ -382,6 +426,7 @@ export function AppShell({
         projects={projects}
         onCreateTask={onCreateTask}
         onCreateProject={onCreateProject}
+        showNewTask={showNewTask}
       />
     </div>
   )
@@ -452,6 +497,7 @@ function WorkspaceSearchDialog({
   projects,
   onCreateTask,
   onCreateProject,
+  showNewTask,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -459,6 +505,7 @@ function WorkspaceSearchDialog({
   projects: Project[]
   onCreateTask: () => void
   onCreateProject: () => void
+  showNewTask: boolean
 }) {
   const { t } = useI18n()
   const [query, setQuery] = useState("")
@@ -562,17 +609,19 @@ function WorkspaceSearchDialog({
                   {t("search.actions")}
                 </SearchGroupLabel>
                 <div className="space-y-1">
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
-                    onClick={() => {
-                      onOpenChange(false)
-                      onCreateTask()
-                    }}
-                  >
-                    <RiAddLine className="size-4 text-muted-foreground" />
-                    {t("nav.newTask")}
-                  </button>
+                  {showNewTask && (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+                      onClick={() => {
+                        onOpenChange(false)
+                        onCreateTask()
+                      }}
+                    >
+                      <RiAddLine className="size-4 text-muted-foreground" />
+                      {t("nav.newTask")}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"

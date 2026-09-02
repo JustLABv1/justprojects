@@ -15,6 +15,7 @@ export interface Tenant {
   id: string
   name: string
   slug: string
+  requestSlug: string
 }
 
 export interface Membership {
@@ -61,6 +62,79 @@ export interface Project {
   connectionId?: string | null
   status: string
   version: number
+}
+
+export type ProjectRequestStatus =
+  | "submitted"
+  | "in_review"
+  | "needs_info"
+  | "approved"
+  | "rejected"
+  | "converted"
+  | "cancelled"
+  | string
+
+export interface ProjectRequest {
+  id: string
+  tenantId?: string
+  sourcePublicPageId?: string | null
+  requesterUserId?: string | null
+  requesterName: string
+  requesterEmail: string
+  title: string
+  description: string
+  requestedStartDate?: string | null
+  requestedTargetDate?: string | null
+  priority: "low" | "medium" | "high" | "urgent" | string
+  status: ProjectRequestStatus
+  assignedTo?: string | null
+  assignedToName?: string
+  internalNotes?: string | null
+  convertedProjectId?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ProjectUpdate {
+  id: string
+  projectId: string
+  authorId?: string | null
+  authorName?: string
+  title: string
+  body: string
+  visibility: "internal" | "customer" | string
+  createdAt: string
+  updatedAt?: string
+}
+
+export interface Notification {
+  id: string
+  type: string
+  title: string
+  body: string
+  link?: string | null
+  readAt?: string | null
+  createdAt: string
+}
+
+export interface PublicPageViewer {
+  userId: string
+  name?: string
+  email?: string
+}
+
+export interface PortfolioProject {
+  project: Project
+  taskTotal: number
+  completedTasks: number
+  blockedTasks: number
+  nextMilestone?: {
+    id: string
+    name: string
+    dueDate?: string | null
+    status: string
+  } | null
+  activeCustomerPages: number
 }
 
 export interface ProjectStatus {
@@ -181,6 +255,7 @@ export interface WorkspaceData {
   session?: Session
   syncEvents: SyncEvent[]
   gitConnections: GitConnection[]
+  updates: ProjectUpdate[]
 }
 
 export interface PublicProjectData {
@@ -216,4 +291,5 @@ export interface PublicProjectData {
       "id" | "name" | "description" | "startDate" | "dueDate" | "status"
     >
   >
+  updates: ProjectUpdate[]
 }

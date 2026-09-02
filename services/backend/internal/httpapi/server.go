@@ -80,8 +80,11 @@ func (s *Server) Router() *gin.Engine {
 	authRoutes.POST("/public/pages/:slug/login", s.customerLogin)
 
 	api.GET("/public/pages/:slug", s.publicPage)
+	api.GET("/public/workspaces/:slug/request", s.publicRequestWorkspace)
 	api.POST("/webhooks/github", s.githubWebhook)
 	api.POST("/webhooks/gitlab", s.gitlabWebhook)
+	api.POST("/public/pages/:slug/requests", s.submitPublicProjectRequest)
+	api.POST("/public/workspaces/:slug/requests", s.submitWorkspaceProjectRequest)
 
 	protected := api.Group("")
 	protected.Use(s.requireAuth)
@@ -96,9 +99,12 @@ func (s *Server) Router() *gin.Engine {
 	protected.POST("/tenant/invitations", s.createInvitation)
 	protected.POST("/tenant/invitations/:token/accept", s.acceptInvitation)
 	protected.GET("/projects", s.listProjects)
+	protected.GET("/portfolio", s.portfolio)
 	protected.POST("/projects", s.createProject)
 	protected.GET("/projects/:projectId", s.getProject)
 	protected.PATCH("/projects/:projectId", s.updateProject)
+	protected.GET("/projects/:projectId/updates", s.listProjectUpdates)
+	protected.POST("/projects/:projectId/updates", s.createProjectUpdate)
 	protected.GET("/projects/:projectId/statuses", s.listStatuses)
 	protected.POST("/projects/:projectId/statuses", s.createStatus)
 	protected.PATCH("/projects/:projectId/statuses/:statusId", s.updateStatus)
@@ -117,6 +123,12 @@ func (s *Server) Router() *gin.Engine {
 	protected.DELETE("/public-pages/:pageId/viewers/:userId", s.removePublicPageViewer)
 	protected.POST("/public-pages/:pageId/access-link", s.issuePublicPageAccessLink)
 	protected.POST("/public-pages/:pageId/revoke", s.revokePublicPage)
+	protected.PATCH("/public-pages/:pageId", s.updatePublicPage)
+	protected.GET("/project-requests", s.listProjectRequests)
+	protected.PATCH("/project-requests/:requestId", s.updateProjectRequest)
+	protected.POST("/project-requests/:requestId/convert", s.convertProjectRequest)
+	protected.GET("/notifications", s.listNotifications)
+	protected.POST("/notifications/:notificationId/read", s.markNotificationRead)
 	protected.GET("/sync/conflicts", s.listConflicts)
 	protected.POST("/sync/conflicts/:conflictId/resolve", s.resolveConflict)
 	protected.GET("/sync/runs", s.listSyncRuns)
@@ -576,7 +588,7 @@ func (s *Server) deletePermissionGrant(c *gin.Context) {
 
 func validPermission(permission string) bool {
 	switch permission {
-	case "*", "tenant.read", "tenant.manage", "project.read", "project.create", "project.update", "project.manage", "workflow.manage", "task.read", "task.create", "task.update", "task.edit", "task.delete", "milestone.read", "milestone.create", "milestone.update", "milestone.manage", "milestone.delete", "label.read", "label.manage", "integration.manage", "sync.resolve", "public_page.read", "public_page.manage":
+	case "*", "tenant.read", "tenant.manage", "project.read", "project.create", "project.update", "project.manage", "workflow.manage", "task.read", "task.create", "task.update", "task.edit", "task.delete", "milestone.read", "milestone.create", "milestone.update", "milestone.manage", "milestone.delete", "label.read", "label.manage", "integration.manage", "sync.resolve", "public_page.read", "public_page.manage", "project_request.read", "project_request.manage", "project_update.read", "project_update.manage", "notification.read", "notification.manage", "portfolio.read":
 		return true
 	default:
 		return false
@@ -772,16 +784,13 @@ func (s *Server) createProject(c *gin.Context) {
 		return
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err = tx.NewInsert().Model(&project).Exec(c.Request.Context()); err != nil {
-		conflict(c, "project key is already in use in this workspace")
-		return
-	}
-	for position, status := range []struct{ name, category, color string }{{"Backlog", "backlog", "#94a3b8"}, {"Todo", "todo", "#60a5fa"}, {"In Progress", "in_progress", "#a78bfa"}, {"Blocked", "blocked", "#f59e0b"}, {"Done", "done", "#34d399"}} {
-		item := &db.ProjectStatus{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, ProjectID: project.ID, Name: status.name, Category: status.category, Position: position, Color: status.color}
-		if _, err = tx.NewInsert().Model(item).Exec(c.Request.Context()); err != nil {
+	if err = insertProjectWithStatuses(c.Request.Context(), tx, project); err != nil {
+		if isProjectKeyConflict(err) {
+			conflict(c, "project key is already in use in this workspace")
+		} else {
 			badRequest(c, errors.New("could not create project workflow"))
-			return
 		}
+		return
 	}
 	if err = tx.Commit(); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not commit project"))
@@ -1912,12 +1921,10 @@ func (s *Server) createLabel(c *gin.Context) {
 }
 
 type publicPageRequest struct {
-	AccessMode          string   `json:"accessMode"`
-	Title               string   `json:"title"`
-	Slug                string   `json:"slug"`
-	VisibleTaskIDs      []string `json:"visibleTaskIds"`
-	VisibleMilestoneIDs []string `json:"visibleMilestoneIds"`
-	ViewerUserIDs       []string `json:"viewerUserIds"`
+	AccessMode    string   `json:"accessMode"`
+	Title         string   `json:"title"`
+	Slug          string   `json:"slug"`
+	ViewerUserIDs []string `json:"viewerUserIds"`
 }
 
 type publicTask struct {
@@ -1984,16 +1991,6 @@ func (s *Server) createPublicPage(c *gin.Context) {
 		badRequest(c, errors.New("invalid public page access mode"))
 		return
 	}
-	visibleTasks, err := parseUUIDList(input.VisibleTaskIDs)
-	if err != nil {
-		badRequest(c, errors.New("invalid visible task id"))
-		return
-	}
-	visibleMilestones, err := parseUUIDList(input.VisibleMilestoneIDs)
-	if err != nil {
-		badRequest(c, errors.New("invalid visible milestone id"))
-		return
-	}
 	rawToken, err := randomToken(24)
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not create public page token"))
@@ -2002,29 +1999,15 @@ func (s *Server) createPublicPage(c *gin.Context) {
 	hash := sha256.Sum256([]byte(rawToken))
 	tokenHash := hex.EncodeToString(hash[:])
 	now := time.Now().UTC()
-	if len(visibleTasks) > 0 {
-		count, countErr := s.Store.DB.NewSelect().Model((*db.Task)(nil)).Where("tenant_id = ? AND project_id = ? AND id IN (?)", s.principal(c).Tenant.ID, projectID, bun.In(visibleTasks)).Count(c.Request.Context())
-		if countErr != nil || count != len(visibleTasks) {
-			badRequest(c, errors.New("one or more visible tasks do not belong to the project"))
-			return
-		}
-	}
-	if len(visibleMilestones) > 0 {
-		count, countErr := s.Store.DB.NewSelect().Model((*db.Milestone)(nil)).Where("tenant_id = ? AND project_id = ? AND id IN (?)", s.principal(c).Tenant.ID, projectID, bun.In(visibleMilestones)).Count(c.Request.Context())
-		if countErr != nil || count != len(visibleMilestones) {
-			badRequest(c, errors.New("one or more visible milestones do not belong to the project"))
-			return
-		}
-	}
 	viewerIDs, err := parseUUIDList(input.ViewerUserIDs)
 	if err != nil {
 		badRequest(c, errors.New("invalid viewer user id"))
 		return
 	}
 	if len(viewerIDs) > 0 {
-		count, countErr := s.Store.DB.NewSelect().Model((*db.User)(nil)).Where("id IN (?)", bun.In(viewerIDs)).Count(c.Request.Context())
+		count, countErr := s.Store.DB.NewSelect().Model((*db.Membership)(nil)).Where("tenant_id = ? AND user_id IN (?)", s.principal(c).Tenant.ID, bun.In(viewerIDs)).Count(c.Request.Context())
 		if countErr != nil || count != len(viewerIDs) {
-			badRequest(c, errors.New("one or more viewers do not exist"))
+			badRequest(c, errors.New("one or more viewers are not members of this tenant"))
 			return
 		}
 	}
@@ -2050,7 +2033,7 @@ func (s *Server) createPublicPage(c *gin.Context) {
 			return
 		}
 	}
-	page := db.PublicPage{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: s.principal(c).Tenant.ID, ProjectID: projectID, Slug: pageSlug, TokenHash: tokenHash, AccessMode: accessMode, Title: strings.TrimSpace(input.Title), VisibleTaskIDs: visibleTasks, VisibleMilestoneIDs: visibleMilestones}
+	page := db.PublicPage{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: s.principal(c).Tenant.ID, ProjectID: projectID, Slug: pageSlug, TokenHash: tokenHash, AccessMode: accessMode, Title: strings.TrimSpace(input.Title), VisibleTaskIDs: []uuid.UUID{}, VisibleMilestoneIDs: []uuid.UUID{}}
 	if _, err = s.Store.DB.NewInsert().Model(&page).Exec(c.Request.Context()); err != nil {
 		if isPublicPageSlugConflict(err) {
 			conflict(c, "public page slug is already in use")
@@ -2178,7 +2161,27 @@ func (s *Server) listPublicPageViewers(c *gin.Context) {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load page viewers"))
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": viewers, "count": len(viewers)})
+	users := make(map[uuid.UUID]db.User, len(viewers))
+	if len(viewers) > 0 {
+		ids := make([]uuid.UUID, 0, len(viewers))
+		for _, viewer := range viewers {
+			ids = append(ids, viewer.UserID)
+		}
+		var records []db.User
+		if err := s.Store.DB.NewSelect().Model(&records).Where("id IN (?)", bun.In(ids)).Scan(c.Request.Context()); err != nil {
+			writeError(c, http.StatusInternalServerError, errors.New("could not load page viewer users"))
+			return
+		}
+		for _, user := range records {
+			users[user.ID] = user
+		}
+	}
+	items := make([]gin.H, 0, len(viewers))
+	for _, viewer := range viewers {
+		user := users[viewer.UserID]
+		items = append(items, gin.H{"userId": viewer.UserID, "name": user.Name, "email": user.Email})
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items, "count": len(items)})
 }
 
 func (s *Server) addPublicPageViewer(c *gin.Context) {
@@ -2200,6 +2203,10 @@ func (s *Server) addPublicPageViewer(c *gin.Context) {
 	userID, err := uuid.Parse(input.UserID)
 	if err != nil {
 		badRequest(c, errors.New("invalid user id"))
+		return
+	}
+	if !s.isTenantUser(c, userID) {
+		notFound(c)
 		return
 	}
 	var user db.User
@@ -2289,18 +2296,12 @@ func (s *Server) publicPage(c *gin.Context) {
 	}
 	tasks := make([]db.Task, 0)
 	query := s.Store.DB.NewSelect().Model(&tasks).Where("project_id = ? AND visibility = 'customer'", project.ID)
-	if len(page.VisibleTaskIDs) > 0 {
-		query = query.Where("id IN (?)", bun.In(page.VisibleTaskIDs))
-	}
 	if err := query.Order("position ASC", "created_at ASC").Scan(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load public tasks"))
 		return
 	}
 	milestones := make([]db.Milestone, 0)
 	milestoneQuery := s.Store.DB.NewSelect().Model(&milestones).Where("project_id = ? AND visibility = 'customer'", project.ID)
-	if len(page.VisibleMilestoneIDs) > 0 {
-		milestoneQuery = milestoneQuery.Where("id IN (?)", bun.In(page.VisibleMilestoneIDs))
-	}
 	if err := milestoneQuery.Order("due_date ASC NULLS LAST").Scan(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load public milestones"))
 		return
@@ -2314,8 +2315,13 @@ func (s *Server) publicPage(c *gin.Context) {
 	for _, milestone := range milestones {
 		publicMilestones = append(publicMilestones, publicMilestone{ID: milestone.ID, Name: milestone.Name, Description: milestone.Description, StartDate: milestone.StartDate, DueDate: milestone.DueDate, Status: milestone.Status})
 	}
+	updates, err := s.projectUpdateItems(c.Request.Context(), project.ID, true)
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not load public updates"))
+		return
+	}
 	c.Header("X-Robots-Tag", "noindex, nofollow")
-	c.JSON(http.StatusOK, gin.H{"page": gin.H{"title": page.Title, "accessMode": page.AccessMode}, "project": gin.H{"name": project.Name, "key": project.Key, "description": project.Description, "targetDate": project.TargetDate}, "tasks": publicTasks, "milestones": publicMilestones})
+	c.JSON(http.StatusOK, gin.H{"page": gin.H{"title": page.Title, "accessMode": page.AccessMode}, "project": gin.H{"name": project.Name, "key": project.Key, "description": project.Description, "targetDate": project.TargetDate}, "tasks": publicTasks, "milestones": publicMilestones, "updates": updates})
 }
 
 func (s *Server) allowPublicRequest(c *gin.Context) bool {

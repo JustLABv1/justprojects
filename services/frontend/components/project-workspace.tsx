@@ -47,6 +47,7 @@ import { AppShell } from "@/components/app-shell"
 import { FeedbackNotice } from "@/components/feedback-notice"
 import { GitConnectionDialog } from "@/components/git-connection-dialog"
 import { KanbanBoardView } from "@/components/kanban-board"
+import { CustomerPageControls } from "@/components/customer-page-controls"
 import { useToast } from "@/components/toast-provider"
 import {
   Kanban,
@@ -67,6 +68,7 @@ import {
   type NewProjectInput,
 } from "@/components/project-dialog"
 import { RoadmapView } from "@/components/roadmap-view"
+import { ProjectUpdatesPanel } from "@/components/project-updates-panel"
 import { StatusPill } from "@/components/status-pill"
 import { SyncActivity } from "@/components/sync-activity"
 import {
@@ -125,6 +127,7 @@ import {
   listPermissionGrants,
   listPublicPages,
   listProjectRepositories,
+  listProjectUpdates,
   listProjects,
   listSyncRuns,
   listTasks,
@@ -150,6 +153,7 @@ import type {
   Invitation,
   PermissionGrant,
   Task,
+  ProjectUpdate,
   WorkspaceData,
   WorkspaceView,
 } from "@/lib/types"
@@ -169,6 +173,7 @@ const emptyWorkspace: WorkspaceData = {
   labels: [],
   syncEvents: [],
   gitConnections: [],
+  updates: [],
 }
 
 function normalizePublicPageSlug(value: string) {
@@ -273,6 +278,7 @@ export function ProjectWorkspace({
           listGitConnections(),
           listSyncRuns(),
           listTenantMembers(),
+          listProjectUpdates(resolvedProjectId),
         ])
         const nextErrors: Record<string, string> = {}
         const failed = (key: string) => {
@@ -302,6 +308,10 @@ export function ProjectWorkspace({
           resources[5].status === "fulfilled"
             ? resources[5].value
             : (failed("members"), { members: [] })
+        const updates =
+          resources[6].status === "fulfilled"
+            ? resources[6].value
+            : (failed("updates"), { items: [] })
         setResourceErrors(nextErrors)
         setData((current) => ({
           ...current,
@@ -311,6 +321,7 @@ export function ProjectWorkspace({
           labels: labels.items ?? [],
           gitConnections: connections.items ?? [],
           syncEvents: syncRuns.items ?? [],
+          updates: updates.items ?? [],
         }))
       } catch (caught) {
         if (caught instanceof ApiError && caught.status === 401) {
@@ -859,6 +870,12 @@ export function ProjectWorkspace({
                 onOpenTasks={() => onViewChange("tasks")}
                 onSelectTask={setSelectedTask}
                 onEditTask={openTaskEditor}
+                onUpdateCreated={(update) =>
+                  setData((current) => ({
+                    ...current,
+                    updates: [update, ...current.updates.filter((item) => item.id !== update.id)],
+                  }))
+                }
               />
             )}
             {activeView === "tasks" && (
@@ -919,6 +936,7 @@ export function ProjectWorkspace({
                 projectId={data.project.id}
                 taskCount={data.tasks.length}
                 milestoneCount={data.milestones.length}
+                members={data.members}
                 statuses={data.statuses}
                 session={data.session}
                 onStatusesChange={(statuses) =>
@@ -964,12 +982,14 @@ function OverviewView({
   onOpenTasks,
   onSelectTask,
   onEditTask,
+  onUpdateCreated,
 }: {
   data: WorkspaceData
   progress: number
   onOpenTasks: () => void
   onSelectTask: (task: Task) => void
   onEditTask: (task: Task) => void
+  onUpdateCreated: (update: ProjectUpdate) => void
 }) {
   const { locale, t } = useI18n()
   const activeTasks = data.tasks.filter(
@@ -1091,6 +1111,11 @@ function OverviewView({
           </FramePanel>
         </Frame>
       </div>
+      <ProjectUpdatesPanel
+        projectId={data.project.id}
+        updates={data.updates}
+        onUpdateCreated={onUpdateCreated}
+      />
     </div>
   )
 }
@@ -1948,6 +1973,7 @@ function ProjectSettings({
   projectId,
   taskCount,
   milestoneCount,
+  members,
   statuses,
   session,
   onStatusesChange,
@@ -1956,6 +1982,7 @@ function ProjectSettings({
   projectId: string
   taskCount: number
   milestoneCount: number
+  members: TenantMember[]
   statuses: ProjectStatus[]
   session?: Session
   onStatusesChange: (statuses: ProjectStatus[]) => void
@@ -2134,6 +2161,10 @@ function ProjectSettings({
         </div>
       )}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
+        <CustomerPageControls
+          pages={activePages}
+          members={members}
+        />
         <Frame variant="ghost" className="bg-transparent" spacing="xs">
           <FramePanel fit>
             <FrameHeader className="px-0 pt-0">
