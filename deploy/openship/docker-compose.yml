@@ -1,13 +1,15 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: justprojects
       POSTGRES_USER: justprojects
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the OpenShip environment}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # PostgreSQL 18 uses a versioned data directory below this mount.
+      # Existing PostgreSQL 16 volumes must be migrated before switching.
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U justprojects -d justprojects"]
       interval: 10s

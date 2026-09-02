@@ -2,7 +2,7 @@ name: justprojects
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: justprojects
@@ -11,7 +11,9 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - justprojects-postgres:/var/lib/postgresql/data
+      # PostgreSQL 18 uses a versioned data directory below this mount.
+      # Existing PostgreSQL 16 volumes must be migrated before switching.
+      - justprojects-postgres:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U justprojects -d justprojects"]
       interval: 5s
