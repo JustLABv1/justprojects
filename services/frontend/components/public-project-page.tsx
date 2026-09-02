@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react"
 import Link from "next/link"
 import {
   RiArrowRightLine,
+  RiAddLine,
   RiCalendarLine,
   RiCheckLine,
   RiFlagLine,
@@ -14,6 +15,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { FeedbackNotice } from "@/components/feedback-notice"
+import { NotificationBell } from "@/components/notification-bell"
+import { ProjectRequestDialog } from "@/components/project-request-dialog"
 import { Progress } from "@/components/ui/progress"
 import {
   ApiError,
@@ -21,7 +24,7 @@ import {
   getPublicPage,
   isApiConfigured,
 } from "@/lib/api"
-import type { PublicProjectData } from "@/lib/types"
+import type { PublicProjectData, ProjectRequest, User } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -41,17 +44,25 @@ export function PublicProjectPage({
     project: { name: "", key: "" },
     tasks: [],
     milestones: [],
+    updates: [],
   })
   const [loading, setLoading] = useState(isApiConfigured)
   const [error, setError] = useState<string | undefined>(() =>
     isApiConfigured ? undefined : t("auth.apiRequired")
   )
   const [authRequired, setAuthRequired] = useState(false)
+  const [authenticated, setAuthenticated] = useState(false)
+  const [customer, setCustomer] = useState<User>()
+  const [requestOpen, setRequestOpen] = useState(false)
+  const [submittedRequest, setSubmittedRequest] = useState<ProjectRequest>()
 
   useEffect(() => {
     if (!isApiConfigured) return
     void getPublicPage(slug, token)
-      .then(setPayload)
+      .then((nextPayload) => {
+        setPayload(nextPayload)
+        setAuthenticated(nextPayload.page.accessMode === "login")
+      })
       .catch((caught) => {
         if (caught instanceof ApiError && caught.status === 401) {
           setAuthRequired(true)
@@ -90,6 +101,9 @@ export function PublicProjectPage({
               <RiLockLine className="size-3" aria-hidden="true" />
               {t("public.readOnlyView")}
             </Badge>
+            <NotificationBell
+              enabled={authenticated && payload.page.accessMode === "login"}
+            />
             <LanguageSwitcher />
           </div>
         </header>
@@ -98,9 +112,11 @@ export function PublicProjectPage({
         ) : authRequired ? (
           <CustomerAccessForm
             slug={slug}
-            onAuthenticated={(nextPayload) => {
+            onAuthenticated={(nextPayload, user) => {
               setPayload(nextPayload)
               setAuthRequired(false)
+              setAuthenticated(true)
+              setCustomer(user)
             }}
           />
         ) : error ? (
@@ -135,6 +151,15 @@ export function PublicProjectPage({
                   </span>
                 </div>
               )}
+              <div className="mt-7 flex flex-wrap items-center gap-3">
+                <Button className="gap-1.5" onClick={() => setRequestOpen(true)}>
+                  <RiAddLine className="size-4" aria-hidden="true" />
+                  {t("public.requestProject")}
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {t("public.requestProjectDescription")}
+                </span>
+              </div>
             </section>
             <section className="mt-10 grid gap-4 sm:grid-cols-[1.3fr_0.7fr]">
               <Card className="gap-5 rounded-3xl border-0 bg-slate-950 p-6 text-white shadow-xl shadow-slate-950/10 sm:p-8 dark:bg-slate-900">
@@ -318,6 +343,53 @@ export function PublicProjectPage({
                 </div>
               </section>
             </div>
+            <section className="mt-12" aria-labelledby="customer-updates-title">
+              <div className="mb-4 flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+                    {t("public.updates")}
+                  </p>
+                  <h2 id="customer-updates-title" className="mt-2 text-2xl font-semibold tracking-tight">
+                    {t("public.updates")}
+                  </h2>
+                </div>
+                {authenticated && (
+                  <span className="text-xs text-muted-foreground">
+                    {t("public.notifications")}
+                  </span>
+                )}
+              </div>
+              {payload.updates?.length ? (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {payload.updates.map((update) => (
+                    <Card key={update.id} className="rounded-2xl p-5 shadow-sm shadow-slate-950/[0.02]">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-medium">{update.title}</p>
+                        <Badge variant="outline" className="text-[10px]">{t("updates.postCustomer")}</Badge>
+                      </div>
+                      <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{update.body}</p>
+                      <p className="mt-4 text-[11px] text-muted-foreground">
+                        {update.authorName ? `${update.authorName} · ` : ""}
+                        {formatDate(update.createdAt, locale)}
+                      </p>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <EmptyPublicState label={t("public.noUpdates")} />
+              )}
+              {submittedRequest && (
+                <Card className="mt-4 rounded-2xl border-primary/20 bg-primary/[0.03] p-4 shadow-none">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">{submittedRequest.title}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{t("public.requestProjectSubmitted")}</p>
+                    </div>
+                    <Badge variant="secondary">{t("public.requestStatus")}: {submittedRequest.status}</Badge>
+                  </div>
+                </Card>
+              )}
+            </section>
             <footer className="mt-16 flex flex-col gap-2 border-t pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
               <span>{t("public.sharedSecurely")}</span>
               <span className="inline-flex items-center gap-1.5">
@@ -328,6 +400,15 @@ export function PublicProjectPage({
           </>
         )}
       </div>
+      <ProjectRequestDialog
+        key={customer?.id ?? "anonymous"}
+        slug={slug}
+        token={token}
+        open={requestOpen}
+        onOpenChange={setRequestOpen}
+        requester={customer}
+        onSubmitted={setSubmittedRequest}
+      />
     </main>
   )
 }
@@ -337,7 +418,7 @@ function CustomerAccessForm({
   onAuthenticated,
 }: {
   slug: string
-  onAuthenticated: (payload: PublicProjectData) => void
+  onAuthenticated: (payload: PublicProjectData, user: User) => void
 }) {
   const { t } = useI18n()
   const [email, setEmail] = useState("")
@@ -350,8 +431,8 @@ function CustomerAccessForm({
     setError(undefined)
     setLoading(true)
     try {
-      await customerLogin(slug, { email, password })
-      onAuthenticated(await getPublicPage(slug))
+      const session = await customerLogin(slug, { email, password })
+      onAuthenticated(await getPublicPage(slug), session.user)
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : t("public.notAvailable")

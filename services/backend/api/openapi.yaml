@@ -268,6 +268,16 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /portfolio:
+    get:
+      tags: [Projects]
+      operationId: getPortfolio
+      responses:
+        '200':
+          description: Tenant portfolio project cards.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PortfolioList' }
   /projects/{projectId}:
     get:
       tags: [Projects]
@@ -302,6 +312,35 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Project' }
         '409': { $ref: '#/components/responses/Error' }
+  /projects/{projectId}/updates:
+    get:
+      tags: [Projects]
+      operationId: listProjectUpdates
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      responses:
+        '200':
+          description: Project update feed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectUpdateList' }
+    post:
+      tags: [Projects]
+      operationId: createProjectUpdate
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectUpdateRequest' }
+      responses:
+        '201':
+          description: Project update created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [update]
+                properties: { update: { $ref: '#/components/schemas/ProjectUpdate' } }
   /projects/{projectId}/statuses:
     get:
       tags: [Projects]
@@ -540,6 +579,25 @@ paths:
       operationId: revokePublicPage
       parameters: [{ $ref: '#/components/parameters/PageId' }]
       responses: { '204': { description: Public page revoked. } }
+  /public-pages/{pageId}:
+    patch:
+      tags: [Public pages]
+      operationId: updatePublicPage
+      parameters: [{ $ref: '#/components/parameters/PageId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PublicPagePatch' }
+      responses:
+        '200':
+          description: Public page visibility settings updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [page]
+                properties: { page: { $ref: '#/components/schemas/PublicPage' } }
   /public-pages/{pageId}/access-link:
     post:
       tags: [Public pages]
@@ -608,6 +666,141 @@ paths:
               schema: { $ref: '#/components/schemas/PublicPagePayload' }
         '401': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+  /public/pages/{slug}/requests:
+    post:
+      tags: [Public pages]
+      operationId: submitProjectRequest
+      security: []
+      parameters: [{ $ref: '#/components/parameters/PageSlug' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectRequestSubmission' }
+      responses:
+        '201':
+          description: Customer project request accepted with a one-time raw request token.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectRequestCreated' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /public/workspaces/{slug}/request:
+    get:
+      tags: [Project requests]
+      operationId: getPublicRequestWorkspace
+      security: []
+      parameters: [{ $ref: '#/components/parameters/WorkspaceSlug' }]
+      responses:
+        '200':
+          description: Public workspace request-page metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tenant]
+                properties:
+                  tenant:
+                    type: object
+                    required: [name, requestSlug]
+                    properties:
+                      name: { type: string }
+                      requestSlug: { type: string }
+        '404': { $ref: '#/components/responses/Error' }
+  /public/workspaces/{slug}/requests:
+    post:
+      tags: [Project requests]
+      operationId: submitWorkspaceProjectRequest
+      security: []
+      parameters: [{ $ref: '#/components/parameters/WorkspaceSlug' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectRequestSubmission' }
+      responses:
+        '201':
+          description: Standalone customer project request accepted.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectRequestCreated' }
+        '404': { $ref: '#/components/responses/Error' }
+  /project-requests:
+    get:
+      tags: [Projects]
+      operationId: listProjectRequests
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [submitted, in_review, needs_info, approved, rejected, converted, cancelled] }
+        - name: search
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Tenant project request inbox.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectRequestList' }
+  /project-requests/{requestId}:
+    patch:
+      tags: [Projects]
+      operationId: updateProjectRequest
+      parameters: [{ $ref: '#/components/parameters/RequestId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectRequestPatch' }
+      responses:
+        '200':
+          description: Project request triage fields updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [request]
+                properties: { request: { $ref: '#/components/schemas/CustomerProjectRequest' } }
+  /project-requests/{requestId}/convert:
+    post:
+      tags: [Projects]
+      operationId: convertProjectRequest
+      parameters: [{ $ref: '#/components/parameters/RequestId' }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectRequestConversion' }
+      responses:
+        '201':
+          description: Request converted into a project.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectRequestConverted' }
+  /notifications:
+    get:
+      tags: [Tenant]
+      operationId: listNotifications
+      responses:
+        '200':
+          description: Notifications for the current user.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationList' }
+  /notifications/{notificationId}/read:
+    post:
+      tags: [Tenant]
+      operationId: markNotificationRead
+      parameters: [{ $ref: '#/components/parameters/NotificationId' }]
+      responses:
+        '200':
+          description: Notification marked as read.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [notification]
+                properties: { notification: { $ref: '#/components/schemas/Notification' } }
   /sync/conflicts:
     get:
       tags: [Sync]
@@ -938,11 +1131,14 @@ components:
     RepositoryId: { name: repositoryId, in: path, required: true, schema: { type: string, format: uuid } }
     ConnectionId: { name: connectionId, in: path, required: true, schema: { type: string, format: uuid } }
     PageId: { name: pageId, in: path, required: true, schema: { type: string, format: uuid } }
+    RequestId: { name: requestId, in: path, required: true, schema: { type: string, format: uuid } }
+    NotificationId: { name: notificationId, in: path, required: true, schema: { type: string, format: uuid } }
     UserId: { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
     GrantId: { name: grantId, in: path, required: true, schema: { type: string, format: uuid } }
     MappingId: { name: mappingId, in: path, required: true, schema: { type: string, format: uuid } }
     ConflictId: { name: conflictId, in: path, required: true, schema: { type: string, format: uuid } }
     PageSlug: { name: slug, in: path, required: true, schema: { type: string, minLength: 3, maxLength: 64, pattern: '^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])?$' } }
+    WorkspaceSlug: { name: slug, in: path, required: true, schema: { type: string, minLength: 3, maxLength: 64, pattern: '^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])?$' } }
     InvitationToken: { name: token, in: path, required: true, schema: { type: string, minLength: 20 } }
     OIDCState: { name: state, in: query, required: true, schema: { type: string } }
     OIDCCode: { name: code, in: query, required: true, schema: { type: string } }
@@ -1012,11 +1208,12 @@ components:
         emailVerified: { type: boolean }
     Tenant:
       type: object
-      required: [id, name, slug]
+      required: [id, name, slug, requestSlug]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
         slug: { type: string }
+        requestSlug: { type: string }
     Membership:
       type: object
       required: [id, tenantId, userId, role]
@@ -1102,6 +1299,127 @@ components:
       properties:
         items: { type: array, items: { $ref: '#/components/schemas/Project' } }
         count: { type: integer }
+    CustomerProjectRequest:
+      type: object
+      required: [id, tenantId, requesterName, requesterEmail, title, description, priority, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        sourcePublicPageId: { type: string, format: uuid, nullable: true }
+        requesterUserId: { type: string, format: uuid, nullable: true }
+        requesterName: { type: string }
+        requesterEmail: { type: string, format: email }
+        title: { type: string }
+        description: { type: string }
+        requestedStartDate: { type: string, format: date, nullable: true }
+        requestedTargetDate: { type: string, format: date, nullable: true }
+        priority: { type: string, enum: [low, medium, high, urgent] }
+        status: { type: string, enum: [submitted, in_review, needs_info, approved, rejected, converted, cancelled] }
+        assignedTo: { type: string, format: uuid, nullable: true }
+        internalNotes: { type: string }
+        convertedProjectId: { type: string, format: uuid, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ProjectRequestList:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/CustomerProjectRequest' } }
+        count: { type: integer }
+    ProjectRequestSubmission:
+      type: object
+      required: [title, description]
+      properties:
+        token: { type: string }
+        requesterName: { type: string }
+        requesterEmail: { type: string, format: email }
+        title: { type: string }
+        description: { type: string }
+        requestedStartDate: { type: string, format: date }
+        requestedTargetDate: { type: string, format: date }
+        priority: { type: string, enum: [low, medium, high, urgent], default: medium }
+    ProjectRequestCreated:
+      type: object
+      required: [request]
+      properties:
+        request: { $ref: '#/components/schemas/CustomerProjectRequest' }
+        requestToken: { type: string }
+    ProjectRequestPatch:
+      type: object
+      properties:
+        status: { type: string, enum: [submitted, in_review, needs_info, approved, rejected, converted, cancelled] }
+        assignedTo: { type: string, format: uuid, nullable: true }
+        internalNotes: { type: string, nullable: true }
+    ProjectRequestConversion:
+      type: object
+      properties:
+        name: { type: string }
+        key: { type: string }
+        description: { type: string }
+        targetDate: { type: string, format: date }
+    ProjectRequestConverted:
+      type: object
+      required: [request, project]
+      properties:
+        request: { $ref: '#/components/schemas/CustomerProjectRequest' }
+        project: { $ref: '#/components/schemas/Project' }
+    ProjectUpdate:
+      type: object
+      required: [id, projectId, title, body, visibility, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        authorId: { type: string, format: uuid, nullable: true }
+        authorName: { type: string }
+        title: { type: string }
+        body: { type: string }
+        visibility: { type: string, enum: [internal, customer] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ProjectUpdateRequest:
+      type: object
+      required: [title, body]
+      properties:
+        title: { type: string }
+        body: { type: string }
+        visibility: { type: string, enum: [internal, customer], default: customer }
+    ProjectUpdateList:
+      type: object
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/ProjectUpdate' } } }
+    Notification:
+      type: object
+      required: [id, type, title, body, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        title: { type: string }
+        body: { type: string }
+        link: { type: string }
+        readAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+    NotificationList:
+      type: object
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/Notification' } } }
+    PortfolioNextMilestone:
+      type: object
+      required: [id, name, status]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        dueDate: { type: string, format: date, nullable: true }
+        status: { type: string }
+    PortfolioProject:
+      type: object
+      required: [project, taskTotal, completedTasks, blockedTasks, activeCustomerPages]
+      properties:
+        project: { $ref: '#/components/schemas/Project' }
+        taskTotal: { type: integer }
+        completedTasks: { type: integer }
+        blockedTasks: { type: integer }
+        nextMilestone: { $ref: '#/components/schemas/PortfolioNextMilestone' }
+        activeCustomerPages: { type: integer }
+    PortfolioList:
+      type: object
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/PortfolioProject' } } }
     StatusCategory:
       type: string
       enum: [backlog, todo, in_progress, blocked, done]
@@ -1303,8 +1621,6 @@ components:
         slug: { type: string }
         accessMode: { type: string, enum: [link, login] }
         title: { type: string }
-        visibleTaskIds: { type: array, items: { type: string, format: uuid } }
-        visibleMilestoneIds: { type: array, items: { type: string, format: uuid } }
         revoked: { type: boolean }
     PublicPageRequest:
       type: object
@@ -1312,9 +1628,12 @@ components:
         accessMode: { type: string, enum: [link, login], default: link }
         title: { type: string }
         slug: { type: string, minLength: 3, maxLength: 64, pattern: '^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])?$' }
-        visibleTaskIds: { type: array, items: { type: string, format: uuid } }
-        visibleMilestoneIds: { type: array, items: { type: string, format: uuid } }
         viewerUserIds: { type: array, items: { type: string, format: uuid } }
+    PublicPagePatch:
+      type: object
+      properties:
+        title: { type: string }
+        slug: { type: string, minLength: 3, maxLength: 64, pattern: '^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])?$' }
     PublicPageCreated:
       type: object
       required: [page, token, url]
@@ -1332,23 +1651,28 @@ components:
       properties: { items: { type: array, items: { $ref: '#/components/schemas/PublicPage' } } }
     PublicPageViewer:
       type: object
-      required: [id, publicPageId, userId]
+      required: [userId]
       properties:
         id: { type: string, format: uuid }
         publicPageId: { type: string, format: uuid }
         userId: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
     PublicPagePayload:
       type: object
-      required: [page, project, tasks, milestones]
+      required: [page, project, tasks, milestones, updates]
       properties:
         page:
           type: object
-          properties: { title: { type: string }, accessMode: { type: string } }
+          properties:
+            title: { type: string }
+            accessMode: { type: string }
         project:
           type: object
           properties: { name: { type: string }, key: { type: string }, description: { type: string }, targetDate: { type: string, format: date, nullable: true } }
         tasks: { type: array, items: { $ref: '#/components/schemas/PublicTask' } }
         milestones: { type: array, items: { $ref: '#/components/schemas/PublicMilestone' } }
+        updates: { type: array, items: { $ref: '#/components/schemas/ProjectUpdate' } }
     PublicTask:
       type: object
       required: [id, title, priority, statusName, statusCategory]

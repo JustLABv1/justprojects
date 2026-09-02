@@ -16,8 +16,9 @@ type RecordFields struct {
 type Tenant struct {
 	bun.BaseModel `bun:"table:tenants,alias:t"`
 	RecordFields
-	Name string `bun:",notnull" json:"name"`
-	Slug string `bun:",notnull,unique" json:"slug"`
+	Name        string `bun:",notnull" json:"name"`
+	Slug        string `bun:",notnull,unique" json:"slug"`
+	RequestSlug string `bun:",notnull,unique" json:"requestSlug"`
 }
 
 type User struct {
@@ -277,14 +278,16 @@ type AuditEvent struct {
 type PublicPage struct {
 	bun.BaseModel `bun:"table:public_pages,alias:pp"`
 	RecordFields
-	TenantID            uuid.UUID   `bun:",type:uuid,notnull" json:"tenantId"`
-	ProjectID           uuid.UUID   `bun:",type:uuid,notnull" json:"projectId"`
-	Slug                string      `bun:",notnull" json:"slug"`
-	TokenHash           string      `bun:",notnull,unique" json:"-"`
-	AccessMode          string      `bun:",notnull,default:'link'" json:"accessMode"`
-	Title               string      `bun:",nullzero" json:"title"`
-	VisibleTaskIDs      []uuid.UUID `bun:"visible_task_ids,type:jsonb,notnull,default:'[]'" json:"visibleTaskIds"`
-	VisibleMilestoneIDs []uuid.UUID `bun:"visible_milestone_ids,type:jsonb,notnull,default:'[]'" json:"visibleMilestoneIds"`
+	TenantID   uuid.UUID `bun:",type:uuid,notnull" json:"tenantId"`
+	ProjectID  uuid.UUID `bun:",type:uuid,notnull" json:"projectId"`
+	Slug       string    `bun:",notnull" json:"slug"`
+	TokenHash  string    `bun:",notnull,unique" json:"-"`
+	AccessMode string    `bun:",notnull,default:'link'" json:"accessMode"`
+	Title      string    `bun:",nullzero" json:"title"`
+	// Legacy columns retained for backwards-compatible database reads. Customer
+	// visibility is controlled by Task.Visibility and Milestone.Visibility.
+	VisibleTaskIDs      []uuid.UUID `bun:"visible_task_ids,type:jsonb,notnull,default:'[]'" json:"-"`
+	VisibleMilestoneIDs []uuid.UUID `bun:"visible_milestone_ids,type:jsonb,notnull,default:'[]'" json:"-"`
 	Revoked             bool        `bun:",notnull,default:false" json:"revoked"`
 }
 
@@ -293,4 +296,47 @@ type PublicPageViewer struct {
 	RecordFields
 	PublicPageID uuid.UUID `bun:",type:uuid,notnull" json:"publicPageId"`
 	UserID       uuid.UUID `bun:",type:uuid,notnull" json:"userId"`
+}
+
+type ProjectRequest struct {
+	bun.BaseModel `bun:"table:project_requests,alias:prq"`
+	RecordFields
+	TenantID            uuid.UUID  `bun:",type:uuid,notnull" json:"tenantId"`
+	SourcePublicPageID  *uuid.UUID `bun:",type:uuid,nullzero" json:"sourcePublicPageId,omitempty"`
+	RequesterUserID     *uuid.UUID `bun:",type:uuid,nullzero" json:"requesterUserId,omitempty"`
+	RequesterName       string     `bun:",notnull" json:"requesterName"`
+	RequesterEmail      string     `bun:",notnull" json:"requesterEmail"`
+	Title               string     `bun:",notnull" json:"title"`
+	Description         string     `bun:",notnull" json:"description"`
+	RequestedStartDate  *time.Time `bun:",nullzero" json:"requestedStartDate,omitempty"`
+	RequestedTargetDate *time.Time `bun:",nullzero" json:"requestedTargetDate,omitempty"`
+	Priority            string     `bun:",notnull,default:'medium'" json:"priority"`
+	Status              string     `bun:",notnull,default:'submitted'" json:"status"`
+	AssignedTo          *uuid.UUID `bun:",type:uuid,nullzero" json:"assignedTo,omitempty"`
+	InternalNotes       string     `bun:",nullzero" json:"internalNotes,omitempty"`
+	ConvertedProjectID  *uuid.UUID `bun:",type:uuid,nullzero" json:"convertedProjectId,omitempty"`
+	RequestTokenHash    *string    `bun:",nullzero" json:"-"`
+}
+
+type ProjectUpdate struct {
+	bun.BaseModel `bun:"table:project_updates,alias:pu"`
+	RecordFields
+	TenantID   uuid.UUID  `bun:",type:uuid,notnull" json:"tenantId"`
+	ProjectID  uuid.UUID  `bun:",type:uuid,notnull" json:"projectId"`
+	AuthorID   *uuid.UUID `bun:",type:uuid,nullzero" json:"authorId,omitempty"`
+	Title      string     `bun:",notnull" json:"title"`
+	Body       string     `bun:",notnull" json:"body"`
+	Visibility string     `bun:",notnull,default:'customer'" json:"visibility"`
+}
+
+type Notification struct {
+	bun.BaseModel `bun:"table:notifications,alias:n"`
+	RecordFields
+	TenantID uuid.UUID  `bun:",type:uuid,notnull" json:"tenantId"`
+	UserID   uuid.UUID  `bun:",type:uuid,notnull" json:"userId"`
+	Type     string     `bun:",notnull" json:"type"`
+	Title    string     `bun:",notnull" json:"title"`
+	Body     string     `bun:",notnull" json:"body"`
+	Link     string     `bun:",nullzero" json:"link,omitempty"`
+	ReadAt   *time.Time `bun:",nullzero" json:"readAt,omitempty"`
 }

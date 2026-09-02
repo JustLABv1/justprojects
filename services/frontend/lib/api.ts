@@ -6,6 +6,12 @@ import type {
   Label,
   Milestone,
   Project,
+  ProjectRequest,
+  ProjectRequestStatus,
+  ProjectUpdate,
+  Notification,
+  PortfolioProject,
+  PublicPageViewer,
   ProjectRepository,
   ProjectStatus,
   PublicPageSummary,
@@ -98,6 +104,53 @@ export function getOidcStartUrl() {
 
 export function listProjects() {
   return request<{ items: Project[] }>("/projects")
+}
+
+export function getPortfolio() {
+  return request<{ items: PortfolioProject[] }>("/portfolio")
+}
+
+export function listProjectRequests(query?: {
+  status?: ProjectRequestStatus
+  q?: string
+}) {
+  const params = new URLSearchParams()
+  if (query?.status) params.set("status", query.status)
+  if (query?.q) params.set("search", query.q)
+  const suffix = params.size ? `?${params.toString()}` : ""
+  return request<{ items: ProjectRequest[] }>(`/project-requests${suffix}`)
+}
+
+export function updateProjectRequest(
+  requestId: string,
+  input: Partial<{
+    status: ProjectRequestStatus
+    assignedTo: string | null
+    internalNotes: string
+  }>
+) {
+  return request<{ request: ProjectRequest }>(`/project-requests/${requestId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  })
+}
+
+export function convertProjectRequest(
+  requestId: string,
+  input?: Partial<{
+    name: string
+    key: string
+    description: string
+    targetDate: string | null
+  }>
+) {
+  return request<{ request: ProjectRequest; project: Project }>(
+    `/project-requests/${requestId}/convert`,
+    {
+      method: "POST",
+      body: JSON.stringify(input ?? {}),
+    }
+  )
 }
 
 export function listTenantMembers() {
@@ -416,8 +469,6 @@ export function createPublicPage(
     accessMode?: "link" | "login"
     title?: string
     slug?: string
-    visibleTaskIds?: string[]
-    visibleMilestoneIds?: string[]
     viewerUserIds?: string[]
   }
 ) {
@@ -434,6 +485,118 @@ export function createPublicPage(
 export function listPublicPages(projectId: string) {
   return request<{ items: PublicPageSummary[] }>(
     `/projects/${projectId}/public-pages`
+  )
+}
+
+export function updatePublicPage(
+  pageId: string,
+  input: Partial<{
+    title: string
+    slug: string
+  }>
+) {
+  return request<{ page: PublicPageSummary }>(`/public-pages/${pageId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  })
+}
+
+export function listPublicPageViewers(pageId: string) {
+  return request<{ items: PublicPageViewer[] }>(
+    `/public-pages/${pageId}/viewers`
+  )
+}
+
+export function addPublicPageViewer(pageId: string, userId: string) {
+  return request<PublicPageViewer>(
+    `/public-pages/${pageId}/viewers`,
+    {
+      method: "POST",
+      body: JSON.stringify({ userId }),
+    }
+  )
+}
+
+export function removePublicPageViewer(pageId: string, userId: string) {
+  return request<void>(
+    `/public-pages/${pageId}/viewers/${userId}`,
+    { method: "DELETE" }
+  )
+}
+
+export function listProjectUpdates(projectId: string) {
+  return request<{ items: ProjectUpdate[] }>(
+    `/projects/${projectId}/updates`
+  )
+}
+
+export function createProjectUpdate(
+  projectId: string,
+  input: { title: string; body: string; visibility?: "internal" | "customer" }
+) {
+  return request<{ update: ProjectUpdate }>(`/projects/${projectId}/updates`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+export function listNotifications() {
+  return request<{ items: Notification[] }>("/notifications")
+}
+
+export function markNotificationRead(notificationId: string) {
+  return request<{ notification: Notification }>(
+    `/notifications/${notificationId}/read`,
+    { method: "POST" }
+  )
+}
+
+export function createPublicProjectRequest(
+  slug: string,
+  input: {
+    token?: string
+    requesterName: string
+    requesterEmail: string
+    title: string
+    description: string
+    requestedStartDate?: string
+    requestedTargetDate?: string
+    priority?: "low" | "medium" | "high" | "urgent"
+  }
+) {
+  return request<{ request: ProjectRequest; requestToken?: string }>(
+    `/public/pages/${slug}/requests`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    }
+  )
+}
+
+export function getPublicRequestWorkspace(requestSlug: string) {
+  return request<{ tenant: { name: string; requestSlug: string } }>(
+    `/public/workspaces/${requestSlug}/request`
+  )
+}
+
+export function createWorkspaceProjectRequest(
+  requestSlug: string,
+  input: {
+    requesterName: string
+    requesterEmail: string
+    title: string
+    description: string
+    requestedStartDate?: string
+    requestedTargetDate?: string
+    priority?: "low" | "medium" | "high" | "urgent"
+  }
+) {
+  return request<{ request: ProjectRequest; requestToken?: string }>(
+    `/public/workspaces/${requestSlug}/requests`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    }
   )
 }
 

@@ -76,3 +76,16 @@ Playwright smoke flows, and a richer authenticated customer-viewer
 administration screen are the next hardening steps; the API already supports
 the end-to-end import, webhook reconciliation, public-link, and customer-login
 flows.
+
+## CI and releases
+
+Pull requests targeting `main` and pushes to `main` run the backend format,
+vet, test, and build checks, the frontend typecheck, lint, and production build,
+plus a backend Docker build check. The workflows are in
+`.github/workflows/checks.yml`.
+
+Version tags such as `v0.1.0` or `v0.1.0-beta.1` publish the backend/worker image
+to `ghcr.io/justlabv1/justprojects` and create a GitHub Release with Linux
+`amd64` and `arm64` API/worker bundles. The same release workflow can be started
+manually with a version input. For branch snapshots, use
+`.github/workflows/build-image-manual.yml`.

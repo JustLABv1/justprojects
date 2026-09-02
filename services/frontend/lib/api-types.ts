@@ -292,6 +292,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/portfolio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPortfolio"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{projectId}": {
         parameters: {
             query?: never;
@@ -306,6 +322,22 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["updateProject"];
+        trace?: never;
+    };
+    "/projects/{projectId}/updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listProjectUpdates"];
+        put?: never;
+        post: operations["createProjectUpdate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/projects/{projectId}/statuses": {
@@ -484,6 +516,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public-pages/{pageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updatePublicPage"];
+        trace?: never;
+    };
     "/public-pages/{pageId}/access-link": {
         parameters: {
             query?: never;
@@ -542,6 +590,134 @@ export interface paths {
         get: operations["getPublicPage"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/pages/{slug}/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["submitProjectRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/workspaces/{slug}/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPublicRequestWorkspace"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/workspaces/{slug}/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["submitWorkspaceProjectRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/project-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listProjectRequests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/project-requests/{requestId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateProjectRequest"];
+        trace?: never;
+    };
+    "/project-requests/{requestId}/convert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["convertProjectRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/{notificationId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["markNotificationRead"];
         delete?: never;
         options?: never;
         head?: never;
@@ -905,6 +1081,7 @@ export interface components {
             id: string;
             name: string;
             slug: string;
+            requestSlug: string;
         };
         Membership: {
             /** Format: uuid */
@@ -998,6 +1175,144 @@ export interface components {
         ProjectList: {
             items?: components["schemas"]["Project"][];
             count?: number;
+        };
+        CustomerProjectRequest: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenantId: string;
+            /** Format: uuid */
+            sourcePublicPageId?: string | null;
+            /** Format: uuid */
+            requesterUserId?: string | null;
+            requesterName: string;
+            /** Format: email */
+            requesterEmail: string;
+            title: string;
+            description: string;
+            /** Format: date */
+            requestedStartDate?: string | null;
+            /** Format: date */
+            requestedTargetDate?: string | null;
+            /** @enum {string} */
+            priority: "low" | "medium" | "high" | "urgent";
+            /** @enum {string} */
+            status: "submitted" | "in_review" | "needs_info" | "approved" | "rejected" | "converted" | "cancelled";
+            /** Format: uuid */
+            assignedTo?: string | null;
+            internalNotes?: string;
+            /** Format: uuid */
+            convertedProjectId?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ProjectRequestList: {
+            items?: components["schemas"]["CustomerProjectRequest"][];
+            count?: number;
+        };
+        ProjectRequestSubmission: {
+            token?: string;
+            requesterName?: string;
+            /** Format: email */
+            requesterEmail?: string;
+            title: string;
+            description: string;
+            /** Format: date */
+            requestedStartDate?: string;
+            /** Format: date */
+            requestedTargetDate?: string;
+            /**
+             * @default medium
+             * @enum {string}
+             */
+            priority: "low" | "medium" | "high" | "urgent";
+        };
+        ProjectRequestCreated: {
+            request: components["schemas"]["CustomerProjectRequest"];
+            requestToken?: string;
+        };
+        ProjectRequestPatch: {
+            /** @enum {string} */
+            status?: "submitted" | "in_review" | "needs_info" | "approved" | "rejected" | "converted" | "cancelled";
+            /** Format: uuid */
+            assignedTo?: string | null;
+            internalNotes?: string | null;
+        };
+        ProjectRequestConversion: {
+            name?: string;
+            key?: string;
+            description?: string;
+            /** Format: date */
+            targetDate?: string;
+        };
+        ProjectRequestConverted: {
+            request: components["schemas"]["CustomerProjectRequest"];
+            project: components["schemas"]["Project"];
+        };
+        ProjectUpdate: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            authorId?: string | null;
+            authorName?: string;
+            title: string;
+            body: string;
+            /** @enum {string} */
+            visibility: "internal" | "customer";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ProjectUpdateRequest: {
+            title: string;
+            body: string;
+            /**
+             * @default customer
+             * @enum {string}
+             */
+            visibility: "internal" | "customer";
+        };
+        ProjectUpdateList: {
+            items?: components["schemas"]["ProjectUpdate"][];
+        };
+        Notification: {
+            /** Format: uuid */
+            id: string;
+            type: string;
+            title: string;
+            body: string;
+            link?: string;
+            /** Format: date-time */
+            readAt?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        NotificationList: {
+            items?: components["schemas"]["Notification"][];
+        };
+        PortfolioNextMilestone: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: date */
+            dueDate?: string | null;
+            status: string;
+        };
+        PortfolioProject: {
+            project: components["schemas"]["Project"];
+            taskTotal: number;
+            completedTasks: number;
+            blockedTasks: number;
+            nextMilestone?: components["schemas"]["PortfolioNextMilestone"];
+            activeCustomerPages: number;
+        };
+        PortfolioList: {
+            items?: components["schemas"]["PortfolioProject"][];
         };
         /** @enum {string} */
         StatusCategory: "backlog" | "todo" | "in_progress" | "blocked" | "done";
@@ -1224,8 +1539,6 @@ export interface components {
             /** @enum {string} */
             accessMode: "link" | "login";
             title?: string;
-            visibleTaskIds?: string[];
-            visibleMilestoneIds?: string[];
             revoked: boolean;
         };
         PublicPageRequest: {
@@ -1236,9 +1549,11 @@ export interface components {
             accessMode: "link" | "login";
             title?: string;
             slug?: string;
-            visibleTaskIds?: string[];
-            visibleMilestoneIds?: string[];
             viewerUserIds?: string[];
+        };
+        PublicPagePatch: {
+            title?: string;
+            slug?: string;
         };
         PublicPageCreated: {
             page: components["schemas"]["PublicPage"];
@@ -1255,11 +1570,14 @@ export interface components {
         };
         PublicPageViewer: {
             /** Format: uuid */
-            id: string;
+            id?: string;
             /** Format: uuid */
-            publicPageId: string;
+            publicPageId?: string;
             /** Format: uuid */
             userId: string;
+            name?: string;
+            /** Format: email */
+            email?: string;
         };
         PublicPagePayload: {
             page: {
@@ -1275,6 +1593,7 @@ export interface components {
             };
             tasks: components["schemas"]["PublicTask"][];
             milestones: components["schemas"]["PublicMilestone"][];
+            updates: components["schemas"]["ProjectUpdate"][];
         };
         PublicTask: {
             /** Format: uuid */
@@ -1465,11 +1784,14 @@ export interface components {
         RepositoryId: string;
         ConnectionId: string;
         PageId: string;
+        RequestId: string;
+        NotificationId: string;
         UserId: string;
         GrantId: string;
         MappingId: string;
         ConflictId: string;
         PageSlug: string;
+        WorkspaceSlug: string;
         InvitationToken: string;
         OIDCState: string;
         OIDCCode: string;
@@ -1923,6 +2245,26 @@ export interface operations {
             };
         };
     };
+    getPortfolio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenant portfolio project cards. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioList"];
+                };
+            };
+        };
+    };
     getProject: {
         parameters: {
             query?: never;
@@ -1973,6 +2315,56 @@ export interface operations {
                 };
             };
             409: components["responses"]["Error"];
+        };
+    };
+    listProjectUpdates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Project update feed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectUpdateList"];
+                };
+            };
+        };
+    };
+    createProjectUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Project update created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        update: components["schemas"]["ProjectUpdate"];
+                    };
+                };
+            };
         };
     };
     listStatuses: {
@@ -2395,6 +2787,34 @@ export interface operations {
             };
         };
     };
+    updatePublicPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pageId: components["parameters"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicPagePatch"];
+            };
+        };
+        responses: {
+            /** @description Public page visibility settings updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        page: components["schemas"]["PublicPage"];
+                    };
+                };
+            };
+        };
+    };
     issuePublicPageAccessLink: {
         parameters: {
             query?: never;
@@ -2516,6 +2936,210 @@ export interface operations {
             };
             401: components["responses"]["Error"];
             404: components["responses"]["Error"];
+        };
+    };
+    submitProjectRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: components["parameters"]["PageSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectRequestSubmission"];
+            };
+        };
+        responses: {
+            /** @description Customer project request accepted with a one-time raw request token. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectRequestCreated"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    getPublicRequestWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: components["parameters"]["WorkspaceSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Public workspace request-page metadata. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tenant: {
+                            name: string;
+                            requestSlug: string;
+                        };
+                    };
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    submitWorkspaceProjectRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: components["parameters"]["WorkspaceSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectRequestSubmission"];
+            };
+        };
+        responses: {
+            /** @description Standalone customer project request accepted. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectRequestCreated"];
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    listProjectRequests: {
+        parameters: {
+            query?: {
+                status?: "submitted" | "in_review" | "needs_info" | "approved" | "rejected" | "converted" | "cancelled";
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenant project request inbox. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectRequestList"];
+                };
+            };
+        };
+    };
+    updateProjectRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                requestId: components["parameters"]["RequestId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectRequestPatch"];
+            };
+        };
+        responses: {
+            /** @description Project request triage fields updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        request: components["schemas"]["CustomerProjectRequest"];
+                    };
+                };
+            };
+        };
+    };
+    convertProjectRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                requestId: components["parameters"]["RequestId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ProjectRequestConversion"];
+            };
+        };
+        responses: {
+            /** @description Request converted into a project. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectRequestConverted"];
+                };
+            };
+        };
+    };
+    listNotifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notifications for the current user. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationList"];
+                };
+            };
+        };
+    };
+    markNotificationRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notificationId: components["parameters"]["NotificationId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notification marked as read. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        notification: components["schemas"]["Notification"];
+                    };
+                };
+            };
         };
     };
     listSyncConflicts: {

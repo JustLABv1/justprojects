@@ -77,6 +77,10 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (*Principal
 		return nil, "", fmt.Errorf("begin registration: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	tenant.RequestSlug, err = uniqueRequestSlug(ctx, tx, tenant.Name)
+	if err != nil {
+		return nil, "", fmt.Errorf("generate tenant request slug: %w", err)
+	}
 	if _, err = tx.NewInsert().Model(&user).Exec(ctx); err != nil {
 		return nil, "", fmt.Errorf("insert user: %w", err)
 	}
@@ -242,6 +246,11 @@ func (s *Service) LoginIdentity(ctx context.Context, provider, subject, email, n
 		now := time.Now().UTC()
 		tenant := db.Tenant{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, Name: user.Name + " Workspace", Slug: uniqueSlug(user.Name)}
 		membership = db.Membership{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: tenant.ID, UserID: user.ID, Role: "owner"}
+		requestSlug, slugErr := uniqueRequestSlug(ctx, s.Store.DB, tenant.Name)
+		if slugErr != nil {
+			return nil, "", fmt.Errorf("generate tenant request slug: %w", slugErr)
+		}
+		tenant.RequestSlug = requestSlug
 		if _, err = s.Store.DB.NewInsert().Model(&tenant).Exec(ctx); err != nil {
 			return nil, "", err
 		}
@@ -265,19 +274,46 @@ func normalizeEmail(value string) (string, error) {
 }
 
 func uniqueSlug(name string) string {
+	return publicRequestSlug(name) + "-" + uuid.NewString()[:8]
+}
+
+func publicRequestSlug(name string) string {
 	var b strings.Builder
+	lastWasSeparator := false
 	for _, r := range strings.ToLower(name) {
 		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
 			b.WriteRune(r)
-		} else if b.Len() > 0 {
+			lastWasSeparator = false
+		} else if b.Len() > 0 && !lastWasSeparator {
 			b.WriteRune('-')
+			lastWasSeparator = true
 		}
 	}
 	slug := strings.Trim(b.String(), "-")
 	if slug == "" {
 		slug = "workspace"
 	}
-	return slug + "-" + uuid.NewString()[:8]
+	if len(slug) > 56 {
+		slug = strings.Trim(slug[:56], "-")
+	}
+	return slug
+}
+
+func uniqueRequestSlug(ctx context.Context, database bun.IDB, name string) (string, error) {
+	baseSlug := publicRequestSlug(name)
+	for duplicateNumber := 1; ; duplicateNumber++ {
+		candidate := baseSlug
+		if duplicateNumber > 1 {
+			candidate = fmt.Sprintf("%s-%d", baseSlug, duplicateNumber)
+		}
+		count, err := database.NewSelect().Model((*db.Tenant)(nil)).Where("lower(request_slug) = lower(?)", candidate).Count(ctx)
+		if err != nil {
+			return "", err
+		}
+		if count == 0 {
+			return candidate, nil
+		}
+	}
 }
 
 var _ bun.IDB = (*bun.DB)(nil)
