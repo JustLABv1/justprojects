@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { RiAddLine, RiLoader4Line } from "@remixicon/react"
 
 import { Button } from "@/components/ui/button"
@@ -66,6 +66,22 @@ export function TaskDialog({
   const [estimate, setEstimate] = useState("")
   const [visibility, setVisibility] = useState("internal")
   const [submitting, setSubmitting] = useState(false)
+  const priorityLabel =
+    priority === "low"
+      ? t("priority.low")
+      : priority === "high"
+        ? t("priority.high")
+        : priority === "urgent"
+          ? t("priority.urgent")
+          : t("priority.medium")
+
+  useEffect(() => {
+    if (!statusId && defaultStatus) {
+      // Statuses arrive with the workspace data after this dialog is mounted.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStatusId(defaultStatus.id)
+    }
+  }, [defaultStatus, statusId])
 
   const reset = () => {
     setTitle("")
@@ -153,7 +169,10 @@ export function TaskDialog({
                 onValueChange={(value) => setStatusId(value ?? "")}
               >
                 <SelectTrigger id="task-status" className="w-full">
-                  <SelectValue placeholder={t("dialog.chooseStatus")} />
+                  <SelectValue placeholder={t("dialog.chooseStatus")}>
+                    {statuses.find((status) => status.id === statusId)?.name ??
+                      t("dialog.chooseStatus")}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {statuses.map((status) => (
@@ -171,7 +190,7 @@ export function TaskDialog({
                 onValueChange={(value) => setPriority(value ?? "medium")}
               >
                 <SelectTrigger id="task-priority" className="w-full">
-                  <SelectValue />
+                  <SelectValue>{priorityLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="low">{t("priority.low")}</SelectItem>
@@ -188,7 +207,13 @@ export function TaskDialog({
                 onValueChange={(value) => setMilestoneId(value ?? "none")}
               >
                 <SelectTrigger id="task-milestone" className="w-full">
-                  <SelectValue placeholder={t("dialog.noMilestone")} />
+                  <SelectValue placeholder={t("dialog.noMilestone")}>
+                    {milestoneId === "none"
+                      ? t("dialog.noMilestone")
+                      : (milestones.find(
+                          (milestone) => milestone.id === milestoneId
+                        )?.name ?? t("dialog.noMilestone"))}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">
@@ -232,7 +257,11 @@ export function TaskDialog({
                 onValueChange={(value) => setVisibility(value ?? "internal")}
               >
                 <SelectTrigger id="task-visibility" className="w-full">
-                  <SelectValue />
+                  <SelectValue>
+                    {visibility === "customer"
+                      ? t("dialog.visibleToCustomer")
+                      : t("dialog.internalOnly")}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="internal">

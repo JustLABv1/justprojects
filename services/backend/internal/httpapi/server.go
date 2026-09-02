@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/mail"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,6 +33,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 const (
@@ -39,6 +41,8 @@ const (
 	oidcStateCookie   = "justprojects_oidc_state"
 	githubStateCookie = "justprojects_github_state"
 )
+
+var publicPageSlugPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])?$`)
 
 type Server struct {
 	Store        *db.Store
@@ -1909,6 +1913,7 @@ func (s *Server) createLabel(c *gin.Context) {
 type publicPageRequest struct {
 	AccessMode          string   `json:"accessMode"`
 	Title               string   `json:"title"`
+	Slug                string   `json:"slug"`
 	VisibleTaskIDs      []string `json:"visibleTaskIds"`
 	VisibleMilestoneIDs []string `json:"visibleMilestoneIds"`
 	ViewerUserIDs       []string `json:"viewerUserIds"`
@@ -1946,6 +1951,7 @@ func (s *Server) listPublicPages(c *gin.Context) {
 	}
 	pages := make([]db.PublicPage, 0)
 	if err := s.Store.DB.NewSelect().Model(&pages).Where("tenant_id = ? AND project_id = ?", s.principal(c).Tenant.ID, projectID).Order("created_at DESC").Scan(c.Request.Context()); err != nil {
+		slog.Default().Error("list public pages failed", "project_id", projectID, "error", err)
 		writeError(c, http.StatusInternalServerError, errors.New("could not load public pages"))
 		return
 	}
@@ -2021,13 +2027,35 @@ func (s *Server) createPublicPage(c *gin.Context) {
 			return
 		}
 	}
-	pageSlug, err := randomToken(12)
-	if err != nil {
-		writeError(c, http.StatusInternalServerError, errors.New("could not create public page slug"))
+	pageSlug := strings.ToLower(strings.TrimSpace(input.Slug))
+	if pageSlug == "" {
+		pageSlug, err = randomToken(12)
+		if err != nil {
+			writeError(c, http.StatusInternalServerError, errors.New("could not create public page slug"))
+			return
+		}
+	} else if !publicPageSlugPattern.MatchString(pageSlug) {
+		badRequest(c, errors.New("public page slug must contain 3-64 lowercase letters, numbers, or hyphens"))
 		return
+	}
+	if input.Slug != "" {
+		slugInUse, countErr := s.Store.DB.NewSelect().Model((*db.PublicPage)(nil)).Where("slug = ? AND revoked = false", pageSlug).Count(c.Request.Context())
+		if countErr != nil {
+			writeError(c, http.StatusInternalServerError, errors.New("could not validate public page slug"))
+			return
+		}
+		if slugInUse > 0 {
+			conflict(c, "public page slug is already in use")
+			return
+		}
 	}
 	page := db.PublicPage{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: s.principal(c).Tenant.ID, ProjectID: projectID, Slug: pageSlug, TokenHash: tokenHash, AccessMode: accessMode, Title: strings.TrimSpace(input.Title), VisibleTaskIDs: visibleTasks, VisibleMilestoneIDs: visibleMilestones}
 	if _, err = s.Store.DB.NewInsert().Model(&page).Exec(c.Request.Context()); err != nil {
+		if isPublicPageSlugConflict(err) {
+			conflict(c, "public page slug is already in use")
+			return
+		}
+		slog.Default().Error("create public page failed", "project_id", projectID, "page_id", page.ID, "error", err)
 		writeError(c, http.StatusInternalServerError, errors.New("could not create public page"))
 		return
 	}
@@ -2043,6 +2071,15 @@ func (s *Server) createPublicPage(c *gin.Context) {
 	}
 	_ = s.audit(c, "public_page.created", "public_page", page.ID, nil)
 	c.JSON(http.StatusCreated, gin.H{"page": page, "token": rawToken, "url": s.Config.FrontendURL + "/p/" + pageSlug + "?token=" + rawToken})
+}
+
+func isPublicPageSlugConflict(err error) bool {
+	var pgErr pgdriver.Error
+	if !errors.As(err, &pgErr) || pgErr.Field('C') != "23505" {
+		return false
+	}
+	constraint := pgErr.Field('n')
+	return constraint == "public_pages_active_slug_idx" || constraint == "public_pages_slug_key" || strings.Contains(constraint, "public_pages_slug")
 }
 
 func (s *Server) revokePublicPage(c *gin.Context) {

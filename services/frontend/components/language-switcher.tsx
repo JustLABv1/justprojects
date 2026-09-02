@@ -34,14 +34,16 @@ export function LanguageSwitcher({
         onValueChange={(value) => setLocale(value as "en" | "de")}
       >
         <SelectTrigger
-        id="language-switcher"
-        aria-label={t("language.label")}
-        className={cn(
-          "h-7 w-[5.75rem] border-0 bg-transparent px-1 text-xs font-medium shadow-none focus-visible:ring-0",
-          selectClassName
-        )}
-      >
-          <SelectValue />
+          id="language-switcher"
+          aria-label={t("language.label")}
+          className={cn(
+            "h-7 w-[5.75rem] border-0 bg-transparent px-1 text-xs font-medium shadow-none focus-visible:ring-0",
+            selectClassName
+          )}
+        >
+          <SelectValue>
+            {locale === "de" ? t("language.german") : t("language.english")}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent align="end">
           <SelectItem value="en">{t("language.english")}</SelectItem>

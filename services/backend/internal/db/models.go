@@ -279,12 +279,12 @@ type PublicPage struct {
 	RecordFields
 	TenantID            uuid.UUID   `bun:",type:uuid,notnull" json:"tenantId"`
 	ProjectID           uuid.UUID   `bun:",type:uuid,notnull" json:"projectId"`
-	Slug                string      `bun:",notnull,unique" json:"slug"`
+	Slug                string      `bun:",notnull" json:"slug"`
 	TokenHash           string      `bun:",notnull,unique" json:"-"`
 	AccessMode          string      `bun:",notnull,default:'link'" json:"accessMode"`
 	Title               string      `bun:",nullzero" json:"title"`
-	VisibleTaskIDs      []uuid.UUID `bun:",type:jsonb,notnull,default:'[]'" json:"visibleTaskIds"`
-	VisibleMilestoneIDs []uuid.UUID `bun:",type:jsonb,notnull,default:'[]'" json:"visibleMilestoneIds"`
+	VisibleTaskIDs      []uuid.UUID `bun:"visible_task_ids,type:jsonb,notnull,default:'[]'" json:"visibleTaskIds"`
+	VisibleMilestoneIDs []uuid.UUID `bun:"visible_milestone_ids,type:jsonb,notnull,default:'[]'" json:"visibleMilestoneIds"`
 	Revoked             bool        `bun:",notnull,default:false" json:"revoked"`
 }
 

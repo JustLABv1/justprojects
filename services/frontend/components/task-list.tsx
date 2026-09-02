@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useI18n } from "@/components/language-provider"
 import type { ProjectStatus, Task } from "@/lib/types"
 import { PriorityPill, StatusPill, UserAvatar } from "@/components/status-pill"
 
@@ -23,6 +24,7 @@ export function TaskList({
   statuses: ProjectStatus[]
   onSelectTask?: (task: Task) => void
 }) {
+  const { locale, t } = useI18n()
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
     const roots = tasks.filter((task) => !task.parentId)
     return Object.fromEntries(roots.map((task) => [task.id, true]))
@@ -60,9 +62,9 @@ export function TaskList({
           className="mb-3 size-8 text-muted-foreground/50"
           aria-hidden="true"
         />
-        <h3 className="text-sm font-medium">No tasks match these filters</h3>
+        <h3 className="text-sm font-medium">{t("tasks.emptyTitle")}</h3>
         <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-          Try a different status or create a new task to get the work moving.
+          {t("tasks.emptyDescription")}
         </p>
       </div>
     )
@@ -72,29 +74,29 @@ export function TaskList({
     <div className="overflow-hidden rounded-2xl border bg-card">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] border-collapse text-sm">
-          <caption className="sr-only">Project tasks</caption>
+          <caption className="sr-only">{t("tasks.projectTasks")}</caption>
           <thead className="bg-muted/30 text-left text-[11px] font-medium tracking-[0.12em] text-muted-foreground uppercase">
             <tr>
               <th scope="col" className="w-10 px-4 py-3">
-                <span className="sr-only">Select</span>
+                <span className="sr-only">{t("tasks.select")}</span>
               </th>
               <th scope="col" className="px-2 py-3">
-                Task
+                {t("tasks.task")}
               </th>
               <th scope="col" className="px-3 py-3">
-                Status
+                {t("tasks.status")}
               </th>
               <th scope="col" className="px-3 py-3">
-                Priority
+                {t("tasks.priority")}
               </th>
               <th scope="col" className="px-3 py-3">
-                Due
+                {t("tasks.due")}
               </th>
               <th scope="col" className="px-3 py-3">
-                Assignee
+                {t("tasks.assignee")}
               </th>
               <th scope="col" className="px-3 py-3">
-                <span className="sr-only">Visibility</span>
+                <span className="sr-only">{t("tasks.visibility")}</span>
               </th>
             </tr>
           </thead>
@@ -109,7 +111,11 @@ export function TaskList({
                   className="group transition hover:bg-muted/20"
                 >
                   <td className="px-4 py-3 align-middle">
-                    <Checkbox aria-label={`Mark ${task.title} complete`} />
+                    <Checkbox
+                      aria-label={t("tasks.markComplete", {
+                        title: task.title,
+                      })}
+                    />
                   </td>
                   <td className="px-2 py-3">
                     <div
@@ -121,7 +127,10 @@ export function TaskList({
                           variant="ghost"
                           size="icon-sm"
                           className="size-6 shrink-0"
-                          aria-label={`${isExpanded ? "Collapse" : "Expand"} ${task.title}`}
+                          aria-label={t(
+                            isExpanded ? "tasks.collapse" : "tasks.expand",
+                            { title: task.title }
+                          )}
                           onClick={() =>
                             setExpanded((current) => ({
                               ...current,
@@ -152,8 +161,9 @@ export function TaskList({
                         <span className="block truncate">{task.title}</span>
                         {childCount > 0 && (
                           <span className="text-[11px] font-normal text-muted-foreground">
-                            {childCount} child{" "}
-                            {childCount === 1 ? "task" : "tasks"}
+                            {childCount === 1
+                              ? t("tasks.childTask", { count: childCount })
+                              : t("tasks.childTasks", { count: childCount })}
                           </span>
                         )}
                       </button>
@@ -171,7 +181,7 @@ export function TaskList({
                     <PriorityPill priority={task.priority} />
                   </td>
                   <td className="px-3 py-3 text-xs text-muted-foreground">
-                    {task.dueDate ? formatDate(task.dueDate) : "—"}
+                    {task.dueDate ? formatDate(task.dueDate, locale) : "—"}
                   </td>
                   <td className="px-3 py-3">
                     <UserAvatar name={task.assigneeName} size="sm" />
@@ -179,7 +189,7 @@ export function TaskList({
                   <td className="px-3 py-3 text-right">
                     {task.visibility === "customer" && (
                       <Badge variant="secondary" className="h-5 text-[10px]">
-                        Customer
+                        {t("tasks.customer")}
                       </Badge>
                     )}
                   </td>
@@ -190,20 +200,20 @@ export function TaskList({
         </table>
       </div>
       <div className="flex items-center justify-between border-t bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
-        <span>{tasks.length} tasks · nested hierarchy preserved</span>
+        <span>{t("tasks.summary", { count: tasks.length })}</span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="size-1.5 rounded-full bg-emerald-500" /> Live local
-          view
+          <span className="size-1.5 rounded-full bg-emerald-500" />
+          {t("tasks.liveView")}
         </span>
       </div>
     </div>
   )
 }
 
-function formatDate(value: string) {
+function formatDate(value: string, locale: "en" | "de") {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat(locale, {
     month: "short",
     day: "numeric",
   }).format(date)

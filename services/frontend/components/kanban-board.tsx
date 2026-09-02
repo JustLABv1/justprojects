@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react"
 import { RiDraggable, RiMore2Line, RiTimeLine } from "@remixicon/react"
 
+import { useI18n } from "@/components/language-provider"
+
 import {
   Kanban,
   KanbanBoard,
@@ -31,6 +33,7 @@ export function KanbanBoardView({
   onTaskStatusChange: (taskId: string, statusId: string) => void
   onSelectTask?: (task: Task) => void
 }) {
+  const { t } = useI18n()
   const initialColumns = useMemo(() => {
     const columns: Record<string, Task[]> = Object.fromEntries(
       statuses.map((status) => [status.id, []])
@@ -69,19 +72,26 @@ export function KanbanBoardView({
       accessibility={{
         announcements: {
           onDragStart({ active }) {
-            return `Picked up ${activeTask(String(active.id))?.title ?? "task"}.`
+            return t("kanban.pickedUp", {
+              title: activeTask(String(active.id))?.title ?? t("tasks.task"),
+            })
           },
           onDragOver({ active, over }) {
             if (!over) return
-            return `Moving ${activeTask(String(active.id))?.title ?? "task"}.`
+            return t("kanban.moving", {
+              title: activeTask(String(active.id))?.title ?? t("tasks.task"),
+            })
           },
           onDragEnd({ active, over }) {
             return over
-              ? `Placed ${activeTask(String(active.id))?.title ?? "task"}.`
-              : "Task returned to its original column."
+              ? t("kanban.placed", {
+                  title:
+                    activeTask(String(active.id))?.title ?? t("tasks.task"),
+                })
+              : t("kanban.returned")
           },
           onDragCancel() {
-            return "Task movement cancelled."
+            return t("kanban.cancelled")
           },
         },
       }}
@@ -129,7 +139,7 @@ export function KanbanBoardView({
                 ))}
                 {items.length === 0 && (
                   <div className="flex min-h-24 items-center justify-center rounded-xl border border-dashed border-border/70 px-3 text-center text-xs text-muted-foreground">
-                    Drop a task here
+                    {t("kanban.dropTask")}
                   </div>
                 )}
               </KanbanColumnContent>
@@ -156,6 +166,7 @@ function KanbanTaskCard({
   overlay?: boolean
   onSelect?: (task: Task) => void
 }) {
+  const { locale, t } = useI18n()
   return (
     <KanbanItem value={task.id} className={cn("group", overlay && "w-[250px]")}>
       <Card
@@ -182,7 +193,7 @@ function KanbanTaskCard({
             variant="ghost"
             size="icon-sm"
             className="-me-1 -mt-1 shrink-0 opacity-0 transition group-hover:opacity-100"
-            aria-label={`More actions for ${task.title}`}
+            aria-label={t("kanban.moreActions", { title: task.title })}
           >
             <RiMore2Line className="size-4" aria-hidden="true" />
           </Button>
@@ -212,7 +223,9 @@ function KanbanTaskCard({
         <div className="flex items-center justify-between border-t pt-2 text-[11px] text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <RiTimeLine className="size-3.5" aria-hidden="true" />
-            {task.dueDate ? formatShortDate(task.dueDate) : "No due date"}
+            {task.dueDate
+              ? formatShortDate(task.dueDate, locale)
+              : t("kanban.noDueDate")}
           </span>
           <UserAvatar name={task.assigneeName} size="sm" />
         </div>
@@ -221,10 +234,10 @@ function KanbanTaskCard({
   )
 }
 
-function formatShortDate(value: string) {
+function formatShortDate(value: string, locale: "en" | "de") {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat(locale, {
     month: "short",
     day: "numeric",
   }).format(date)

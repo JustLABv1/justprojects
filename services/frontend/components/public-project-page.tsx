@@ -14,6 +14,7 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
+import { FeedbackNotice } from "@/components/feedback-notice"
 import { Progress } from "@/components/ui/progress"
 import {
   ApiError,
@@ -104,12 +105,12 @@ export function PublicProjectPage({
             }}
           />
         ) : error ? (
-          <div
-            role="alert"
-            className="mx-auto mt-20 max-w-md rounded-2xl border border-rose-500/20 bg-rose-500/5 p-6 text-center"
-          >
-            <h1 className="font-medium">{t("public.pageUnavailable")}</h1>
-            <p className="mt-2 text-sm text-muted-foreground">{error}</p>
+          <div className="mx-auto mt-20 max-w-md">
+            <FeedbackNotice
+              kind="error"
+              title={t("public.pageUnavailable")}
+              message={error}
+            />
           </div>
         ) : (
           <>
@@ -398,14 +399,7 @@ function CustomerAccessForm({
             required
           />
         </div>
-        {error && (
-          <p
-            role="alert"
-            className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive"
-          >
-            {error}
-          </p>
-        )}
+        {error && <FeedbackNotice kind="error" message={error} />}
         <Button className="w-full" type="submit" disabled={loading}>
           {loading ? t("public.checkingAccess") : t("public.viewStatus")}
         </Button>

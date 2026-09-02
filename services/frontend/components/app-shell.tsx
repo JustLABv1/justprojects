@@ -1,25 +1,35 @@
 "use client"
 
-import { useState, type ComponentType, type ReactNode } from "react"
+import { useEffect, useState, type ComponentType, type ReactNode } from "react"
 import Link from "next/link"
 import {
   RiAddLine,
   RiArrowDownSLine,
   RiCloseLine,
+  RiComputerLine,
   RiGitRepositoryLine,
   RiLayoutGridLine,
+  RiMoonLine,
   RiMenuLine,
   RiQuestionLine,
   RiRoadMapLine,
   RiSearchLine,
   RiSettings3Line,
-  RiShareBoxLine,
+  RiSunLine,
   RiTaskLine,
   RiLogoutBoxRLine,
 } from "@remixicon/react"
 
 import { Button } from "@/components/ui/button"
 import { LanguageSwitcher } from "@/components/language-switcher"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import {
   DropdownMenu,
@@ -41,6 +51,7 @@ import { cn } from "@/lib/utils"
 import { useI18n } from "@/components/language-provider"
 import type { TranslationKey } from "@/lib/i18n"
 import type { Project, Tenant, User, WorkspaceView } from "@/lib/types"
+import { useTheme } from "next-themes"
 
 const navigation: Array<{
   id: WorkspaceView
@@ -60,10 +71,10 @@ export function AppShell({
   user,
   tenant,
   activeView,
+  apiConnected,
   onProjectChange,
   onCreateTask,
   onCreateProject,
-  onOpenPublicPage,
   onLogout,
   children,
 }: {
@@ -72,15 +83,27 @@ export function AppShell({
   user?: User
   tenant?: Tenant
   activeView: WorkspaceView
+  apiConnected?: boolean
   onProjectChange: (projectId: string) => void
   onCreateTask: () => void
   onCreateProject: () => void
-  onOpenPublicPage: () => void
   onLogout: () => void
   children: ReactNode
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const { t } = useI18n()
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [])
 
   const closeSidebar = () => {
     setSidebarOpen(false)
@@ -261,12 +284,30 @@ export function AppShell({
                 aria-hidden="true"
               />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuContent align="start" side="top" className="w-64 p-2">
               <DropdownMenuGroup>
                 <DropdownMenuLabel>
                   {tenant?.name ?? t("nav.workspace")}
                 </DropdownMenuLabel>
               </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <div className="space-y-2 px-1 py-1">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-muted-foreground">
+                    {t("theme.label")}
+                  </span>
+                  <ThemeSwitcher />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-muted-foreground">
+                    {t("language.label")}
+                  </span>
+                  <LanguageSwitcher
+                    className="rounded-md border-0 bg-transparent p-0"
+                    selectClassName="h-8 w-auto min-w-[5.5rem] px-1"
+                  />
+                </div>
+              </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onLogout} variant="destructive">
                 <RiLogoutBoxRLine aria-hidden="true" />
@@ -293,6 +334,15 @@ export function AppShell({
               <span>{t("nav.workspace")}</span>
               <span aria-hidden="true">/</span>
               <span className="font-medium text-foreground">{project.key}</span>
+              {apiConnected && (
+                <span className="ms-2 inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+                  <span
+                    className="size-1.5 rounded-full bg-emerald-500"
+                    aria-hidden="true"
+                  />
+                  {t("status.apiConnected")}
+                </span>
+              )}
             </div>
             <div className="min-w-0 sm:hidden">
               <p className="truncate text-sm font-semibold">{project.name}</p>
@@ -300,27 +350,31 @@ export function AppShell({
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <div className="hidden items-center gap-2 rounded-lg border bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground md:flex">
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden h-8 min-w-48 justify-start gap-2 text-muted-foreground md:inline-flex"
+              aria-label={t("nav.searchAnything")}
+              aria-haspopup="dialog"
+              onClick={() => setSearchOpen(true)}
+            >
               <RiSearchLine className="size-3.5" aria-hidden="true" />
-              <span>{t("nav.searchAnything")}</span>
-              <kbd className="ms-4 rounded border bg-background px-1.5 py-0.5 text-[10px]">
+              <span className="flex-1 text-left">
+                {t("nav.searchAnything")}
+              </span>
+              <kbd className="rounded border bg-background px-1.5 py-0.5 text-[10px]">
                 ⌘ K
               </kbd>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t("nav.searchAnything")}
-            >
-              <RiSearchLine className="size-4" aria-hidden="true" />
             </Button>
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label={t("nav.openPublicPage")}
-              onClick={onOpenPublicPage}
+              className="md:hidden"
+              aria-label={t("nav.searchAnything")}
+              aria-haspopup="dialog"
+              onClick={() => setSearchOpen(true)}
             >
-              <RiShareBoxLine className="size-4" aria-hidden="true" />
+              <RiSearchLine className="size-4" aria-hidden="true" />
             </Button>
             <Button
               size="sm"
@@ -330,13 +384,254 @@ export function AppShell({
               <RiAddLine className="size-4" aria-hidden="true" />
               {t("nav.newTask")}
             </Button>
-            <LanguageSwitcher className="min-w-0 px-1.5 py-1 md:px-2" />
           </div>
         </header>
         <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           {children}
         </main>
       </div>
+      <WorkspaceSearchDialog
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        project={project}
+        projects={projects}
+        onCreateTask={onCreateTask}
+        onCreateProject={onCreateProject}
+      />
     </div>
+  )
+}
+
+function ThemeSwitcher() {
+  const { t } = useI18n()
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    // Avoid choosing a concrete theme before next-themes has read the client preference.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true)
+  }, [])
+
+  const selectedTheme =
+    mounted && (theme === "light" || theme === "dark") ? theme : "system"
+  const themeLabel =
+    selectedTheme === "light"
+      ? t("theme.light")
+      : selectedTheme === "dark"
+        ? t("theme.dark")
+        : t("theme.system")
+
+  return (
+    <Select
+      value={selectedTheme}
+      onValueChange={(value) => value && setTheme(value)}
+    >
+      <SelectTrigger
+        aria-label={t("theme.label")}
+        className="h-8 min-w-8 gap-1.5 border-0 bg-transparent px-2 text-xs font-medium shadow-none focus-visible:ring-0"
+      >
+        {selectedTheme === "light" ? (
+          <RiSunLine className="size-4" aria-hidden="true" />
+        ) : selectedTheme === "dark" ? (
+          <RiMoonLine className="size-4" aria-hidden="true" />
+        ) : (
+          <RiComputerLine className="size-4" aria-hidden="true" />
+        )}
+        <SelectValue>
+          <span className="hidden sm:inline">{themeLabel}</span>
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent align="end">
+        <SelectItem value="system">
+          <RiComputerLine className="size-4" aria-hidden="true" />
+          {t("theme.system")}
+        </SelectItem>
+        <SelectItem value="light">
+          <RiSunLine className="size-4" aria-hidden="true" />
+          {t("theme.light")}
+        </SelectItem>
+        <SelectItem value="dark">
+          <RiMoonLine className="size-4" aria-hidden="true" />
+          {t("theme.dark")}
+        </SelectItem>
+      </SelectContent>
+    </Select>
+  )
+}
+
+function WorkspaceSearchDialog({
+  open,
+  onOpenChange,
+  project,
+  projects,
+  onCreateTask,
+  onCreateProject,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  project: Project
+  projects: Project[]
+  onCreateTask: () => void
+  onCreateProject: () => void
+}) {
+  const { t } = useI18n()
+  const [query, setQuery] = useState("")
+  const normalizedQuery = query.trim().toLowerCase()
+  const matchingViews = navigation.filter((item) => {
+    const label = t(item.label).toLowerCase()
+    return !normalizedQuery || label.includes(normalizedQuery)
+  })
+  const matchingProjects = projects.filter((item) => {
+    const label = `${item.key} ${item.name}`.toLowerCase()
+    return !normalizedQuery || label.includes(normalizedQuery)
+  })
+  const showActions =
+    !normalizedQuery ||
+    t("nav.newTask").toLowerCase().includes(normalizedQuery) ||
+    t("nav.createProject").toLowerCase().includes(normalizedQuery)
+
+  useEffect(() => {
+    if (!open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setQuery("")
+    }
+  }, [open])
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl gap-0 overflow-hidden p-0">
+        <DialogHeader className="border-b px-4 py-4 pe-12">
+          <DialogTitle>{t("search.title")}</DialogTitle>
+          <DialogDescription>{t("search.description")}</DialogDescription>
+        </DialogHeader>
+        <div className="p-4">
+          <div className="relative">
+            <RiSearchLine
+              className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <Input
+              autoFocus
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t("search.placeholder")}
+              aria-label={t("search.placeholder")}
+              className="h-10 ps-9"
+            />
+          </div>
+          <div className="mt-4 max-h-80 overflow-y-auto">
+            {matchingViews.length > 0 && (
+              <SearchGroupLabel>{t("search.views")}</SearchGroupLabel>
+            )}
+            <div className="space-y-1">
+              {matchingViews.map((item) => {
+                const Icon = item.icon
+                return (
+                  <Link
+                    key={item.id}
+                    href={`/app/projects/${project.key.toLowerCase()}/${item.id}`}
+                    onClick={() => onOpenChange(false)}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+                  >
+                    <Icon className="size-4 text-muted-foreground" />
+                    <span>{t(item.label)}</span>
+                  </Link>
+                )
+              })}
+            </div>
+
+            {matchingProjects.length > 0 && (
+              <>
+                <SearchGroupLabel className="mt-5">
+                  {t("search.projects")}
+                </SearchGroupLabel>
+                <div className="space-y-1">
+                  {matchingProjects.map((item) => (
+                    <Link
+                      key={item.id}
+                      href={`/app/projects/${item.key.toLowerCase()}/overview`}
+                      onClick={() => onOpenChange(false)}
+                      className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+                    >
+                      <span className="flex size-6 items-center justify-center rounded-md bg-muted text-[10px] font-semibold">
+                        {item.key.slice(0, 2)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {item.key} · {item.name}
+                      </span>
+                      {item.id === project.id && (
+                        <span className="text-xs text-muted-foreground">
+                          {t("search.current")}
+                        </span>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {showActions && (
+              <>
+                <SearchGroupLabel className="mt-5">
+                  {t("search.actions")}
+                </SearchGroupLabel>
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+                    onClick={() => {
+                      onOpenChange(false)
+                      onCreateTask()
+                    }}
+                  >
+                    <RiAddLine className="size-4 text-muted-foreground" />
+                    {t("nav.newTask")}
+                  </button>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+                    onClick={() => {
+                      onOpenChange(false)
+                      onCreateProject()
+                    }}
+                  >
+                    <RiLayoutGridLine className="size-4 text-muted-foreground" />
+                    {t("nav.createProject")}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {matchingViews.length === 0 &&
+              matchingProjects.length === 0 &&
+              !showActions && (
+                <p className="px-3 py-8 text-center text-sm text-muted-foreground">
+                  {t("search.noResults")}
+                </p>
+              )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function SearchGroupLabel({
+  className,
+  children,
+}: {
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <p
+      className={cn(
+        "mb-2 px-3 text-[10px] font-semibold tracking-[0.16em] text-muted-foreground uppercase",
+        className
+      )}
+    >
+      {children}
+    </p>
   )
 }

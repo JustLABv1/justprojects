@@ -16,6 +16,7 @@ import {
   isApiConfigured,
   listProjects,
 } from "@/lib/api"
+import { FeedbackNotice } from "@/components/feedback-notice"
 import { useI18n } from "@/components/language-provider"
 
 export function AppHome() {
@@ -73,19 +74,27 @@ export function AppHome() {
   return (
     <main className="grid min-h-svh place-items-center bg-muted/30 p-6">
       <Card className="w-full max-w-lg rounded-3xl p-8 text-center shadow-xl shadow-slate-950/5">
-        <p className="text-sm font-medium text-primary">JustProjects</p>
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight">
-          {error ? t("auth.apiUnavailable") : t("workspace.noProjects")}
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {error ?? t("workspace.noProjectsDescription")}
-        </p>
-        <Button
-          className="mt-6"
-          onClick={() => (error ? void load() : setCreating(true))}
-        >
-          {error ? t("workspace.retry") : t("nav.createProject")}
-        </Button>
+        {error ? (
+          <FeedbackNotice
+            kind="error"
+            message={error}
+            retry={() => void load()}
+            className="text-left"
+          />
+        ) : (
+          <>
+            <p className="text-sm font-medium text-primary">JustProjects</p>
+            <h1 className="mt-3 text-2xl font-semibold tracking-tight">
+              {t("workspace.noProjects")}
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t("workspace.noProjectsDescription")}
+            </p>
+            <Button className="mt-6" onClick={() => setCreating(true)}>
+              {t("nav.createProject")}
+            </Button>
+          </>
+        )}
       </Card>
       <ProjectDialog
         open={creating}

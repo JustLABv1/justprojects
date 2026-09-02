@@ -4,13 +4,15 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { ApiError, getSession, listProjects } from "@/lib/api"
+import { FeedbackNotice } from "@/components/feedback-notice"
 import type { WorkspaceView } from "@/lib/types"
 import { useI18n } from "@/components/language-provider"
 
 export function ProjectRouteRedirect({ view }: { view: WorkspaceView }) {
   const router = useRouter()
   const { t } = useI18n()
-  const [message, setMessage] = useState(t("workspace.loading"))
+  const message = t("workspace.loading")
+  const [error, setError] = useState<string>()
 
   useEffect(() => {
     void (async () => {
@@ -33,7 +35,7 @@ export function ProjectRouteRedirect({ view }: { view: WorkspaceView }) {
           router.replace(`/login?next=/app/projects/${view}`)
           return
         }
-        setMessage(
+        setError(
           caught instanceof Error ? caught.message : t("workspace.loadError")
         )
       }
@@ -42,9 +44,17 @@ export function ProjectRouteRedirect({ view }: { view: WorkspaceView }) {
 
   return (
     <main className="grid min-h-svh place-items-center bg-muted/30 p-6">
-      <p role="status" className="text-sm text-muted-foreground">
-        {message}
-      </p>
+      {error ? (
+        <FeedbackNotice
+          kind="error"
+          message={error}
+          retry={() => window.location.reload()}
+        />
+      ) : (
+        <p role="status" className="text-sm text-muted-foreground">
+          {message}
+        </p>
+      )}
     </main>
   )
 }

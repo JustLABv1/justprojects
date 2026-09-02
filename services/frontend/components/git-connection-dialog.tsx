@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react"
 import { RiGitlabLine, RiGithubLine, RiLoader4Line } from "@remixicon/react"
 
 import { useI18n } from "@/components/language-provider"
+import { FeedbackNotice } from "@/components/feedback-notice"
 import { createGitHubTokenConnection, createGitLabConnection } from "@/lib/api"
 import type { GitConnection, GitProvider } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -100,7 +101,11 @@ export function GitConnectionDialog({
               }
             >
               <SelectTrigger id="connection-provider" className="w-full">
-                <SelectValue />
+                <SelectValue>
+                  {provider === "github"
+                    ? t("integrations.github")
+                    : t("integrations.gitlab")}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="github">
@@ -174,14 +179,7 @@ export function GitConnectionDialog({
               {t("integrations.webhookSecretHint")}
             </p>
           </div>
-          {error && (
-            <p
-              role="alert"
-              className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive"
-            >
-              {error}
-            </p>
-          )}
+          {error && <FeedbackNotice kind="error" message={error} />}
           <DialogFooter>
             <Button
               type="button"

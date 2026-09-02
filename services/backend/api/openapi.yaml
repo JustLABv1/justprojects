@@ -931,7 +931,7 @@ components:
     GrantId: { name: grantId, in: path, required: true, schema: { type: string, format: uuid } }
     MappingId: { name: mappingId, in: path, required: true, schema: { type: string, format: uuid } }
     ConflictId: { name: conflictId, in: path, required: true, schema: { type: string, format: uuid } }
-    PageSlug: { name: slug, in: path, required: true, schema: { type: string, minLength: 12 } }
+    PageSlug: { name: slug, in: path, required: true, schema: { type: string, minLength: 3, maxLength: 64, pattern: '^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])?$' } }
     InvitationToken: { name: token, in: path, required: true, schema: { type: string, minLength: 20 } }
     OIDCState: { name: state, in: query, required: true, schema: { type: string } }
     OIDCCode: { name: code, in: query, required: true, schema: { type: string } }
@@ -1300,6 +1300,7 @@ components:
       properties:
         accessMode: { type: string, enum: [link, login], default: link }
         title: { type: string }
+        slug: { type: string, minLength: 3, maxLength: 64, pattern: '^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])?$' }
         visibleTaskIds: { type: array, items: { type: string, format: uuid } }
         visibleMilestoneIds: { type: array, items: { type: string, format: uuid } }
         viewerUserIds: { type: array, items: { type: string, format: uuid } }

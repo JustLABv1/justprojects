@@ -1219,6 +1219,7 @@ export interface components {
              */
             accessMode: "link" | "login";
             title?: string;
+            slug?: string;
             visibleTaskIds?: string[];
             visibleMilestoneIds?: string[];
             viewerUserIds?: string[];

@@ -140,7 +140,11 @@ export function MilestoneDialog({
               onValueChange={(value) => setVisibility(value ?? "internal")}
             >
               <SelectTrigger id="milestone-visibility" className="w-full">
-                <SelectValue />
+                <SelectValue>
+                  {visibility === "customer"
+                    ? t("dialog.visibleToCustomer")
+                    : t("dialog.internalOnly")}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="internal">

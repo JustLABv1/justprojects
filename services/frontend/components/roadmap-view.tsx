@@ -144,7 +144,11 @@ export function RoadmapView({
           </div>
         )}
       </div>
-      <Frame className="overflow-hidden bg-card" spacing="xs">
+      <Frame
+        variant="ghost"
+        className="overflow-hidden bg-transparent"
+        spacing="xs"
+      >
         <FramePanel className="p-0" fit>
           <Gantt
             resources={resources}

@@ -3,11 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import {
-  RiArrowDownLine,
   RiArrowRightUpLine,
-  RiArrowUpLine,
   RiCalendarLine,
   RiCheckboxMultipleLine,
+  RiDraggable,
   RiErrorWarningLine,
   RiExternalLinkLine,
   RiFilter3Line,
@@ -44,8 +43,18 @@ import {
   FrameTitle,
 } from "@/components/reui/frame"
 import { AppShell } from "@/components/app-shell"
+import { FeedbackNotice } from "@/components/feedback-notice"
 import { GitConnectionDialog } from "@/components/git-connection-dialog"
 import { KanbanBoardView } from "@/components/kanban-board"
+import {
+  Kanban,
+  KanbanBoard,
+  KanbanColumn,
+  KanbanColumnContent,
+  KanbanItem,
+  KanbanItemHandle,
+  KanbanOverlay,
+} from "@/components/reui/kanban"
 import {
   MilestoneDialog,
   type NewMilestoneInput,
@@ -151,6 +160,24 @@ const emptyWorkspace: WorkspaceData = {
   gitConnections: [],
 }
 
+function normalizePublicPageSlug(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64)
+}
+
+function defaultPublicPageSlug(projectKey: string) {
+  const key = normalizePublicPageSlug(projectKey) || "project"
+  return normalizePublicPageSlug(`${key}-status`)
+}
+
+function isValidPublicPageSlug(value: string) {
+  return /^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])?$/.test(value)
+}
+
 export function ProjectWorkspace({
   projectRef,
   initialView = "overview",
@@ -231,30 +258,29 @@ export function ProjectWorkspace({
           listSyncRuns(),
         ])
         const nextErrors: Record<string, string> = {}
-        const failed = (key: string, reason: unknown) => {
-          nextErrors[key] =
-            reason instanceof Error ? reason.message : t("workspace.loadError")
+        const failed = (key: string) => {
+          nextErrors[key] = t("workspace.resourceLoadError")
         }
         const tasks =
           resources[0].status === "fulfilled"
             ? resources[0].value
-            : (failed("tasks", resources[0].reason), { items: [] })
+            : (failed("tasks"), { items: [] })
         const milestones =
           resources[1].status === "fulfilled"
             ? resources[1].value
-            : (failed("milestones", resources[1].reason), { items: [] })
+            : (failed("milestones"), { items: [] })
         const labels =
           resources[2].status === "fulfilled"
             ? resources[2].value
-            : (failed("labels", resources[2].reason), { items: [] })
+            : (failed("labels"), { items: [] })
         const connections =
           resources[3].status === "fulfilled"
             ? resources[3].value
-            : (failed("connections", resources[3].reason), { items: [] })
+            : (failed("connections"), { items: [] })
         const syncRuns =
           resources[4].status === "fulfilled"
             ? resources[4].value
-            : (failed("sync", resources[4].reason), { items: [] })
+            : (failed("sync"), { items: [] })
         setResourceErrors(nextErrors)
         setData((current) => ({
           ...current,
@@ -266,17 +292,17 @@ export function ProjectWorkspace({
         }))
       } catch (caught) {
         if (caught instanceof ApiError && caught.status === 401) {
-          router.replace(`/login?next=/app/projects/${projectId}/overview`)
+          router.replace(
+            `/login?next=${encodeURIComponent(`/app/projects/${projectRef}/${activeView}`)}`
+          )
           return
         }
-        setError(
-          caught instanceof Error ? caught.message : t("workspace.loadError")
-        )
+        setError(t("workspace.loadError"))
       } finally {
         setLoading(false)
       }
     },
-    [activeView, router, t]
+    [activeView, projectRef, router, t]
   )
 
   useEffect(() => {
@@ -372,13 +398,9 @@ export function ProjectWorkspace({
       })
       setData((current) => ({ ...current, project: updated }))
       setNotice(t("integrations.connectionSaved"))
-    } catch (caught) {
+    } catch {
       setData((current) => ({ ...current, project: previous }))
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : t("integrations.connectionError")
-      )
+      setError(t("integrations.connectionError"))
     }
   }
 
@@ -466,13 +488,9 @@ export function ProjectWorkspace({
           item.id === taskId ? { ...item, ...updated } : item
         ),
       }))
-    } catch (caught) {
+    } catch {
       setData((current) => ({ ...current, tasks: previous }))
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : t("workspace.saveStatusError")
-      )
+      setError(t("workspace.saveStatusError"))
     }
   }
 
@@ -539,10 +557,10 @@ export function ProjectWorkspace({
       user={data.session?.user}
       tenant={data.session?.tenant}
       activeView={activeView}
+      apiConnected={isApiConfigured}
       onProjectChange={onProjectChange}
       onCreateTask={() => setTaskDialogOpen(true)}
       onCreateProject={() => setProjectDialogOpen(true)}
-      onOpenPublicPage={() => onViewChange("settings")}
       onLogout={() => void handleLogout()}
     >
       <div className="mx-auto max-w-[1500px] space-y-6">
@@ -556,10 +574,6 @@ export function ProjectWorkspace({
                 <RiSparkling2Line className="size-3" aria-hidden="true" />
                 {t("status.liveWorkspace")}
               </Badge>
-              <Badge variant="outline" className="gap-1.5 text-[10px]">
-                <span className="size-1.5 rounded-full bg-emerald-500" />
-                {t("status.apiConnected")}
-              </Badge>
             </div>
             <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
               {viewTitle(activeView, data.project.name, t)}
@@ -569,15 +583,6 @@ export function ProjectWorkspace({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => onViewChange("settings")}
-            >
-              <RiExternalLinkLine className="size-4" aria-hidden="true" />
-              {t("workspace.customerPage")}
-            </Button>
             <TaskDialog
               open={taskDialogOpen}
               onOpenChange={setTaskDialogOpen}
@@ -589,45 +594,23 @@ export function ProjectWorkspace({
         </div>
 
         {error && (
-          <div
-            role="alert"
-            className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-sm text-amber-800 dark:text-amber-200"
-          >
-            <RiErrorWarningLine
-              className="mt-0.5 size-4 shrink-0"
-              aria-hidden="true"
-            />
-            <div className="min-w-0 flex-1">
-              <p className="font-medium">{t("workspace.refreshError")}</p>
-              <p className="mt-0.5 text-xs opacity-80">{error}</p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="shrink-0 gap-1.5"
-              onClick={() => void loadWorkspace(data.project.id)}
-            >
-              <RiRefreshLine className="size-3.5" aria-hidden="true" />
-              {t("workspace.retry")}
-            </Button>
-          </div>
+          <FeedbackNotice
+            kind="error"
+            message={error}
+            retry={() => void loadWorkspace(data.project.id)}
+          />
         )}
-        {notice && (
-          <div
-            role="status"
-            className="rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 text-xs text-primary"
-          >
-            {notice}
-          </div>
-        )}
+        {notice && <FeedbackNotice kind="success" message={notice} />}
         {Object.entries(resourceErrors).map(([resource, message]) => (
-          <div
+          <FeedbackNotice
             key={resource}
-            role="status"
-            className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-xs text-amber-900 dark:text-amber-100"
-          >
-            {resource}: {message}
-          </div>
+            kind="error"
+            message={t("workspace.resourceError", {
+              resource: resourceLabel(resource, t),
+            })}
+            detail={message}
+            retry={() => void loadWorkspace(data.project.id)}
+          />
         ))}
 
         {loading ? (
@@ -799,7 +782,7 @@ function OverviewView({
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.75fr)]">
-        <Frame className="bg-card" spacing="xs">
+        <Frame variant="ghost" className="bg-transparent" spacing="xs">
           <FramePanel fit>
             <FrameHeader className="px-0 pt-0">
               <div className="flex items-start justify-between gap-4">
@@ -819,7 +802,7 @@ function OverviewView({
                 </Button>
               </div>
             </FrameHeader>
-            <div className="overflow-hidden rounded-xl border bg-muted/20">
+            <div className="overflow-hidden">
               <KanbanBoardView
                 tasks={data.tasks.slice(0, 6)}
                 statuses={data.statuses}
@@ -829,7 +812,7 @@ function OverviewView({
             </div>
           </FramePanel>
         </Frame>
-        <Frame className="bg-card" spacing="xs">
+        <Frame variant="ghost" className="bg-transparent" spacing="xs">
           <FramePanel fit>
             <FrameHeader className="px-0 pt-0">
               <FrameTitle>{t("workspace.syncActivity")}</FrameTitle>
@@ -1170,6 +1153,7 @@ function IntegrationsView({
     project.connectionId ?? ""
   )
   const [message, setMessage] = useState<string>()
+  const [error, setError] = useState<string>()
   const { t } = useI18n()
 
   useEffect(() => {
@@ -1191,12 +1175,8 @@ function IntegrationsView({
       ])
       setRepositories(available.items)
       setAttachedRepositories(attached.items)
-    } catch (caught) {
-      setMessage(
-        caught instanceof Error
-          ? caught.message
-          : t("integrations.repositoryLoadError")
-      )
+    } catch {
+      setError(t("integrations.repositoryLoadError"))
     } finally {
       setLoadingRepositories(false)
     }
@@ -1213,19 +1193,16 @@ function IntegrationsView({
   const connectGitHub = async () => {
     setConnecting(true)
     setMessage(undefined)
+    setError(undefined)
     try {
       if (!isApiConfigured) {
-        setMessage(t("integrations.connectThenRefresh"))
+        setError(t("integrations.connectThenRefresh"))
         return
       }
       const result = await getGitHubOAuthStartUrl()
       window.location.assign(result.url)
-    } catch (caught) {
-      setMessage(
-        caught instanceof Error
-          ? caught.message
-          : t("integrations.connectionError")
-      )
+    } catch {
+      setError(t("integrations.connectionError"))
     } finally {
       setConnecting(false)
     }
@@ -1234,19 +1211,16 @@ function IntegrationsView({
   const installGitHubApp = async () => {
     setInstalling(true)
     setMessage(undefined)
+    setError(undefined)
     try {
       if (!isApiConfigured) {
-        setMessage(t("integrations.backendRequired"))
+        setError(t("integrations.backendRequired"))
         return
       }
       const result = await getGitHubAppInstallUrl()
       window.location.assign(result.url)
-    } catch (caught) {
-      setMessage(
-        caught instanceof Error
-          ? caught.message
-          : t("integrations.connectionError")
-      )
+    } catch {
+      setError(t("integrations.connectionError"))
     } finally {
       setInstalling(false)
     }
@@ -1255,6 +1229,7 @@ function IntegrationsView({
   const attachAndImport = async (repository: GitRepository) => {
     setImportingRepositoryId(repository.id)
     setMessage(undefined)
+    setError(undefined)
     try {
       const isAttached = attachedRepositories.some(
         (item) => item.link.repositoryId === repository.id
@@ -1273,12 +1248,8 @@ function IntegrationsView({
           runId: run.runId.slice(0, 8),
         })
       )
-    } catch (caught) {
-      setMessage(
-        caught instanceof Error
-          ? caught.message
-          : t("integrations.repositoryLoadError")
-      )
+    } catch {
+      setError(t("integrations.repositoryLoadError"))
     } finally {
       setImportingRepositoryId(undefined)
     }
@@ -1301,11 +1272,14 @@ function IntegrationsView({
     if (!project.connectionId) {
       void selectConnection(connection.id)
     }
+    setError(undefined)
     setMessage(t("integrations.connectionSaved"))
   }
 
   const disconnect = async (connection: GitConnection) => {
     if (!isApiConfigured) return
+    setMessage(undefined)
+    setError(undefined)
     try {
       await deleteGitConnection(connection.id)
       const nextConnections = availableConnections.filter(
@@ -1318,12 +1292,8 @@ function IntegrationsView({
         await onProjectConnectionChange(null)
       }
       setMessage(t("integrations.disconnect"))
-    } catch (caught) {
-      setMessage(
-        caught instanceof Error
-          ? caught.message
-          : t("integrations.connectionError")
-      )
+    } catch {
+      setError(t("integrations.connectionError"))
     }
   }
 
@@ -1336,7 +1306,7 @@ function IntegrationsView({
   )
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-      <Frame className="bg-card" spacing="xs">
+      <Frame variant="ghost" className="bg-transparent" spacing="xs">
         <FramePanel fit>
           <FrameHeader className="px-0 pt-0">
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
@@ -1356,9 +1326,9 @@ function IntegrationsView({
               </Button>
             </div>
           </FrameHeader>
-          <div className="space-y-3">
+          <div className="space-y-5">
             {availableConnections.length === 0 ? (
-              <div className="rounded-2xl border border-dashed bg-muted/20 p-5 text-sm">
+              <div className="border-t border-dashed pt-5 text-sm">
                 <p className="font-medium">
                   {t("integrations.noConnection", {
                     provider: "GitHub / GitLab",
@@ -1379,9 +1349,9 @@ function IntegrationsView({
                   <div
                     key={connection.id}
                     className={cn(
-                      "rounded-2xl border bg-muted/20 p-4 sm:p-5",
+                      "border-t pt-5",
                       selectedConnectionId === connection.id &&
-                        "border-primary/40 ring-1 ring-primary/15"
+                        "border-s-2 border-s-primary ps-3"
                     )}
                   >
                     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
@@ -1491,7 +1461,7 @@ function IntegrationsView({
               })
             )}
           </div>
-          <div className="mt-5 rounded-2xl border bg-background p-4 sm:p-5">
+          <div className="mt-5 border-t pt-5">
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
               <div>
                 <p className="text-sm font-medium">
@@ -1510,7 +1480,13 @@ function IntegrationsView({
                   onValueChange={(value) => void selectConnection(value)}
                 >
                   <SelectTrigger id="project-connection" className="w-full">
-                    <SelectValue />
+                    <SelectValue>
+                      {selectedConnection
+                        ? selectedConnection.name ||
+                          selectedConnection.externalAccountLogin ||
+                          selectedConnection.provider
+                        : t("integrations.noProjectConnection")}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">
@@ -1536,16 +1512,15 @@ function IntegrationsView({
               </p>
             )}
           </div>
-          {message && (
-            <p
-              role="status"
-              aria-live="polite"
-              className="mt-3 text-xs text-muted-foreground"
-            >
-              {message}
-            </p>
+          {error && (
+            <FeedbackNotice
+              kind="error"
+              message={error}
+              retry={() => void loadRepositories()}
+            />
           )}
-          <div className="mt-5 rounded-2xl border bg-background p-4">
+          {message && <FeedbackNotice kind="success" message={message} />}
+          <div className="mt-5 border-t pt-5">
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
               <div>
                 <p className="text-sm font-medium">
@@ -1572,18 +1547,18 @@ function IntegrationsView({
               </Button>
             </div>
             {!isApiConfigured ? (
-              <p className="mt-4 rounded-xl border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
+              <p className="mt-4 border-y border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
                 {t("integrations.backendRequired")}
               </p>
             ) : repositories.length === 0 ? (
-              <p className="mt-4 rounded-xl border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
+              <p className="mt-4 border-y border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
                 {loadingRepositories
                   ? t("integrations.loadingRepositories")
                   : t("integrations.connectThenRefresh")}
               </p>
             ) : (
               <ul
-                className="mt-4 max-h-72 space-y-2 overflow-y-auto"
+                className="mt-4 max-h-72 divide-y overflow-y-auto border-y"
                 aria-label={t("integrations.repositories")}
               >
                 {repositories.map((repository) => {
@@ -1592,7 +1567,7 @@ function IntegrationsView({
                   return (
                     <li
                       key={repository.id}
-                      className="flex flex-col justify-between gap-3 rounded-xl border px-3 py-3 sm:flex-row sm:items-center"
+                      className="flex flex-col justify-between gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center"
                     >
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">
@@ -1628,7 +1603,7 @@ function IntegrationsView({
               </ul>
             )}
           </div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="mt-5 grid gap-3 border-t pt-5 sm:grid-cols-2">
             <IntegrationFeature
               icon={<RiLinkM className="size-4" aria-hidden="true" />}
               title={t("integrations.bidirectional")}
@@ -1642,7 +1617,7 @@ function IntegrationsView({
           </div>
         </FramePanel>
       </Frame>
-      <Frame className="bg-card" spacing="xs">
+      <Frame variant="ghost" className="bg-transparent" spacing="xs">
         <FramePanel fit>
           <FrameHeader className="px-0 pt-0">
             <FrameTitle>{t("integrations.latestDeliveries")}</FrameTitle>
@@ -1683,7 +1658,7 @@ function IntegrationFeature({
   copy: string
 }) {
   return (
-    <div className="flex gap-3 rounded-xl border bg-background p-3">
+    <div className="flex gap-3 py-1">
       <span className="mt-0.5 text-primary">{icon}</span>
       <div>
         <p className="text-xs font-medium">{title}</p>
@@ -1714,29 +1689,36 @@ function ProjectSettings({
 }) {
   const { locale, t } = useI18n()
   const [accessMode, setAccessMode] = useState("link")
-  const [title, setTitle] = useState(`${project.name} · Project status`)
+  const [title, setTitle] = useState(() =>
+    t("settings.defaultPageTitle", { project: project.name })
+  )
+  const [slug, setSlug] = useState(() => defaultPublicPageSlug(project.key))
   const [publicUrl, setPublicUrl] = useState<string>()
   const [pages, setPages] = useState<PublicPageSummary[]>([])
   const [loadingPages, setLoadingPages] = useState(false)
   const [revokingPageId, setRevokingPageId] = useState<string>()
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string>()
+  const [error, setError] = useState<string>()
 
   const [statusName, setStatusName] = useState("")
   const [statusCategory, setStatusCategory] =
     useState<ProjectStatus["category"]>("todo")
   const [savingStatus, setSavingStatus] = useState(false)
+  const activePages = pages.filter((page) => !page.revoked)
+  const activePage = activePages[0]
 
   const loadPages = useCallback(async () => {
     if (!isApiConfigured) return
     setLoadingPages(true)
+    setError(undefined)
     try {
       const result = await listPublicPages(projectId)
       setPages(result.items)
-    } catch (caught) {
-      setMessage(
-        caught instanceof Error ? caught.message : t("settings.createError")
-      )
+      const active = result.items.find((page) => !page.revoked)
+      if (active) setSlug(active.slug)
+    } catch {
+      setError(t("settings.loadPagesError"))
     } finally {
       setLoadingPages(false)
     }
@@ -1751,8 +1733,17 @@ function ProjectSettings({
 
   const savePublicPage = async () => {
     setMessage(undefined)
+    setError(undefined)
     if (!isApiConfigured) {
-      setMessage(t("settings.apiRequired"))
+      setError(t("settings.apiRequired"))
+      return
+    }
+    if (!slug) {
+      setError(t("settings.slugRequired"))
+      return
+    }
+    if (!isValidPublicPageSlug(slug)) {
+      setError(t("settings.slugInvalid"))
       return
     }
     setSaving(true)
@@ -1760,14 +1751,18 @@ function ProjectSettings({
       const created = await createPublicPage(projectId, {
         accessMode: accessMode as "link" | "login",
         title,
+        slug,
       })
       setPublicUrl(created.url)
+      setSlug(created.page.slug)
       setPages((current) => [created.page, ...current])
       setMessage(t("settings.pageCreated"))
     } catch (caught) {
-      setMessage(
-        caught instanceof Error ? caught.message : t("settings.createError")
-      )
+      if (caught instanceof ApiError && caught.status === 409) {
+        setError(t("settings.slugInUse"))
+      } else {
+        setError(t("settings.createError"))
+      }
     } finally {
       setSaving(false)
     }
@@ -1776,6 +1771,7 @@ function ProjectSettings({
   const revokePage = async (page: PublicPageSummary) => {
     setRevokingPageId(page.id)
     setMessage(undefined)
+    setError(undefined)
     try {
       await revokePublicPage(page.id)
       setPages((current) =>
@@ -1791,10 +1787,8 @@ function ProjectSettings({
               : t("settings.publicLinkLabel"),
         })
       )
-    } catch (caught) {
-      setMessage(
-        caught instanceof Error ? caught.message : t("settings.revokeError")
-      )
+    } catch {
+      setError(t("settings.revokeError"))
     } finally {
       setRevokingPageId(undefined)
     }
@@ -1805,6 +1799,7 @@ function ProjectSettings({
     if (!name || !isApiConfigured) return
     setSavingStatus(true)
     setMessage(undefined)
+    setError(undefined)
     try {
       const status = await createProjectStatus(projectId, {
         name,
@@ -1815,352 +1810,531 @@ function ProjectSettings({
         [...statuses, status].sort((a, b) => a.position - b.position)
       )
       setStatusName("")
-    } catch (caught) {
-      setMessage(
-        caught instanceof Error ? caught.message : t("settings.workflowError")
-      )
+    } catch {
+      setError(t("settings.workflowError"))
     } finally {
       setSavingStatus(false)
     }
   }
 
-  const moveStatus = async (status: ProjectStatus, direction: -1 | 1) => {
-    const ordered = [...statuses].sort((a, b) => a.position - b.position)
-    const index = ordered.findIndex((item) => item.id === status.id)
-    const target = ordered[index + direction]
-    if (!target || !isApiConfigured) return
-    const next = ordered.map((item) => {
-      if (item.id === status.id) return { ...item, position: index + direction }
-      if (item.id === target.id) return { ...item, position: index }
-      return item
-    })
-    onStatusesChange(next)
+  return (
+    <>
+      {(error || message) && (
+        <div className="mb-5 space-y-3">
+          {error && <FeedbackNotice kind="error" message={error} />}
+          {message && <FeedbackNotice kind="success" message={message} />}
+        </div>
+      )}
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
+        <Frame variant="ghost" className="bg-transparent" spacing="xs">
+          <FramePanel fit>
+            <FrameHeader className="px-0 pt-0">
+              <FrameTitle>{t("settings.customerPage")}</FrameTitle>
+              <FrameDescription className="mt-1">
+                {t("settings.customerPageDescription")}
+              </FrameDescription>
+            </FrameHeader>
+            <div className="space-y-4">
+              <div className="border-t pt-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <RiShareBoxIcon />
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium">
+                      {t("settings.publicStatusPage")}
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      {t("settings.publicStatusDescription")}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label htmlFor="page-title" className="text-xs font-medium">
+                      {t("settings.pageTitle")}
+                    </label>
+                    <Input
+                      id="page-title"
+                      value={title}
+                      onChange={(event) => setTitle(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="page-slug" className="text-xs font-medium">
+                      {t("settings.pageSlug")}
+                    </label>
+                    <Input
+                      id="page-slug"
+                      value={slug}
+                      onChange={(event) =>
+                        setSlug(normalizePublicPageSlug(event.target.value))
+                      }
+                      placeholder={defaultPublicPageSlug(project.key)}
+                      maxLength={64}
+                      spellCheck={false}
+                      aria-describedby="page-slug-hint"
+                    />
+                    <p
+                      id="page-slug-hint"
+                      className="text-[11px] leading-relaxed text-muted-foreground"
+                    >
+                      {t("settings.pageSlugHint", { slug: slug || "..." })}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="page-access"
+                      className="text-xs font-medium"
+                    >
+                      {t("settings.accessMode")}
+                    </label>
+                    <Select
+                      value={accessMode}
+                      onValueChange={(value) => setAccessMode(value ?? "link")}
+                    >
+                      <SelectTrigger id="page-access" className="w-full">
+                        <SelectValue>
+                          {accessMode === "login"
+                            ? t("settings.authenticatedAccess")
+                            : t("settings.publicLink")}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="link">
+                          {t("settings.publicLink")}
+                        </SelectItem>
+                        <SelectItem value="login">
+                          {t("settings.authenticatedAccess")}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="gap-1.5">
+                    <RiLockLine className="size-3" aria-hidden="true" />
+                    {t("settings.readOnly")}
+                  </Badge>
+                  {publicUrl ? (
+                    <Badge
+                      variant="outline"
+                      className="max-w-full gap-1.5 break-all whitespace-normal"
+                    >
+                      <RiLinkM className="size-3 shrink-0" aria-hidden="true" />
+                      {publicUrl}
+                    </Badge>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <RiLinkM className="size-3.5" aria-hidden="true" />
+                      {activePage
+                        ? t("settings.activeLinkTokenHidden")
+                        : t("settings.linkGeneratedOnCreate")}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  className="gap-1.5"
+                  onClick={() => void savePublicPage()}
+                  disabled={saving}
+                >
+                  {saving && (
+                    <RiLoader4Line
+                      className="size-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  )}
+                  {publicUrl
+                    ? t("settings.createNewPublicLink")
+                    : t("settings.createPublicPage")}{" "}
+                  <RiArrowRightUpLine className="size-3.5" aria-hidden="true" />
+                </Button>
+                {publicUrl && (
+                  <Button
+                    variant="outline"
+                    className="gap-1.5"
+                    render={
+                      <a href={publicUrl} target="_blank" rel="noreferrer" />
+                    }
+                  >
+                    {t("settings.openCustomerPage")}
+                    <RiExternalLinkLine
+                      className="size-3.5"
+                      aria-hidden="true"
+                    />
+                  </Button>
+                )}
+              </div>
+              {isApiConfigured && (
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-medium">
+                        {t("settings.activePages")}
+                      </p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {t("settings.tokensOnce")}
+                      </p>
+                    </div>
+                    {loadingPages && (
+                      <RiLoader4Line
+                        className="size-4 animate-spin text-muted-foreground"
+                        aria-label={t("settings.loadingPages")}
+                      />
+                    )}
+                  </div>
+                  {activePages.length === 0 && !loadingPages ? (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      {t("settings.noActivePages")}
+                    </p>
+                  ) : (
+                    <ul
+                      className="mt-3 grid gap-2"
+                      aria-label={t("settings.activePages")}
+                    >
+                      {activePages.map((page) => (
+                        <li
+                          key={page.id}
+                          className="flex flex-col justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-3 sm:flex-row sm:items-center"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-medium">
+                              {page.title || t("settings.customerStatusPage")}
+                            </p>
+                            <p className="mt-0.5 text-[10px] text-muted-foreground">
+                              /p/{page.slug} ·{" "}
+                              {page.accessMode === "login"
+                                ? t("settings.authenticated")
+                                : t("settings.publicLinkLabel")}
+                              {` · ${t("settings.active")}`}
+                            </p>
+                          </div>
+                          {!page.revoked && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-fit text-destructive hover:text-destructive"
+                              onClick={() => void revokePage(page)}
+                              disabled={Boolean(revokingPageId)}
+                            >
+                              {revokingPageId === page.id && (
+                                <RiLoader4Line
+                                  className="size-3.5 animate-spin"
+                                  aria-hidden="true"
+                                />
+                              )}
+                              {t("settings.revoke")}
+                            </Button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          </FramePanel>
+        </Frame>
+        <Frame variant="ghost" className="bg-transparent" spacing="xs">
+          <FramePanel fit>
+            <FrameHeader className="px-0 pt-1">
+              <FrameTitle>{t("settings.projectControls")}</FrameTitle>
+              <FrameDescription className="mt-1">
+                {t("settings.projectControlsDescription")}
+              </FrameDescription>
+            </FrameHeader>
+            <div className="space-y-3">
+              <SettingRow
+                label={t("settings.projectKey")}
+                value={project.key}
+              />
+              <SettingRow
+                label={t("settings.projectVersion")}
+                value={`v${project.version}`}
+              />
+              <SettingRow
+                label={t("settings.trackedTasks")}
+                value={String(taskCount)}
+              />
+              <SettingRow
+                label={t("settings.milestones")}
+                value={String(milestoneCount)}
+              />
+              <SettingRow
+                label={t("settings.targetDate")}
+                value={
+                  project.targetDate
+                    ? formatDate(project.targetDate, locale)
+                    : t("settings.notSet")
+                }
+              />
+            </div>
+            <div className="mt-5 border-t border-blue-500/20 pt-5 text-xs leading-relaxed text-blue-800 dark:text-blue-200">
+              <RiInformationLine
+                className="me-1 inline size-3.5"
+                aria-hidden="true"
+              />
+              {t("settings.permissions")}
+            </div>
+          </FramePanel>
+        </Frame>
+        <Frame
+          variant="ghost"
+          className="bg-transparent xl:col-span-2"
+          spacing="xs"
+        >
+          <FramePanel fit>
+            <FrameHeader className="px-0 pt-1">
+              <FrameTitle>{t("settings.workflow")}</FrameTitle>
+              <FrameDescription className="mt-1">
+                {t("settings.workflowDescription")}
+              </FrameDescription>
+            </FrameHeader>
+            <WorkflowStatusList
+              projectId={projectId}
+              statuses={statuses}
+              onStatusesChange={onStatusesChange}
+              onError={(nextError) => {
+                setMessage(undefined)
+                setError(nextError)
+              }}
+            />
+            <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
+              <Input
+                value={statusName}
+                onChange={(event) => setStatusName(event.target.value)}
+                placeholder={t("settings.statusName")}
+                aria-label={t("settings.statusName")}
+              />
+              <Select
+                value={statusCategory}
+                onValueChange={(value) =>
+                  setStatusCategory(
+                    (value ?? "todo") as ProjectStatus["category"]
+                  )
+                }
+              >
+                <SelectTrigger aria-label={t("settings.statusCategory")}>
+                  <SelectValue>
+                    {t(`settings.category.${statusCategory}`)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {(
+                    [
+                      "backlog",
+                      "todo",
+                      "in_progress",
+                      "blocked",
+                      "done",
+                    ] as const
+                  ).map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {t(`settings.category.${category}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={() => void saveStatus()}
+                disabled={
+                  !statusName.trim() || savingStatus || !isApiConfigured
+                }
+              >
+                {savingStatus ? (
+                  <RiLoader4Line
+                    className="size-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : null}
+                {t("settings.addStatus")}
+              </Button>
+            </div>
+          </FramePanel>
+        </Frame>
+        <WorkspaceAccessPanel projectId={projectId} session={session} />
+      </div>
+    </>
+  )
+}
+
+const workflowColumnId = "workflow-statuses"
+
+function WorkflowStatusList({
+  projectId,
+  statuses,
+  onStatusesChange,
+  onError,
+}: {
+  projectId: string
+  statuses: ProjectStatus[]
+  onStatusesChange: (statuses: ProjectStatus[]) => void
+  onError: (message: string) => void
+}) {
+  const { t } = useI18n()
+  const orderedStatuses = useMemo(
+    () => [...statuses].sort((a, b) => a.position - b.position),
+    [statuses]
+  )
+  const [columns, setColumns] = useState<Record<string, ProjectStatus[]>>({
+    [workflowColumnId]: orderedStatuses,
+  })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    // Keep the drag surface aligned with server-confirmed status changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setColumns({ [workflowColumnId]: orderedStatuses })
+  }, [orderedStatuses])
+
+  const statusForId = (id: string) =>
+    columns[workflowColumnId]?.find((status) => status.id === id)
+
+  const commitOrder = async (
+    nextValue: Record<string, ProjectStatus[]>,
+    meta: {
+      kind: "item" | "column"
+      previousValue: Record<string, ProjectStatus[]>
+    }
+  ) => {
+    if (meta.kind !== "item") return
+    const nextStatuses = (nextValue[workflowColumnId] ?? []).map(
+      (status, position) => ({ ...status, position })
+    )
+    const previousStatuses = (meta.previousValue[workflowColumnId] ?? []).map(
+      (status, position) => ({ ...status, position })
+    )
+    if (!nextStatuses.length || !isApiConfigured) {
+      setColumns({ [workflowColumnId]: previousStatuses })
+      onStatusesChange(previousStatuses)
+      if (!isApiConfigured) onError(t("settings.apiRequired"))
+      return
+    }
+
+    setSaving(true)
+    onStatusesChange(nextStatuses)
     try {
-      await Promise.all([
-        updateProjectStatus(projectId, status.id, {
-          position: index + direction,
-        }),
-        updateProjectStatus(projectId, target.id, { position: index }),
-      ])
-    } catch (caught) {
-      onStatusesChange(statuses)
-      setMessage(
-        caught instanceof Error ? caught.message : t("settings.workflowError")
+      await Promise.all(
+        nextStatuses.map((status) =>
+          updateProjectStatus(projectId, status.id, {
+            position: status.position,
+          })
+        )
       )
+    } catch {
+      setColumns({ [workflowColumnId]: previousStatuses })
+      onStatusesChange(previousStatuses)
+      onError(t("settings.workflowError"))
+    } finally {
+      setSaving(false)
     }
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
-      <Frame className="bg-card" spacing="xs">
-        <FramePanel fit>
-          <FrameHeader className="px-0 pt-0">
-            <FrameTitle>{t("settings.customerPage")}</FrameTitle>
-            <FrameDescription className="mt-1">
-              {t("settings.customerPageDescription")}
-            </FrameDescription>
-          </FrameHeader>
-          <div className="space-y-5">
-            <div className="rounded-xl border bg-muted/20 p-4">
-              <div className="flex items-start gap-3">
-                <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <RiShareBoxIcon />
-                </span>
-                <div>
-                  <p className="text-sm font-medium">
-                    {t("settings.publicStatusPage")}
-                  </p>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    {t("settings.publicStatusDescription")}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <label htmlFor="page-title" className="text-xs font-medium">
-                    {t("settings.pageTitle")}
-                  </label>
-                  <Input
-                    id="page-title"
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="page-access" className="text-xs font-medium">
-                    {t("settings.accessMode")}
-                  </label>
-                  <Select
-                    value={accessMode}
-                    onValueChange={(value) => setAccessMode(value ?? "link")}
-                  >
-                    <SelectTrigger id="page-access" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="link">
-                        {t("settings.publicLink")}
-                      </SelectItem>
-                      <SelectItem value="login">
-                        {t("settings.authenticatedAccess")}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Badge variant="outline" className="gap-1.5">
-                  <RiLockLine className="size-3" aria-hidden="true" />
-                  {t("settings.readOnly")}
-                </Badge>
-                <Badge variant="outline" className="gap-1.5">
-                  <RiLinkM className="size-3" aria-hidden="true" />
-                  {publicUrl ?? `/p/${project.key.toLowerCase()}-status`}
-                </Badge>
-              </div>
-            </div>
-            <Button
-              className="gap-1.5"
-              onClick={() => void savePublicPage()}
-              disabled={saving}
-            >
-              {saving && (
-                <RiLoader4Line
-                  className="size-4 animate-spin"
-                  aria-hidden="true"
-                />
-              )}
-              {publicUrl
-                ? t("settings.createNewPublicLink")
-                : t("settings.createPublicPage")}{" "}
-              <RiArrowRightUpLine className="size-3.5" aria-hidden="true" />
-            </Button>
-            {publicUrl && (
-              <Button
-                variant="outline"
-                className="ms-2 gap-1.5"
-                render={<a href={publicUrl} target="_blank" rel="noreferrer" />}
+    <Kanban
+      value={columns}
+      onValueChange={setColumns}
+      getItemValue={(status) => status.id}
+      restoreOnCancel
+      onValueCommit={(nextValue, meta) => {
+        void commitOrder(nextValue, meta)
+      }}
+      accessibility={{
+        announcements: {
+          onDragStart({ active }) {
+            return t("settings.statusPickedUp", {
+              name:
+                statusForId(String(active.id))?.name ?? t("settings.workflow"),
+            })
+          },
+          onDragOver({ active }) {
+            return t("settings.statusMoving", {
+              name:
+                statusForId(String(active.id))?.name ?? t("settings.workflow"),
+            })
+          },
+          onDragEnd({ active, over }) {
+            return over
+              ? t("settings.statusPlaced", {
+                  name:
+                    statusForId(String(active.id))?.name ??
+                    t("settings.workflow"),
+                })
+              : t("settings.statusReturned")
+          },
+          onDragCancel() {
+            return t("settings.statusReturned")
+          },
+        },
+      }}
+      className="mt-5 min-w-0"
+    >
+      <KanbanBoard className="grid-cols-1!">
+        <KanbanColumn
+          value={workflowColumnId}
+          disabled
+          className="min-w-0 opacity-100!"
+        >
+          <KanbanColumnContent
+            value={workflowColumnId}
+            className="gap-0 divide-y border-y"
+          >
+            {(columns[workflowColumnId] ?? []).map((status) => (
+              <KanbanItem
+                key={status.id}
+                value={status.id}
+                className="group flex items-center gap-3 py-3 first:pt-4 last:pb-4"
               >
-                {t("settings.openCustomerPage")}
-                <RiExternalLinkLine className="size-3.5" aria-hidden="true" />
-              </Button>
-            )}
-            {message && (
-              <p className="mt-3 text-xs text-muted-foreground" role="status">
-                {message}
-              </p>
-            )}
-            {isApiConfigured && (
-              <div className="mt-5 rounded-xl border bg-muted/20 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-medium">
-                      {t("settings.existingPages")}
-                    </p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {t("settings.tokensOnce")}
-                    </p>
-                  </div>
-                  {loadingPages && (
-                    <RiLoader4Line
-                      className="size-4 animate-spin text-muted-foreground"
-                      aria-label={t("settings.loadingPages")}
-                    />
-                  )}
-                </div>
-                {pages.length === 0 && !loadingPages ? (
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    {t("settings.noPages")}
-                  </p>
-                ) : (
-                  <ul
-                    className="mt-3 space-y-2"
-                    aria-label={t("settings.existingPages")}
-                  >
-                    {pages.map((page) => (
-                      <li
-                        key={page.id}
-                        className="flex flex-col justify-between gap-3 rounded-lg border bg-background px-3 py-2.5 sm:flex-row sm:items-center"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-medium">
-                            {page.title || t("settings.customerStatusPage")}
-                          </p>
-                          <p className="mt-0.5 text-[10px] text-muted-foreground">
-                            {page.accessMode === "login"
-                              ? t("settings.authenticated")
-                              : t("settings.publicLinkLabel")}
-                            {page.revoked
-                              ? ` · ${t("settings.revoked")}`
-                              : ` · ${t("settings.active")}`}
-                          </p>
-                        </div>
-                        {!page.revoked && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="w-fit text-destructive hover:text-destructive"
-                            onClick={() => void revokePage(page)}
-                            disabled={Boolean(revokingPageId)}
-                          >
-                            {revokingPageId === page.id && (
-                              <RiLoader4Line
-                                className="size-3.5 animate-spin"
-                                aria-hidden="true"
-                              />
-                            )}
-                            {t("settings.revoke")}
-                          </Button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-          </div>
-        </FramePanel>
-      </Frame>
-      <Frame className="bg-card" spacing="xs">
-        <FramePanel fit>
-          <FrameHeader className="px-0 pt-0">
-            <FrameTitle>{t("settings.projectControls")}</FrameTitle>
-            <FrameDescription className="mt-1">
-              {t("settings.projectControlsDescription")}
-            </FrameDescription>
-          </FrameHeader>
-          <div className="space-y-3">
-            <SettingRow label={t("settings.projectKey")} value={project.key} />
-            <SettingRow
-              label={t("settings.projectVersion")}
-              value={`v${project.version}`}
-            />
-            <SettingRow
-              label={t("settings.trackedTasks")}
-              value={String(taskCount)}
-            />
-            <SettingRow
-              label={t("settings.milestones")}
-              value={String(milestoneCount)}
-            />
-            <SettingRow
-              label={t("settings.targetDate")}
-              value={
-                project.targetDate
-                  ? formatDate(project.targetDate, locale)
-                  : t("settings.notSet")
-              }
-            />
-          </div>
-          <div className="mt-5 rounded-xl border border-blue-500/15 bg-blue-500/5 p-3 text-xs leading-relaxed text-blue-800 dark:text-blue-200">
-            <RiInformationLine
-              className="me-1 inline size-3.5"
-              aria-hidden="true"
-            />
-            {t("settings.permissions")}
-          </div>
-        </FramePanel>
-      </Frame>
-      <Frame className="bg-card xl:col-span-2" spacing="xs">
-        <FramePanel fit>
-          <FrameHeader className="px-0 pt-0">
-            <FrameTitle>{t("settings.workflow")}</FrameTitle>
-            <FrameDescription className="mt-1">
-              {t("settings.workflowDescription")}
-            </FrameDescription>
-          </FrameHeader>
-          <div className="space-y-2">
-            {[...statuses]
-              .sort((a, b) => a.position - b.position)
-              .map((status, index) => (
-                <div
-                  key={status.id}
-                  className="flex items-center gap-3 rounded-xl border bg-muted/15 px-3 py-2.5"
+                <KanbanItemHandle
+                  aria-label={t("settings.statusDragLabel", {
+                    name: status.name,
+                  })}
+                  className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:bg-muted"
                 >
-                  <StatusPill
-                    status={status.name}
-                    category={status.category}
-                    color={status.color}
-                    compact
-                  />
-                  <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                    {t(`settings.category.${status.category}`)}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={t("settings.moveEarlier", {
-                        name: status.name,
-                      })}
-                      disabled={index === 0}
-                      onClick={() => void moveStatus(status, -1)}
-                    >
-                      <RiArrowUpLine className="size-3.5" aria-hidden="true" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={t("settings.moveLater", {
-                        name: status.name,
-                      })}
-                      disabled={index === statuses.length - 1}
-                      onClick={() => void moveStatus(status, 1)}
-                    >
-                      <RiArrowDownLine
-                        className="size-3.5"
-                        aria-hidden="true"
-                      />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-          </div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
-            <Input
-              value={statusName}
-              onChange={(event) => setStatusName(event.target.value)}
-              placeholder={t("settings.statusName")}
-              aria-label={t("settings.statusName")}
-            />
-            <Select
-              value={statusCategory}
-              onValueChange={(value) =>
-                setStatusCategory(
-                  (value ?? "todo") as ProjectStatus["category"]
-                )
-              }
-            >
-              <SelectTrigger aria-label={t("settings.statusCategory")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(
-                  ["backlog", "todo", "in_progress", "blocked", "done"] as const
-                ).map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {t(`settings.category.${category}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              onClick={() => void saveStatus()}
-              disabled={!statusName.trim() || savingStatus || !isApiConfigured}
-            >
-              {savingStatus ? (
-                <RiLoader4Line
-                  className="size-4 animate-spin"
-                  aria-hidden="true"
+                  <RiDraggable className="size-4" aria-hidden="true" />
+                </KanbanItemHandle>
+                <StatusPill
+                  status={status.name}
+                  category={status.category}
+                  color={status.color}
+                  compact
                 />
-              ) : null}
-              {t("settings.addStatus")}
-            </Button>
-          </div>
-        </FramePanel>
-      </Frame>
-      <WorkspaceAccessPanel projectId={projectId} session={session} />
-    </div>
+                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                  {t(`settings.category.${status.category}`)}
+                </span>
+                {saving && (
+                  <RiLoader4Line
+                    className="size-3.5 shrink-0 animate-spin text-muted-foreground"
+                    aria-label={t("settings.workflow")}
+                  />
+                )}
+              </KanbanItem>
+            ))}
+          </KanbanColumnContent>
+        </KanbanColumn>
+      </KanbanBoard>
+      <KanbanOverlay>
+        {({ value }) => {
+          const status = statusForId(String(value))
+          return status ? (
+            <div className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2 shadow-lg">
+              <RiDraggable
+                className="size-4 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <StatusPill
+                status={status.name}
+                category={status.category}
+                color={status.color}
+                compact
+              />
+            </div>
+          ) : null
+        }}
+      </KanbanOverlay>
+    </Kanban>
   )
 }
 
@@ -2182,6 +2356,7 @@ function WorkspaceAccessPanel({
   const [loading, setLoading] = useState(Boolean(isApiConfigured))
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string>()
+  const [error, setError] = useState<string>()
   const [inviteUrl, setInviteUrl] = useState<string>()
 
   const roleLabel = (memberRole: string) => {
@@ -2200,6 +2375,7 @@ function WorkspaceAccessPanel({
   const load = useCallback(async () => {
     if (!isApiConfigured || !session) return
     setLoading(true)
+    setError(undefined)
     try {
       const [memberResult, invitationResult, grantResult] = await Promise.all([
         listTenantMembers(),
@@ -2211,10 +2387,8 @@ function WorkspaceAccessPanel({
       setMembers(memberResult.members ?? [])
       setInvitations(invitationResult.items ?? [])
       setGrants(grantResult.items ?? [])
-    } catch (caught) {
-      setMessage(
-        caught instanceof Error ? caught.message : t("settings.accessLoadError")
-      )
+    } catch {
+      setError(t("settings.accessLoadError"))
     } finally {
       setLoading(false)
     }
@@ -2229,6 +2403,7 @@ function WorkspaceAccessPanel({
     if (!email.trim()) return
     setSaving(true)
     setMessage(undefined)
+    setError(undefined)
     setInviteUrl(undefined)
     try {
       const result = await createInvitation({ email: email.trim(), role })
@@ -2236,10 +2411,8 @@ function WorkspaceAccessPanel({
       setEmail("")
       setInviteUrl(result.acceptUrl)
       setMessage(t("settings.inviteCreated"))
-    } catch (caught) {
-      setMessage(
-        caught instanceof Error ? caught.message : t("settings.inviteError")
-      )
+    } catch {
+      setError(t("settings.inviteError"))
     } finally {
       setSaving(false)
     }
@@ -2249,6 +2422,7 @@ function WorkspaceAccessPanel({
     member: TenantMember,
     nextRole: "admin" | "member" | "viewer"
   ) => {
+    setError(undefined)
     try {
       await updateTenantMemberRole(member.user.id, nextRole)
       setMembers((current) =>
@@ -2258,15 +2432,17 @@ function WorkspaceAccessPanel({
             : item
         )
       )
-    } catch (caught) {
-      setMessage(
-        caught instanceof Error ? caught.message : t("settings.memberError")
-      )
+    } catch {
+      setError(t("settings.memberError"))
     }
   }
 
   return (
-    <Frame className="bg-card xl:col-span-2" spacing="xs">
+    <Frame
+      variant="ghost"
+      className="bg-transparent xl:col-span-2"
+      spacing="xs"
+    >
       <FramePanel fit>
         <FrameHeader className="px-0 pt-0">
           <FrameTitle>{t("settings.workspaceAccess")}</FrameTitle>
@@ -2274,31 +2450,44 @@ function WorkspaceAccessPanel({
             {t("settings.workspaceAccessDescription")}
           </FrameDescription>
         </FrameHeader>
+        {error && (
+          <div className="mb-5">
+            <FeedbackNotice
+              kind="error"
+              message={error}
+              retry={() => void load()}
+            />
+          </div>
+        )}
         {loading ? (
-          <p className="text-xs text-muted-foreground" role="status">
+          <div
+            className="flex items-center gap-2 border-y py-4 text-sm text-muted-foreground"
+            role="status"
+          >
+            <RiLoader4Line className="size-4 animate-spin" aria-hidden="true" />
             {t("settings.loadingAccess")}
-          </p>
+          </div>
         ) : (
           <div className="grid gap-5 lg:grid-cols-2">
             <div>
               <p className="text-xs font-medium">{t("settings.members")}</p>
-              <div className="mt-2 space-y-2">
+              <div className="mt-3 divide-y border-y">
                 {members.map((member) => (
                   <div
                     key={member.user.id}
-                    className="flex items-center gap-3 rounded-xl border bg-muted/15 px-3 py-2.5"
+                    className="flex min-h-16 items-center gap-4 px-3 py-4 first:pt-4 last:pb-4"
                   >
                     <span
-                      className="flex size-7 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary"
+                      className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary"
                       aria-hidden="true"
                     >
                       {member.user.name.slice(0, 2).toUpperCase()}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-medium">
+                      <p className="truncate text-sm font-medium">
                         {member.user.name}
                       </p>
-                      <p className="truncate text-[11px] text-muted-foreground">
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
                         {member.user.email}
                       </p>
                     </div>
@@ -2313,8 +2502,10 @@ function WorkspaceAccessPanel({
                             )
                         }}
                       >
-                        <SelectTrigger className="h-8 w-28 text-xs">
-                          <SelectValue />
+                        <SelectTrigger className="h-9 w-32 text-xs">
+                          <SelectValue>
+                            {roleLabel(member.membership.role)}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="admin">
@@ -2329,7 +2520,7 @@ function WorkspaceAccessPanel({
                         </SelectContent>
                       </Select>
                     ) : (
-                      <Badge variant="outline" className="text-[10px]">
+                      <Badge variant="outline" className="px-2.5 py-1 text-xs">
                         {roleLabel(member.membership.role)}
                       </Badge>
                     )}
@@ -2342,7 +2533,7 @@ function WorkspaceAccessPanel({
                 {t("settings.inviteMember")}
               </p>
               {canManage ? (
-                <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_120px_auto]">
+                <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px_auto]">
                   <Input
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
@@ -2359,7 +2550,7 @@ function WorkspaceAccessPanel({
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue>{roleLabel(role)}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="admin">
@@ -2393,13 +2584,13 @@ function WorkspaceAccessPanel({
               )}
               {invitations.length > 0 && (
                 <ul
-                  className="mt-4 space-y-2"
+                  className="mt-5 divide-y border-y"
                   aria-label={t("settings.pendingInvitations")}
                 >
                   {invitations.map((invitation) => (
                     <li
                       key={invitation.id}
-                      className="flex items-center justify-between gap-3 rounded-xl border bg-muted/15 px-3 py-2.5 text-xs"
+                      className="flex min-h-12 items-center justify-between gap-3 px-3 py-3.5 text-sm first:pt-3.5 last:pb-3.5"
                     >
                       <span className="truncate">{invitation.email}</span>
                       <Badge variant="outline" className="shrink-0 text-[10px]">
@@ -2409,21 +2600,45 @@ function WorkspaceAccessPanel({
                   ))}
                 </ul>
               )}
-              <p className="mt-5 text-xs font-medium">
-                {t("settings.projectOverrides")}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {grants.length
-                  ? t("settings.overrideCount", { count: grants.length })
-                  : t("settings.noOverrides")}
-              </p>
+              <div className="mt-6 border-t pt-5">
+                <p className="text-xs font-medium">
+                  {t("settings.projectOverrides")}
+                </p>
+                {canManage ? (
+                  grants.length ? (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {t("settings.overrideCount", { count: grants.length })}
+                    </p>
+                  ) : (
+                    <div className="mt-3 flex items-start gap-3 border border-dashed px-3 py-3.5 text-xs">
+                      <RiInformationLine
+                        className="mt-0.5 size-4 shrink-0 text-primary"
+                        aria-hidden="true"
+                      />
+                      <div>
+                        <p className="font-medium">
+                          {t("settings.noOverrides")}
+                        </p>
+                        <p className="mt-1 leading-relaxed text-muted-foreground">
+                          {t("settings.inheritedAccess")}{" "}
+                          {t("settings.noOverridesHint")}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {t("settings.manageOverridesHint")}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         )}
         {message && (
-          <p className="mt-4 text-xs text-muted-foreground" role="status">
-            {message}
-          </p>
+          <div className="mt-5">
+            <FeedbackNotice kind="success" message={message} />
+          </div>
         )}
         {inviteUrl && (
           <a
@@ -2497,7 +2712,12 @@ function TaskDetailsSheet({
                 }
               >
                 <SelectTrigger id="detail-status" className="w-full">
-                  <SelectValue />
+                  <SelectValue>
+                    {statuses.find((status) => status.id === task.statusId)
+                      ?.name ??
+                      task.statusName ??
+                      t("dialog.chooseStatus")}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {statuses.map((item) => (
@@ -2596,6 +2816,18 @@ type Translator = (
   key: TranslationKey,
   values?: Record<string, string | number>
 ) => string
+
+function resourceLabel(resource: string, t: Translator) {
+  const resourceKeys = {
+    tasks: "workspace.resource.tasks",
+    milestones: "workspace.resource.milestones",
+    labels: "workspace.resource.labels",
+    connections: "workspace.resource.connections",
+    sync: "workspace.resource.sync",
+  } as const
+  const key = resourceKeys[resource as keyof typeof resourceKeys]
+  return key ? t(key) : resource
+}
 
 function viewTitle(view: WorkspaceView, projectName: string, t: Translator) {
   if (view === "overview") return projectName

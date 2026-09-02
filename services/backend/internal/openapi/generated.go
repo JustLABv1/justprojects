@@ -633,6 +633,7 @@ type PublicPagePayload struct {
 // PublicPageRequest defines model for PublicPageRequest.
 type PublicPageRequest struct {
 	AccessMode          *PublicPageRequestAccessMode `json:"accessMode,omitempty"`
+	Slug                *string                      `json:"slug,omitempty"`
 	Title               *string                      `json:"title,omitempty"`
 	ViewerUserIds       *[]openapi_types.UUID        `json:"viewerUserIds,omitempty"`
 	VisibleMilestoneIds *[]openapi_types.UUID        `json:"visibleMilestoneIds,omitempty"`

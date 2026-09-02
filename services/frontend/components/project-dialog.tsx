@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { FeedbackNotice } from "@/components/feedback-notice"
 import { useI18n } from "@/components/language-provider"
 
 export interface NewProjectInput {
@@ -146,14 +147,7 @@ export function ProjectDialog({
               />
             </div>
           </div>
-          {error && (
-            <p
-              role="alert"
-              className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive"
-            >
-              {error}
-            </p>
-          )}
+          {error && <FeedbackNotice kind="error" message={error} />}
           <DialogFooter>
             <Button
               type="button"
