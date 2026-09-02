@@ -19,6 +19,8 @@ import type {
   Invitation,
   PermissionGrant,
   Session,
+  SyncEvent,
+  SyncEventLog,
   Task,
   TenantMember,
 } from "@/lib/types"
@@ -137,10 +139,13 @@ export function updateProjectRequest(
     internalNotes: string
   }>
 ) {
-  return request<{ request: ProjectRequest }>(`/project-requests/${requestId}`, {
-    method: "PATCH",
-    body: JSON.stringify(input),
-  })
+  return request<{ request: ProjectRequest }>(
+    `/project-requests/${requestId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }
+  )
 }
 
 export function convertProjectRequest(
@@ -451,6 +456,15 @@ export function attachProjectRepository(
   })
 }
 
+export function detachProjectRepository(
+  projectId: string,
+  repositoryId: string
+) {
+  return request<void>(`/projects/${projectId}/repositories/${repositoryId}`, {
+    method: "DELETE",
+  })
+}
+
 export function importGitHubProject(projectId: string, repositoryId?: string) {
   return request<{ runId: string; status: string }>(
     `/projects/${projectId}/github/import`,
@@ -516,26 +530,20 @@ export function listPublicPageViewers(pageId: string) {
 }
 
 export function addPublicPageViewer(pageId: string, userId: string) {
-  return request<PublicPageViewer>(
-    `/public-pages/${pageId}/viewers`,
-    {
-      method: "POST",
-      body: JSON.stringify({ userId }),
-    }
-  )
+  return request<PublicPageViewer>(`/public-pages/${pageId}/viewers`, {
+    method: "POST",
+    body: JSON.stringify({ userId }),
+  })
 }
 
 export function removePublicPageViewer(pageId: string, userId: string) {
-  return request<void>(
-    `/public-pages/${pageId}/viewers/${userId}`,
-    { method: "DELETE" }
-  )
+  return request<void>(`/public-pages/${pageId}/viewers/${userId}`, {
+    method: "DELETE",
+  })
 }
 
 export function listProjectUpdates(projectId: string) {
-  return request<{ items: ProjectUpdate[] }>(
-    `/projects/${projectId}/updates`
-  )
+  return request<{ items: ProjectUpdate[] }>(`/projects/${projectId}/updates`)
 }
 
 export function createProjectUpdate(
@@ -550,6 +558,16 @@ export function createProjectUpdate(
 
 export function listNotifications() {
   return request<{ items: Notification[] }>("/notifications")
+}
+
+export function deleteNotification(notificationId: string) {
+  return request<void>(`/notifications/${notificationId}`, {
+    method: "DELETE",
+  })
+}
+
+export function clearNotifications() {
+  return request<void>("/notifications", { method: "DELETE" })
 }
 
 export function markNotificationRead(notificationId: string) {
@@ -620,16 +638,15 @@ export function issuePublicPageAccessLink(pageId: string) {
 
 export function listSyncRuns() {
   return request<{
-    items: Array<{
-      id: string
-      provider?: string
-      eventName: string
-      action?: string
-      status: string
-      createdAt: string
-      errorMessage?: string
-    }>
+    items: SyncEvent[]
+    count?: number
   }>("/sync/runs")
+}
+
+export function listSyncRunLogs(runId: string) {
+  return request<{ items: SyncEventLog[]; count?: number }>(
+    `/sync/runs/${runId}/logs`
+  )
 }
 
 export function getPublicPage(slug: string, token?: string) {

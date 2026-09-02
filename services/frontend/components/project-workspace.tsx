@@ -7,6 +7,7 @@ import {
   RiArrowRightUpLine,
   RiCalendarLine,
   RiCheckboxMultipleLine,
+  RiCloseLine,
   RiDraggable,
   RiEditLine,
   RiErrorWarningLine,
@@ -112,6 +113,7 @@ import {
   createProject,
   createProjectStatus,
   attachProjectRepository,
+  detachProjectRepository,
   ApiError,
   deleteGitConnection,
   getGitHubAppInstallUrl,
@@ -445,6 +447,41 @@ export function ProjectWorkspace({
     },
     [t]
   )
+
+  const refreshSyncRuns = useCallback(
+    async (quiet = false) => {
+      if (!isApiConfigured) return
+      try {
+        const result = await listSyncRuns()
+        setData((current) => ({
+          ...current,
+          syncEvents: result.items ?? [],
+        }))
+        setResourceErrors((current) => {
+          if (!current.sync) return current
+          const next = { ...current }
+          delete next.sync
+          return next
+        })
+      } catch {
+        if (!quiet) {
+          setResourceErrors((current) => ({
+            ...current,
+            sync: t("workspace.resourceLoadError"),
+          }))
+        }
+      }
+    },
+    [t]
+  )
+
+  useEffect(() => {
+    if (!isApiConfigured || activeView !== "integrations") return
+    const interval = window.setInterval(() => {
+      void refreshSyncRuns(true)
+    }, 3000)
+    return () => window.clearInterval(interval)
+  }, [activeView, refreshSyncRuns])
 
   const refreshMilestones = useCallback(
     async (projectId: string) => {
@@ -875,7 +912,12 @@ export function ProjectWorkspace({
                 onUpdateCreated={(update) =>
                   setData((current) => ({
                     ...current,
-                    updates: [update, ...current.updates.filter((item) => item.id !== update.id)],
+                    updates: [
+                      update,
+                      ...current.updates.filter(
+                        (item) => item.id !== update.id
+                      ),
+                    ],
                   }))
                 }
               />
@@ -930,6 +972,7 @@ export function ProjectWorkspace({
                 syncEvents={data.syncEvents}
                 onProjectConnectionChange={handleProjectConnectionChange}
                 onConnectionsChange={handleGitConnectionsChange}
+                onRefreshSyncRuns={refreshSyncRuns}
               />
             )}
             {activeView === "settings" && (
@@ -1428,6 +1471,7 @@ function IntegrationsView({
   syncEvents,
   onProjectConnectionChange,
   onConnectionsChange,
+  onRefreshSyncRuns,
 }: {
   project: Project
   connections: WorkspaceData["gitConnections"]
@@ -1436,12 +1480,14 @@ function IntegrationsView({
     connectionId: string | null
   ) => Promise<void> | void
   onConnectionsChange: (connections: GitConnection[]) => void
+  onRefreshSyncRuns: (quiet?: boolean) => Promise<void>
 }) {
   const [connecting, setConnecting] = useState(false)
   const [installing, setInstalling] = useState(false)
   const [connectionDialogOpen, setConnectionDialogOpen] = useState(false)
   const [loadingRepositories, setLoadingRepositories] = useState(false)
   const [importingRepositoryId, setImportingRepositoryId] = useState<string>()
+  const [detachingRepositoryId, setDetachingRepositoryId] = useState<string>()
   const [repositories, setRepositories] = useState<GitRepository[]>([])
   const [attachedRepositories, setAttachedRepositories] = useState<
     ProjectRepository[]
@@ -1545,10 +1591,36 @@ function IntegrationsView({
           runId: run.runId.slice(0, 8),
         }),
       })
-    } catch {
-      setError(t("integrations.repositoryLoadError"))
+      void onRefreshSyncRuns(true)
+    } catch (caught) {
+      setError(
+        caught instanceof ApiError && caught.status === 409
+          ? t("integrations.importAlreadyRunning")
+          : t("integrations.repositoryLoadError")
+      )
     } finally {
       setImportingRepositoryId(undefined)
+    }
+  }
+
+  const detachRepository = async (repository: GitRepository) => {
+    setDetachingRepositoryId(repository.id)
+    setError(undefined)
+    try {
+      await detachProjectRepository(project.id, repository.id)
+      setAttachedRepositories((current) =>
+        current.filter((item) => item.link.repositoryId !== repository.id)
+      )
+      showToast({
+        kind: "success",
+        message: t("integrations.repositoryDetached", {
+          repository: repository.fullName,
+        }),
+      })
+    } catch {
+      setError(t("integrations.repositoryDetachError"))
+    } finally {
+      setDetachingRepositoryId(undefined)
     }
   }
 
@@ -1604,6 +1676,26 @@ function IntegrationsView({
   const attachedIDs = useMemo(
     () => new Set(attachedRepositories.map((item) => item.link.repositoryId)),
     [attachedRepositories]
+  )
+  const activeImportRepositoryIDs = useMemo(
+    () =>
+      new Set(
+        syncEvents
+          .filter(
+            (event) =>
+              event.eventName === "import" &&
+              (event.status === "queued" || event.status === "processing")
+          )
+          .map((event) =>
+            typeof event.payload?.repositoryId === "string"
+              ? event.payload.repositoryId
+              : undefined
+          )
+          .filter((repositoryID): repositoryID is string =>
+            Boolean(repositoryID)
+          )
+      ),
+    [syncEvents]
   )
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
@@ -1882,6 +1974,9 @@ function IntegrationsView({
                 {repositories.map((repository) => {
                   const isAttached = attachedIDs.has(repository.id)
                   const isImporting = importingRepositoryId === repository.id
+                  const importRunning =
+                    isImporting || activeImportRepositoryIDs.has(repository.id)
+                  const isDetaching = detachingRepositoryId === repository.id
                   return (
                     <li
                       key={repository.id}
@@ -1920,27 +2015,59 @@ function IntegrationsView({
                           </div>
                         </div>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full shrink-0 gap-1.5 sm:w-auto"
-                        onClick={() => void attachAndImport(repository)}
-                        disabled={Boolean(importingRepositoryId)}
-                      >
-                        {isImporting && (
-                          <RiLoader4Line
-                            className="size-3.5 animate-spin"
+                      <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row">
+                        {isAttached && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="w-full gap-1.5 text-muted-foreground hover:text-destructive sm:w-auto"
+                            onClick={() => void detachRepository(repository)}
+                            disabled={
+                              Boolean(detachingRepositoryId) || importRunning
+                            }
+                          >
+                            {isDetaching ? (
+                              <RiLoader4Line
+                                className="size-3.5 animate-spin"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <RiCloseLine
+                                className="size-3.5"
+                                aria-hidden="true"
+                              />
+                            )}
+                            {isDetaching
+                              ? t("integrations.detachingRepository")
+                              : t("integrations.detachRepository")}
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full gap-1.5 sm:w-auto"
+                          onClick={() => void attachAndImport(repository)}
+                          disabled={
+                            Boolean(importingRepositoryId) || importRunning
+                          }
+                        >
+                          {importRunning && (
+                            <RiLoader4Line
+                              className="size-3.5 animate-spin"
+                              aria-hidden="true"
+                            />
+                          )}
+                          {importRunning
+                            ? t("integrations.importRunning")
+                            : isAttached
+                              ? t("integrations.runImport")
+                              : t("integrations.attachImport")}
+                          <RiArrowRightLine
+                            className="size-3.5"
                             aria-hidden="true"
                           />
-                        )}
-                        {isAttached
-                          ? t("integrations.runImport")
-                          : t("integrations.attachImport")}
-                        <RiArrowRightLine
-                          className="size-3.5"
-                          aria-hidden="true"
-                        />
-                      </Button>
+                        </Button>
+                      </div>
                     </li>
                   )
                 })}
@@ -1969,7 +2096,11 @@ function IntegrationsView({
               {t("integrations.webhookDescription")}
             </FrameDescription>
           </FrameHeader>
-          <SyncActivity events={syncEvents} />
+          <SyncActivity
+            events={syncEvents}
+            live
+            onRefresh={() => onRefreshSyncRuns(false)}
+          />
         </FramePanel>
       </Frame>
       <GitConnectionDialog
@@ -2207,10 +2338,7 @@ function ProjectSettings({
         </div>
       )}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
-        <CustomerPageControls
-          pages={activePages}
-          members={members}
-        />
+        <CustomerPageControls pages={activePages} members={members} />
         <Frame variant="ghost" className="bg-transparent" spacing="xs">
           <FramePanel fit>
             <FrameHeader className="px-0 pt-0">

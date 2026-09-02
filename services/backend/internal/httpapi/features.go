@@ -638,6 +638,41 @@ func (s *Server) markNotificationRead(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"notification": notificationResponseFromModel(notification)})
 }
 
+func (s *Server) deleteNotification(c *gin.Context) {
+	if !s.customerOrAuthorized(c, "notification.manage") {
+		return
+	}
+	notificationID, ok := pathUUID(c, "notificationId")
+	if !ok {
+		return
+	}
+	result, err := s.Store.DB.NewDelete().Model((*db.Notification)(nil)).
+		Where("id = ? AND tenant_id = ? AND user_id = ?", notificationID, s.principal(c).Tenant.ID, s.principal(c).User.ID).
+		Exec(c.Request.Context())
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not delete notification"))
+		return
+	}
+	if count, _ := result.RowsAffected(); count == 0 {
+		notFound(c)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) clearNotifications(c *gin.Context) {
+	if !s.customerOrAuthorized(c, "notification.manage") {
+		return
+	}
+	if _, err := s.Store.DB.NewDelete().Model((*db.Notification)(nil)).
+		Where("tenant_id = ? AND user_id = ?", s.principal(c).Tenant.ID, s.principal(c).User.ID).
+		Exec(c.Request.Context()); err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not clear notifications"))
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func (s *Server) portfolio(c *gin.Context) {
 	if !s.authorize(c, "portfolio.read", nil) {
 		return

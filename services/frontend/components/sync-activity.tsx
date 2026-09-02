@@ -1,10 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import {
   RiAlertLine,
   RiCheckLine,
   RiGitPullRequestLine,
   RiLoader4Line,
+  RiRefreshLine,
 } from "@remixicon/react"
 
 import {
@@ -18,65 +20,186 @@ import {
   TimelineTitle,
 } from "@/components/reui/timeline"
 import { Badge } from "@/components/ui/badge"
-import type { SyncEvent } from "@/lib/types"
+import { Button } from "@/components/ui/button"
+import type { SyncEvent, SyncEventLog } from "@/lib/types"
 import { useI18n } from "@/components/language-provider"
 import type { TranslationKey } from "@/lib/i18n"
 
-export function SyncActivity({ events }: { events: SyncEvent[] }) {
+export function SyncActivity({
+  events,
+  live = false,
+  onRefresh,
+}: {
+  events: SyncEvent[]
+  live?: boolean
+  onRefresh?: () => Promise<void> | void
+}) {
   const { locale, t } = useI18n()
+  const [refreshing, setRefreshing] = useState(false)
+
+  const refresh = async () => {
+    if (!onRefresh) return
+    setRefreshing(true)
+    try {
+      await onRefresh()
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
   return (
-    <Timeline defaultValue={events.length || 1} orientation="vertical">
-      {events.map((event, index) => {
-        const step = events.length - index
-        const Icon =
-          event.status === "failed"
-            ? RiAlertLine
-            : event.status === "queued"
-              ? RiLoader4Line
-              : RiCheckLine
-        return (
-          <TimelineItem key={event.id} step={step}>
-            <TimelineHeader>
-              <TimelineDate dateTime={event.createdAt}>
-                {formatDate(event.createdAt, locale)}
-              </TimelineDate>
-              <TimelineIndicator>
-                <Icon
-                  className={
-                    event.status === "queued" ? "size-3 animate-spin" : "size-3"
-                  }
-                  aria-hidden="true"
-                />
-              </TimelineIndicator>
-              <TimelineTitle>{eventLabel(event.eventName, t)}</TimelineTitle>
-            </TimelineHeader>
-            <TimelineContent className="flex items-center gap-2">
-              <span>
-                {event.action
-                  ? t("sync.actionDelivery", { action: event.action })
-                  : t("sync.background")}
-              </span>
-              <Badge
-                variant={
-                  event.status === "failed"
-                    ? "destructive"
-                    : event.status === "queued"
-                      ? "outline"
-                      : "secondary"
-                }
-                className="h-5 text-[10px] capitalize"
-              >
-                {statusLabel(event.status, t)}
-              </Badge>
-              {event.status === "succeeded" && (
-                <RiGitPullRequestLine className="size-3.5" aria-hidden="true" />
-              )}
-            </TimelineContent>
-            <TimelineSeparator />
-          </TimelineItem>
-        )
-      })}
-    </Timeline>
+    <div className="space-y-3">
+      {(live || onRefresh) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-muted/20 px-3 py-2">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+            <span
+              className={
+                live
+                  ? "size-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_3px_color-mix(in_oklch,var(--color-emerald-500)_15%,transparent)]"
+                  : "size-1.5 rounded-full bg-muted-foreground/50"
+              }
+              aria-hidden="true"
+            />
+            <span className="font-medium text-foreground">
+              {live ? t("sync.live") : t("sync.activityLog")}
+            </span>
+            {live && (
+              <span className="truncate">{t("sync.liveDescription")}</span>
+            )}
+          </div>
+          {onRefresh && (
+            <Button
+              variant="ghost"
+              size="xs"
+              className="gap-1.5"
+              onClick={() => void refresh()}
+              disabled={refreshing}
+            >
+              <RiRefreshLine
+                className={refreshing ? "size-3.5 animate-spin" : "size-3.5"}
+                aria-hidden="true"
+              />
+              {refreshing ? t("sync.refreshing") : t("sync.refresh")}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {events.length === 0 ? (
+        <div className="rounded-xl border border-dashed bg-muted/10 px-4 py-8 text-center text-xs text-muted-foreground">
+          {t("sync.noRuns")}
+        </div>
+      ) : (
+        <Timeline defaultValue={events.length} orientation="vertical">
+          {events.map((event, index) => {
+            const step = events.length - index
+            const active =
+              event.status === "queued" || event.status === "processing"
+            const Icon =
+              event.status === "failed"
+                ? RiAlertLine
+                : active
+                  ? RiLoader4Line
+                  : RiCheckLine
+            return (
+              <TimelineItem key={event.id} step={step}>
+                <TimelineHeader className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <TimelineDate
+                    dateTime={event.createdAt}
+                    className="mb-0 shrink-0"
+                  >
+                    {formatDate(event.createdAt, locale)}
+                  </TimelineDate>
+                  <TimelineIndicator>
+                    <Icon
+                      className={active ? "size-3 animate-spin" : "size-3"}
+                      aria-hidden="true"
+                    />
+                  </TimelineIndicator>
+                  <TimelineTitle className="min-w-0">
+                    {eventLabel(event.eventName, t)}
+                  </TimelineTitle>
+                </TimelineHeader>
+                <TimelineContent className="flex flex-col items-start gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span>{eventAction(event, t)}</span>
+                    <Badge
+                      variant={
+                        event.status === "failed"
+                          ? "destructive"
+                          : active
+                            ? "outline"
+                            : "secondary"
+                      }
+                      className="h-5 text-[10px] capitalize"
+                    >
+                      {statusLabel(event.status, t)}
+                    </Badge>
+                    {event.status === "succeeded" && (
+                      <RiGitPullRequestLine
+                        className="size-3.5"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </div>
+                  {event.errorMessage && event.status === "failed" && (
+                    <p className="w-full rounded-lg border border-destructive/20 bg-destructive/5 px-2.5 py-2 text-xs leading-relaxed text-destructive">
+                      {event.errorMessage}
+                    </p>
+                  )}
+                  {event.logs?.length ? (
+                    <div className="w-full rounded-xl border bg-muted/20 p-2.5">
+                      <p className="mb-2 text-[10px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+                        {t("sync.activityLog")}
+                      </p>
+                      <div className="space-y-1.5">
+                        {event.logs.slice(-8).map((log) => (
+                          <SyncLogLine key={log.id} log={log} locale={locale} />
+                        ))}
+                      </div>
+                    </div>
+                  ) : event.status === "queued" || event.status === "processing" ? (
+                    <p className="text-xs text-muted-foreground">
+                      {t("sync.waitingForLogs")}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      {t("sync.noLogs")}
+                    </p>
+                  )}
+                </TimelineContent>
+                <TimelineSeparator />
+              </TimelineItem>
+            )
+          })}
+        </Timeline>
+      )}
+    </div>
+  )
+}
+
+function SyncLogLine({
+  log,
+  locale,
+}: {
+  log: SyncEventLog
+  locale: "en" | "de"
+}) {
+  return (
+    <div className="flex min-w-0 items-start gap-2 text-xs">
+      <span className="mt-0.5 shrink-0 rounded bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+        {log.phase ?? log.level}
+      </span>
+      <span className="min-w-0 flex-1 leading-relaxed text-foreground/80">
+        {log.message}
+      </span>
+      <time
+        dateTime={log.createdAt}
+        className="shrink-0 text-[10px] text-muted-foreground"
+      >
+        {formatDate(log.createdAt, locale)}
+      </time>
+    </div>
   )
 }
 
@@ -86,6 +209,7 @@ type Translator = (
 ) => string
 
 function eventLabel(value: string, t: Translator) {
+  if (value === "import") return t("sync.import")
   const [provider, resource] = value.split(".", 2)
   if (!provider || !resource) return t("sync.unknownEvent")
   const translatedResource =
@@ -95,6 +219,15 @@ function eventLabel(value: string, t: Translator) {
         ? t("sync.milestone")
         : resource
   return `${provider === "github" ? "GitHub" : provider === "gitlab" ? "GitLab" : provider} ${translatedResource}`
+}
+
+function eventAction(event: SyncEvent, t: Translator) {
+  if (event.eventName === "import" || event.action === "manual") {
+    return t("sync.manualImport")
+  }
+  return event.action
+    ? t("sync.actionDelivery", { action: event.action })
+    : t("sync.background")
 }
 
 function statusLabel(value: string, t: Translator) {

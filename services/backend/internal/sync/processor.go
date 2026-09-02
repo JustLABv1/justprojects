@@ -443,8 +443,149 @@ func (p Processor) setSyncEvent(ctx context.Context, eventID uuid.UUID, status s
 	} else {
 		query = query.Set("error_message = NULL")
 	}
-	_, err := query.Where("id = ?", eventID).Exec(ctx)
-	return err
+	if _, err := query.Where("id = ?", eventID).Exec(ctx); err != nil {
+		return err
+	}
+	level := "info"
+	phase := status
+	statusMessage := "Sync run status changed to " + status
+	if status == "failed" {
+		level = "error"
+		phase = "failed"
+		statusMessage = "Sync run failed"
+		if message != "" {
+			statusMessage += ": " + message
+		}
+	} else if status == "succeeded" {
+		phase = "completed"
+		statusMessage = "Sync run completed successfully"
+	} else if status == "processing" {
+		phase = "started"
+		statusMessage = "Sync run started"
+	}
+	p.appendSyncLog(ctx, eventID, tenantID, level, phase, statusMessage, nil)
+	if status == "succeeded" || status == "failed" {
+		if notifyErr := p.notifySyncEvent(ctx, eventID, status, message); notifyErr != nil {
+			slog.Default().Warn("could not create sync notification", "sync_event_id", eventID, "status", status, "error", notifyErr)
+		}
+	}
+	return nil
+}
+
+func (p Processor) appendSyncLog(ctx context.Context, eventID uuid.UUID, tenantID *uuid.UUID, level, phase, message string, metadata map[string]any) {
+	if eventID == uuid.Nil {
+		return
+	}
+	if tenantID == nil || *tenantID == uuid.Nil {
+		var event db.SyncEvent
+		if err := p.Store.DB.NewSelect().Model(&event).Column("tenant_id").Where("id = ?", eventID).Scan(ctx); err != nil || event.TenantID == nil {
+			if err != nil {
+				slog.Default().Warn("could not resolve sync log tenant", "sync_event_id", eventID, "error", err)
+			}
+			return
+		}
+		tenantID = event.TenantID
+	}
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	item := &db.SyncEventLog{
+		RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()},
+		TenantID:     *tenantID,
+		SyncEventID:  eventID,
+		Level:        level,
+		Phase:        phase,
+		Message:      message,
+		Metadata:     metadata,
+	}
+	logAttrs := []any{"sync_event_id", eventID, "phase", phase, "message", message}
+	if len(metadata) > 0 {
+		logAttrs = append(logAttrs, "metadata", metadata)
+	}
+	switch level {
+	case "debug":
+		slog.Default().Debug("sync activity", logAttrs...)
+	case "warn":
+		slog.Default().Warn("sync activity", logAttrs...)
+	case "error":
+		slog.Default().Error("sync activity", logAttrs...)
+	default:
+		slog.Default().Info("sync activity", logAttrs...)
+	}
+	if _, err := p.Store.DB.NewInsert().Model(item).Exec(ctx); err != nil {
+		slog.Default().Warn("could not append sync event log", "sync_event_id", eventID, "phase", phase, "error", err)
+	}
+}
+
+func (p Processor) notifySyncEvent(ctx context.Context, eventID uuid.UUID, status, message string) error {
+	var event db.SyncEvent
+	if err := p.Store.DB.NewSelect().Model(&event).Where("id = ?", eventID).Scan(ctx); err != nil {
+		return err
+	}
+	if event.TenantID == nil || *event.TenantID == uuid.Nil {
+		return nil
+	}
+	// Successful webhook deliveries are intentionally quiet; a successful
+	// manual import is useful feedback, while every failed run is actionable.
+	if status == "succeeded" && event.EventName != "import" {
+		return nil
+	}
+	provider := event.Provider
+	if provider == "" {
+		provider = "github"
+	}
+	providerName := provider
+	switch provider {
+	case "github":
+		providerName = "GitHub"
+	case "gitlab":
+		providerName = "GitLab"
+	}
+	resource := strings.ReplaceAll(event.EventName, ".", " ")
+	if resource == "" {
+		resource = "sync"
+	}
+	projectName := "workspace"
+	link := "/app?syncRun=" + event.ID.String()
+	if raw, ok := stringPayload(event.Payload, "projectId"); ok {
+		if projectID, parseErr := uuid.Parse(raw); parseErr == nil {
+			var project db.Project
+			if projectErr := p.Store.DB.NewSelect().Model(&project).Where("id = ? AND tenant_id = ?", projectID, *event.TenantID).Scan(ctx); projectErr == nil {
+				projectName = project.Name
+				link = "/app/projects/" + strings.ToLower(project.Key) + "/integrations?syncRun=" + event.ID.String()
+			}
+		}
+	}
+	typeAndTitle := "sync.completed"
+	title := providerName + " sync completed"
+	body := fmt.Sprintf("%s %s for %s completed.", providerName, resource, projectName)
+	if status == "failed" {
+		typeAndTitle = "sync.failed"
+		title = providerName + " sync failed"
+		body = fmt.Sprintf("%s %s for %s failed.", providerName, resource, projectName)
+		if message != "" {
+			body += " " + message
+		}
+	}
+	var members []db.Membership
+	if err := p.Store.DB.NewSelect().Model(&members).Where("tenant_id = ?", *event.TenantID).Scan(ctx); err != nil {
+		return err
+	}
+	for _, member := range members {
+		count, err := p.Store.DB.NewSelect().Model((*db.Notification)(nil)).Where("tenant_id = ? AND user_id = ? AND type = ? AND link = ?", *event.TenantID, member.UserID, typeAndTitle, link).Count(ctx)
+		if err != nil {
+			return err
+		}
+		if count > 0 {
+			continue
+		}
+		now := time.Now().UTC()
+		notification := &db.Notification{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: *event.TenantID, UserID: member.UserID, Type: typeAndTitle, Title: title, Body: body, Link: link}
+		if _, err := p.Store.DB.NewInsert().Model(notification).Exec(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p Processor) failSyncEvent(ctx context.Context, eventID uuid.UUID, eventErr error) error {
@@ -948,6 +1089,9 @@ func (p Processor) processGitHubImport(ctx context.Context, job *db.OutboxJob) (
 			}()
 		}
 	}
+	if syncEventID != uuid.Nil {
+		p.appendSyncLog(ctx, syncEventID, &tenantID, "info", "import", "Import worker started", map[string]any{"jobId": job.ID.String()})
+	}
 	var project db.Project
 	if err = p.Store.DB.NewSelect().Model(&project).Where("id = ? AND tenant_id = ?", projectID, tenantID).Scan(ctx); err != nil {
 		return err
@@ -960,27 +1104,78 @@ func (p Processor) processGitHubImport(ctx context.Context, job *db.OutboxJob) (
 	if err = p.Store.DB.NewSelect().Model(&connection).Where("id = ? AND tenant_id = ? AND active = true", repository.ConnectionID, tenantID).Scan(ctx); err != nil {
 		return err
 	}
+	if syncEventID != uuid.Nil {
+		p.appendSyncLog(ctx, syncEventID, &tenantID, "info", "repository", fmt.Sprintf("Connected repository %s", repository.FullName), map[string]any{"projectId": projectID.String(), "repositoryId": repositoryID.String()})
+	}
 	client, err := p.clientForConnection(ctx, connection)
 	if err != nil {
+		if syncEventID != uuid.Nil {
+			p.appendSyncLog(ctx, syncEventID, &tenantID, "error", "connection", "Could not initialize provider client: "+err.Error(), nil)
+		}
 		return err
+	}
+	if syncEventID != uuid.Nil {
+		p.appendSyncLog(ctx, syncEventID, &tenantID, "info", "fetch", fmt.Sprintf("Loading %s milestones and issues", connection.Provider), nil)
 	}
 	milestones, err := client.ListMilestones(ctx, repository.Owner, repository.Name)
 	if err != nil {
+		if syncEventID != uuid.Nil {
+			p.appendSyncLog(ctx, syncEventID, &tenantID, "error", "milestones", "Could not load milestones: "+err.Error(), nil)
+		}
 		return fmt.Errorf("list %s milestones: %w", connection.Provider, err)
 	}
+	if syncEventID != uuid.Nil {
+		p.appendSyncLog(ctx, syncEventID, &tenantID, "info", "milestones", fmt.Sprintf("Loaded %d milestones", len(milestones)), map[string]any{"count": len(milestones)})
+	}
+	milestoneFailures := make([]string, 0)
+	milestoneCount := 0
 	for _, milestone := range milestones {
-		if _, err = p.reconcileMilestone(ctx, tenantID, project, repository, milestone, job.ID.String(), milestone.UpdatedAt); err != nil {
-			return err
+		if _, reconcileErr := p.reconcileMilestone(ctx, tenantID, project, repository, milestone, job.ID.String(), milestone.UpdatedAt); reconcileErr != nil {
+			failure := fmt.Sprintf("milestone #%d %q: %v", milestone.Number, milestone.Title, reconcileErr)
+			milestoneFailures = append(milestoneFailures, failure)
+			if syncEventID != uuid.Nil {
+				p.appendSyncLog(ctx, syncEventID, &tenantID, "error", "milestone", "Could not reconcile "+failure, map[string]any{"number": milestone.Number})
+			}
+			continue
 		}
+		milestoneCount++
+	}
+	if syncEventID != uuid.Nil {
+		p.appendSyncLog(ctx, syncEventID, &tenantID, "info", "milestones", fmt.Sprintf("Reconciled %d of %d milestones", milestoneCount, len(milestones)), map[string]any{"count": milestoneCount, "failed": len(milestoneFailures)})
 	}
 	issues, err := client.ListIssues(ctx, repository.Owner, repository.Name)
 	if err != nil {
+		if syncEventID != uuid.Nil {
+			p.appendSyncLog(ctx, syncEventID, &tenantID, "error", "issues", "Could not load issues: "+err.Error(), nil)
+		}
 		return fmt.Errorf("list %s issues: %w", connection.Provider, err)
 	}
+	if syncEventID != uuid.Nil {
+		p.appendSyncLog(ctx, syncEventID, &tenantID, "info", "issues", fmt.Sprintf("Loaded %d issues", len(issues)), map[string]any{"count": len(issues)})
+	}
+	issueFailures := make([]string, 0)
+	issueCount := 0
 	for _, issue := range issues {
-		if err = p.reconcileIssue(ctx, tenantID, project, repository, issue, job.ID.String(), issue.UpdatedAt); err != nil {
-			return err
+		if reconcileErr := p.reconcileIssue(ctx, tenantID, project, repository, issue, job.ID.String(), issue.UpdatedAt); reconcileErr != nil {
+			failure := fmt.Sprintf("issue #%d %q: %v", issue.Number, issue.Title, reconcileErr)
+			issueFailures = append(issueFailures, failure)
+			if syncEventID != uuid.Nil {
+				p.appendSyncLog(ctx, syncEventID, &tenantID, "error", "issue", "Could not reconcile "+failure, map[string]any{"number": issue.Number})
+			}
+			continue
 		}
+		issueCount++
+	}
+	if syncEventID != uuid.Nil {
+		p.appendSyncLog(ctx, syncEventID, &tenantID, "info", "issues", fmt.Sprintf("Reconciled %d of %d issues", issueCount, len(issues)), map[string]any{"count": issueCount, "failed": len(issueFailures)})
+	}
+	failures := append(milestoneFailures, issueFailures...)
+	if len(failures) > 0 {
+		preview := failures
+		if len(preview) > 3 {
+			preview = preview[:3]
+		}
+		return fmt.Errorf("import completed with %d reconciliation errors: %s", len(failures), strings.Join(preview, "; "))
 	}
 	return nil
 }

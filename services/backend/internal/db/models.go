@@ -236,6 +236,21 @@ type SyncEvent struct {
 	ErrorMessage string         `bun:",nullzero" json:"errorMessage"`
 }
 
+// SyncEventLog stores a safe, user-facing activity trail for an asynchronous
+// sync run. Provider payloads and credentials must never be written here;
+// metadata is reserved for small identifiers and counters that help explain
+// what the worker did.
+type SyncEventLog struct {
+	bun.BaseModel `bun:"table:sync_event_logs,alias:sel"`
+	RecordFields
+	TenantID    uuid.UUID      `bun:",type:uuid,notnull" json:"-"`
+	SyncEventID uuid.UUID      `bun:",type:uuid,notnull" json:"syncEventId"`
+	Level       string         `bun:",notnull" json:"level"`
+	Phase       string         `bun:",nullzero" json:"phase,omitempty"`
+	Message     string         `bun:",notnull" json:"message"`
+	Metadata    map[string]any `bun:",type:jsonb,notnull,default:'{}'" json:"metadata"`
+}
+
 type SyncConflict struct {
 	bun.BaseModel `bun:"table:sync_conflicts,alias:sc"`
 	RecordFields

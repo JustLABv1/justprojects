@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/JustLABv1/justprojects/services/backend/internal/db"
@@ -99,6 +100,7 @@ func (q Queue) DeferUntil(ctx context.Context, jobID uuid.UUID, jobErr error, re
 }
 
 func (q Queue) RunOnce(ctx context.Context, process func(context.Context, *db.OutboxJob) error) (bool, error) {
+	startedAt := time.Now()
 	job, err := q.Claim(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -106,17 +108,36 @@ func (q Queue) RunOnce(ctx context.Context, process func(context.Context, *db.Ou
 		}
 		return false, err
 	}
+	slog.Default().Info("outbox job claimed", "job_id", job.ID, "kind", job.Kind, "attempt", job.Attempts)
 	if err = process(ctx, job); err != nil {
 		var retryAtProvider RetryAtProvider
 		if errors.As(err, &retryAtProvider) {
 			if retryAt, ok := retryAtProvider.RetryAt(); ok {
 				if deferErr := q.DeferUntil(ctx, job.ID, err, retryAt); deferErr != nil {
+					slog.Default().Error("outbox job could not be deferred", "job_id", job.ID, "kind", job.Kind, "attempt", job.Attempts, "duration_ms", time.Since(startedAt).Milliseconds(), "error", deferErr)
 					return true, deferErr
 				}
+				slog.Default().Warn("outbox job deferred", "job_id", job.ID, "kind", job.Kind, "attempt", job.Attempts, "run_at", retryAt.UTC().Format(time.RFC3339), "duration_ms", time.Since(startedAt).Milliseconds(), "error", err)
 				return true, fmt.Errorf("%w until %s", ErrDeferred, retryAt.UTC().Format(time.RFC3339))
 			}
 		}
-		return true, q.Fail(ctx, job.ID, fmt.Errorf("process %s: %w", job.Kind, err), job.Attempts < 8)
+		wrappedErr := fmt.Errorf("process %s: %w", job.Kind, err)
+		retry := job.Attempts < 8
+		if failErr := q.Fail(ctx, job.ID, wrappedErr, retry); failErr != nil {
+			slog.Default().Error("outbox job status update failed", "job_id", job.ID, "kind", job.Kind, "attempt", job.Attempts, "duration_ms", time.Since(startedAt).Milliseconds(), "error", failErr)
+			return true, failErr
+		}
+		if retry {
+			slog.Default().Warn("outbox job failed; retry scheduled", "job_id", job.ID, "kind", job.Kind, "attempt", job.Attempts, "duration_ms", time.Since(startedAt).Milliseconds(), "error", wrappedErr)
+		} else {
+			slog.Default().Error("outbox job failed permanently", "job_id", job.ID, "kind", job.Kind, "attempt", job.Attempts, "duration_ms", time.Since(startedAt).Milliseconds(), "error", wrappedErr)
+		}
+		return true, nil
 	}
-	return true, q.Succeed(ctx, job.ID)
+	if err = q.Succeed(ctx, job.ID); err != nil {
+		slog.Default().Error("outbox job success update failed", "job_id", job.ID, "kind", job.Kind, "attempt", job.Attempts, "duration_ms", time.Since(startedAt).Milliseconds(), "error", err)
+		return true, err
+	}
+	slog.Default().Info("outbox job succeeded", "job_id", job.ID, "kind", job.Kind, "attempt", job.Attempts, "duration_ms", time.Since(startedAt).Milliseconds())
+	return true, nil
 }

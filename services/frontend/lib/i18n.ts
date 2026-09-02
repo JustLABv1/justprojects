@@ -88,6 +88,8 @@ const english = {
   "workspace.viewSyncHistory": "View sync history",
   "sync.background": "Background sync",
   "sync.actionDelivery": "{action} delivery",
+  "sync.import": "Repository import",
+  "sync.manualImport": "Manual import",
   "sync.issues": "Issues",
   "sync.milestone": "Milestone",
   "sync.unknownEvent": "Sync event",
@@ -95,6 +97,14 @@ const english = {
   "sync.processing": "Processing",
   "sync.succeeded": "Succeeded",
   "sync.failed": "Failed",
+  "sync.activityLog": "Activity log",
+  "sync.live": "Live",
+  "sync.liveDescription": "Automatically refreshed every few seconds",
+  "sync.refresh": "Refresh",
+  "sync.refreshing": "Refreshing",
+  "sync.noRuns": "No synchronization runs yet.",
+  "sync.noLogs": "No activity was recorded for this run.",
+  "sync.waitingForLogs": "Waiting for the worker to report activity...",
   "workspace.overviewDescription":
     "A shared view of delivery, ownership, and the next decision.",
   "workspace.tasksDescription":
@@ -237,8 +247,15 @@ const english = {
   "integrations.privateRepository": "Private repository",
   "integrations.publicRepository": "Public repository",
   "integrations.attached": "Attached to this project",
+  "integrations.detachRepository": "Detach repository",
+  "integrations.detachingRepository": "Detaching...",
+  "integrations.repositoryDetached": "Detached {repository} from this project.",
+  "integrations.repositoryDetachError": "Could not detach the repository.",
   "integrations.runImport": "Run import",
   "integrations.attachImport": "Attach & import",
+  "integrations.importRunning": "Import running",
+  "integrations.importAlreadyRunning":
+    "An import for this repository is already queued or running.",
   "integrations.latestDeliveries": "Latest deliveries",
   "integrations.webhookDescription":
     "Webhook receipts are persisted before background processing.",
@@ -684,6 +701,9 @@ const english = {
   "notifications.title": "Notifications",
   "notifications.empty": "You are all caught up.",
   "notifications.markRead": "Mark as read",
+  "notifications.remove": "Remove notification",
+  "notifications.clearAll": "Clear all",
+  "notifications.clearing": "Clearing...",
   "notifications.newCount": "{count} new notification(s)",
   "notifications.unread": "Unread",
   "notifications.loadError": "Could not load notifications.",
@@ -708,12 +728,14 @@ const english = {
   "settings.viewerError": "Could not update customer viewers.",
   "settings.loginViewersHint":
     "Viewer management applies to authenticated customer pages.",
-  "settings.noEligibleViewers": "No additional workspace members are available.",
+  "settings.noEligibleViewers":
+    "No additional workspace members are available.",
   "public.requestProject": "Request a new project",
   "public.requestProjectDescription":
     "Tell the team what you would like to build next.",
   "public.requestProjectTitle": "Project request",
-  "public.requestProjectDetails": "Describe the outcome, context, and key deliverables.",
+  "public.requestProjectDetails":
+    "Describe the outcome, context, and key deliverables.",
   "public.requesterName": "Your name",
   "public.requesterEmail": "Your email",
   "public.requestedStartDate": "Preferred start date",
@@ -722,7 +744,8 @@ const english = {
   "public.requestPriorityDescription": "How urgent is this request?",
   "public.requestSubmit": "Submit request",
   "public.requestSending": "Sending request...",
-  "public.requestProjectSubmitted": "Your project request was sent to the team.",
+  "public.requestProjectSubmitted":
+    "Your project request was sent to the team.",
   "public.requestProjectError": "Could not submit the project request.",
   "public.requestWorkspaceEyebrow": "New project request",
   "public.requestWorkspaceTitle": "Tell us what you want to build next",
@@ -736,7 +759,8 @@ const english = {
   "public.requestWorkspaceSubmitAnother": "Submit another request",
   "public.backToHome": "Back to home",
   "public.requestStatus": "Request status",
-  "public.requestTokenNotice": "Save this page if you want to refer back to the request.",
+  "public.requestTokenNotice":
+    "Save this page if you want to refer back to the request.",
   "public.updates": "Latest updates",
   "public.noUpdates": "The team has not published an update yet.",
   "public.notifications": "Notifications",
@@ -838,6 +862,8 @@ const german: Record<keyof typeof english, string> = {
   "workspace.viewSyncHistory": "Synchronisierungsverlauf anzeigen",
   "sync.background": "Hintergrundsynchronisierung",
   "sync.actionDelivery": "{action}-Übertragung",
+  "sync.import": "Repository-Import",
+  "sync.manualImport": "Manueller Import",
   "sync.issues": "Issues",
   "sync.milestone": "Meilenstein",
   "sync.unknownEvent": "Synchronisierungsereignis",
@@ -845,6 +871,14 @@ const german: Record<keyof typeof english, string> = {
   "sync.processing": "Wird verarbeitet",
   "sync.succeeded": "Erfolgreich",
   "sync.failed": "Fehlgeschlagen",
+  "sync.activityLog": "Aktivitätsprotokoll",
+  "sync.live": "Live",
+  "sync.liveDescription": "Wird automatisch alle paar Sekunden aktualisiert",
+  "sync.refresh": "Aktualisieren",
+  "sync.refreshing": "Wird aktualisiert",
+  "sync.noRuns": "Noch keine Synchronisierungsläufe.",
+  "sync.noLogs": "Für diesen Lauf wurde keine Aktivität aufgezeichnet.",
+  "sync.waitingForLogs": "Warte auf Aktivität des Workers ...",
   "workspace.overviewDescription":
     "Eine gemeinsame Sicht auf Lieferung, Verantwortung und die nächste Entscheidung.",
   "workspace.tasksDescription":
@@ -989,8 +1023,17 @@ const german: Record<keyof typeof english, string> = {
   "integrations.privateRepository": "Privates Repository",
   "integrations.publicRepository": "Öffentliches Repository",
   "integrations.attached": "Mit diesem Projekt verbunden",
+  "integrations.detachRepository": "Repository trennen",
+  "integrations.detachingRepository": "Wird getrennt...",
+  "integrations.repositoryDetached":
+    "{repository} wurde von diesem Projekt getrennt.",
+  "integrations.repositoryDetachError":
+    "Das Repository konnte nicht getrennt werden.",
   "integrations.runImport": "Import starten",
   "integrations.attachImport": "Verbinden & importieren",
+  "integrations.importRunning": "Import läuft",
+  "integrations.importAlreadyRunning":
+    "Für dieses Repository ist bereits ein Import vorgemerkt oder läuft.",
   "integrations.latestDeliveries": "Letzte Übertragungen",
   "integrations.webhookDescription":
     "Webhook-Eingänge werden vor der Hintergrundverarbeitung gespeichert.",
@@ -1449,6 +1492,9 @@ const german: Record<keyof typeof english, string> = {
   "notifications.title": "Benachrichtigungen",
   "notifications.empty": "Alles gelesen.",
   "notifications.markRead": "Als gelesen markieren",
+  "notifications.remove": "Benachrichtigung entfernen",
+  "notifications.clearAll": "Alle entfernen",
+  "notifications.clearing": "Wird entfernt...",
   "notifications.newCount": "{count} neue Benachrichtigung(en)",
   "notifications.unread": "Ungelesen",
   "notifications.loadError": "Benachrichtigungen konnten nicht geladen werden.",
@@ -1460,7 +1506,8 @@ const german: Record<keyof typeof english, string> = {
   "settings.allCustomerVisible": "Alle für Kunden sichtbaren Elemente",
   "settings.saveVisibility": "Sichtbarkeit speichern",
   "settings.visibilitySaved": "Kundensichtbarkeit gespeichert.",
-  "settings.visibilityError": "Die Kundensichtbarkeit konnte nicht gespeichert werden.",
+  "settings.visibilityError":
+    "Die Kundensichtbarkeit konnte nicht gespeichert werden.",
   "settings.viewerManagement": "Freigegebene Betrachter",
   "settings.viewerManagementDescription":
     "Lege fest, welche Arbeitsbereichsmitglieder sich auf dieser Kundenseite anmelden können.",
@@ -1470,10 +1517,12 @@ const german: Record<keyof typeof english, string> = {
   "settings.noViewers": "Noch keine Betrachter freigegeben.",
   "settings.viewerAdded": "Kundenbetrachter hinzugefügt.",
   "settings.viewerRemoved": "Kundenbetrachter entfernt.",
-  "settings.viewerError": "Die Kundenbetrachter konnten nicht aktualisiert werden.",
+  "settings.viewerError":
+    "Die Kundenbetrachter konnten nicht aktualisiert werden.",
   "settings.loginViewersHint":
     "Die Betrachterverwaltung gilt für authentifizierte Kundenseiten.",
-  "settings.noEligibleViewers": "Keine weiteren Arbeitsbereichsmitglieder verfügbar.",
+  "settings.noEligibleViewers":
+    "Keine weiteren Arbeitsbereichsmitglieder verfügbar.",
   "public.requestProject": "Neues Projekt anfragen",
   "public.requestProjectDescription":
     "Beschreibe, was du als Nächstes bauen möchtest.",
@@ -1488,14 +1537,17 @@ const german: Record<keyof typeof english, string> = {
   "public.requestPriorityDescription": "Wie dringend ist die Anfrage?",
   "public.requestSubmit": "Anfrage senden",
   "public.requestSending": "Anfrage wird gesendet...",
-  "public.requestProjectSubmitted": "Deine Projektanfrage wurde an das Team gesendet.",
-  "public.requestProjectError": "Die Projektanfrage konnte nicht gesendet werden.",
+  "public.requestProjectSubmitted":
+    "Deine Projektanfrage wurde an das Team gesendet.",
+  "public.requestProjectError":
+    "Die Projektanfrage konnte nicht gesendet werden.",
   "public.requestWorkspaceEyebrow": "Neues Projekt anfragen",
   "public.requestWorkspaceTitle": "Was möchtest du als Nächstes bauen?",
   "public.requestWorkspaceDescription":
     "Sende dem Team eine Beschreibung. Ein bestehendes Projekt ist nicht erforderlich.",
   "public.requestWorkspaceLoading": "Anfrage-Seite wird geladen",
-  "public.requestWorkspaceNotAvailable": "Diese Anfrage-Seite ist nicht verfügbar.",
+  "public.requestWorkspaceNotAvailable":
+    "Diese Anfrage-Seite ist nicht verfügbar.",
   "public.requestWorkspaceSuccessTitle": "Anfrage gesendet",
   "public.requestWorkspaceSuccessDescription":
     "Deine Anfrage wurde an das Team gesendet.",

@@ -128,10 +128,13 @@ func (s *Server) Router() *gin.Engine {
 	protected.PATCH("/project-requests/:requestId", s.updateProjectRequest)
 	protected.POST("/project-requests/:requestId/convert", s.convertProjectRequest)
 	protected.GET("/notifications", s.listNotifications)
+	protected.DELETE("/notifications", s.clearNotifications)
+	protected.DELETE("/notifications/:notificationId", s.deleteNotification)
 	protected.POST("/notifications/:notificationId/read", s.markNotificationRead)
 	protected.GET("/sync/conflicts", s.listConflicts)
 	protected.POST("/sync/conflicts/:conflictId/resolve", s.resolveConflict)
 	protected.GET("/sync/runs", s.listSyncRuns)
+	protected.GET("/sync/runs/:runId/logs", s.listSyncRunLogs)
 	protected.GET("/audit/events", s.listAuditEvents)
 	protected.GET("/integrations/github/connections", s.listGitHubConnections)
 	protected.GET("/integrations/connections", s.listGitConnections)
@@ -2531,7 +2534,71 @@ func (s *Server) listSyncRuns(c *gin.Context) {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load sync runs"))
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": events, "count": len(events)})
+
+	logsByEvent := make(map[uuid.UUID][]db.SyncEventLog, len(events))
+	if len(events) > 0 {
+		eventIDs := make([]uuid.UUID, 0, len(events))
+		for _, event := range events {
+			eventIDs = append(eventIDs, event.ID)
+			logsByEvent[event.ID] = make([]db.SyncEventLog, 0)
+		}
+		logs := make([]db.SyncEventLog, 0)
+		if err := s.Store.DB.NewSelect().Model(&logs).
+			Where("tenant_id = ? AND sync_event_id IN (?)", s.principal(c).Tenant.ID, bun.In(eventIDs)).
+			Order("created_at ASC").Scan(c.Request.Context()); err != nil {
+			writeError(c, http.StatusInternalServerError, errors.New("could not load sync run logs"))
+			return
+		}
+		for _, log := range logs {
+			logsByEvent[log.SyncEventID] = append(logsByEvent[log.SyncEventID], log)
+		}
+	}
+
+	items := make([]syncRunResponse, 0, len(events))
+	for _, event := range events {
+		items = append(items, syncRunResponse{SyncEvent: event, Logs: logsByEvent[event.ID]})
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items, "count": len(items)})
+}
+
+type syncRunResponse struct {
+	db.SyncEvent
+	Logs []db.SyncEventLog `json:"logs"`
+}
+
+func (s *Server) listSyncRunLogs(c *gin.Context) {
+	if !s.authorize(c, "sync.resolve", nil) {
+		return
+	}
+	runID, ok := pathUUID(c, "runId")
+	if !ok {
+		return
+	}
+	var event db.SyncEvent
+	if err := s.Store.DB.NewSelect().Model(&event).Where("id = ? AND tenant_id = ?", runID, s.principal(c).Tenant.ID).Scan(c.Request.Context()); err != nil {
+		notFound(c)
+		return
+	}
+	limit := 200
+	if raw := c.Query("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 {
+			badRequest(c, errors.New("limit must be a positive integer"))
+			return
+		}
+		if parsed > 500 {
+			parsed = 500
+		}
+		limit = parsed
+	}
+	logs := make([]db.SyncEventLog, 0)
+	if err := s.Store.DB.NewSelect().Model(&logs).
+		Where("tenant_id = ? AND sync_event_id = ?", s.principal(c).Tenant.ID, event.ID).
+		Order("created_at ASC").Limit(limit).Scan(c.Request.Context()); err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not load sync run logs"))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": logs, "count": len(logs)})
 }
 
 func (s *Server) listAuditEvents(c *gin.Context) {
@@ -2999,12 +3066,67 @@ func (s *Server) importGitProject(c *gin.Context) {
 	}
 	event := &db.SyncEvent{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: uuidPtr(s.principal(c).Tenant.ID), ConnectionID: uuidPtr(repository.ConnectionID), DeliveryID: "import-" + uuid.NewString(), EventName: "import", Action: "manual", Payload: map[string]any{"projectId": projectID.String(), "repositoryId": repository.ID.String()}, Status: "queued"}
 	event.Provider = provider
-	if _, err := s.Store.DB.NewInsert().Model(event).Exec(c.Request.Context()); err != nil {
+	ctx := c.Request.Context()
+	tenantID := s.principal(c).Tenant.ID
+	// The client disables an active repository's import button for a better
+	// experience, but the server must own the invariant because another tab or
+	// API client can submit the same request. A transaction-scoped advisory lock
+	// makes the check-and-insert atomic without blocking imports for other repos.
+	tx, err := s.Store.DB.BeginTx(ctx, nil)
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not start git import"))
+		return
+	}
+	defer tx.Rollback()
+	lockKey := "justprojects:import:" + tenantID.String() + ":" + projectID.String() + ":" + repository.ID.String()
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`, lockKey); err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not lock git import"))
+		return
+	}
+	var activeImport db.SyncEvent
+	activeErr := tx.NewSelect().Model(&activeImport).
+		Where("tenant_id = ? AND event_name = 'import' AND status IN ('queued', 'processing') AND payload->>'projectId' = ? AND payload->>'repositoryId' = ?", tenantID, projectID.String(), repository.ID.String()).
+		Order("created_at ASC").Limit(1).Scan(ctx)
+	if activeErr == nil {
+		conflict(c, "an import for this repository is already queued or running")
+		return
+	}
+	if !errors.Is(activeErr, sql.ErrNoRows) {
+		writeError(c, http.StatusInternalServerError, errors.New("could not check active git imports"))
+		return
+	}
+	if _, err = tx.NewInsert().Model(event).Exec(ctx); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not create git sync run"))
 		return
 	}
-	if err := s.Queue.Enqueue(c.Request.Context(), "git.import", map[string]any{"tenantId": s.principal(c).Tenant.ID.String(), "projectId": projectID.String(), "repositoryId": repository.ID.String(), "syncEventId": event.ID.String()}); err != nil {
+	if err = tx.Commit(); err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not create git sync run"))
+		return
+	}
+	queuedLog := &db.SyncEventLog{
+		RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now},
+		TenantID:     tenantID,
+		SyncEventID:  event.ID,
+		Level:        "info",
+		Phase:        "queued",
+		Message:      "Import queued for background processing",
+		Metadata:     map[string]any{"projectId": projectID.String(), "repositoryId": repository.ID.String()},
+	}
+	if _, logErr := s.Store.DB.NewInsert().Model(queuedLog).Exec(c.Request.Context()); logErr != nil {
+		slog.Default().Warn("could not write sync queue log", "sync_event_id", event.ID, "error", logErr)
+	}
+	if err := s.Queue.Enqueue(ctx, "git.import", map[string]any{"tenantId": tenantID.String(), "projectId": projectID.String(), "repositoryId": repository.ID.String(), "syncEventId": event.ID.String()}); err != nil {
 		_ = s.setSyncRunFailed(c, event.ID, err.Error())
+		failedLog := &db.SyncEventLog{
+			RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()},
+			TenantID:     tenantID,
+			SyncEventID:  event.ID,
+			Level:        "error",
+			Phase:        "queue",
+			Message:      "Import could not be queued",
+			Metadata:     map[string]any{"error": err.Error()},
+		}
+		_, _ = s.Store.DB.NewInsert().Model(failedLog).Exec(c.Request.Context())
 		writeError(c, http.StatusInternalServerError, errors.New("could not queue git import"))
 		return
 	}

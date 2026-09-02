@@ -35,6 +35,7 @@ func main() {
 		logger.Error("run migrations", "error", err)
 		os.Exit(1)
 	}
+	logger.Info("sync worker started", "poll_interval", cfg.WorkerPollInterval.String())
 	jobs := queue.Queue{Store: store}
 	processor, err := projectsync.NewProcessor(store, cfg)
 	if err != nil {
@@ -46,6 +47,7 @@ func main() {
 	for {
 		select {
 		case <-ctx.Done():
+			logger.Info("sync worker stopped")
 			return
 		case <-ticker.C:
 			for {

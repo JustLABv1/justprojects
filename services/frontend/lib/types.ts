@@ -195,7 +195,21 @@ export interface SyncEvent {
   action?: string
   status: "queued" | "processing" | "succeeded" | "failed" | string
   createdAt: string
+  updatedAt?: string
   errorMessage?: string
+  payload?: Record<string, unknown>
+  logs?: SyncEventLog[]
+}
+
+export interface SyncEventLog {
+  id: string
+  syncEventId: string
+  level: "debug" | "info" | "warn" | "error" | string
+  phase?: string
+  message: string
+  metadata?: Record<string, unknown>
+  createdAt: string
+  updatedAt?: string
 }
 
 export type GitProvider = "github" | "gitlab"
