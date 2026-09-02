@@ -190,11 +190,14 @@ function KanbanTaskCard({
   return (
     <KanbanItem
       value={task.id}
-      className={cn("group", overlay && (compact ? "w-[220px]" : "w-[250px]"))}
+      className={cn(
+        "group min-w-0",
+        overlay && (compact ? "w-[220px]" : "w-[250px]")
+      )}
     >
       <Card
         className={cn(
-          "gap-3 rounded-xl border bg-background p-3 shadow-sm ring-1 ring-border/40 transition hover:border-primary/40 hover:shadow-md",
+          "w-full min-w-0 gap-3 rounded-xl border bg-background p-3 shadow-sm ring-1 ring-border/40 transition hover:border-primary/40 hover:shadow-md",
           overlay && "rotate-2 shadow-xl"
         )}
       >
@@ -227,7 +230,7 @@ function KanbanTaskCard({
           )}
         </div>
         {task.description && (
-          <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+          <p className="line-clamp-2 min-w-0 text-xs leading-relaxed break-words text-muted-foreground">
             {task.description}
           </p>
         )}
@@ -248,19 +251,28 @@ function KanbanTaskCard({
             </Badge>
           ))}
         </div>
-        <div className="flex items-center justify-between border-t pt-2 text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
+        <div
+          className={cn(
+            "border-t pt-2 text-[11px] leading-tight text-muted-foreground",
+            compact
+              ? "flex flex-col items-start gap-1.5"
+              : "flex flex-wrap items-center justify-between gap-x-3 gap-y-1"
+          )}
+        >
+          <span className="inline-flex max-w-full min-w-0 items-center gap-1">
             <RiTimeLine className="size-3.5" aria-hidden="true" />
-            {task.dueDate
-              ? formatShortDate(task.dueDate, locale)
-              : t("kanban.noDueDate")}
+            <span className="break-words whitespace-normal">
+              {task.dueDate
+                ? formatShortDate(task.dueDate, locale)
+                : t("kanban.noDueDate")}
+            </span>
           </span>
           <span
-            className="flex min-w-0 items-center gap-1.5"
+            className="flex max-w-full min-w-0 items-center gap-1.5"
             title={task.assigneeName || t("details.unassigned")}
           >
             <UserAvatar name={task.assigneeName} size="sm" />
-            <span className="max-w-24 truncate">
+            <span className="min-w-0 break-words whitespace-normal">
               {task.assigneeName || t("details.unassigned")}
             </span>
           </span>

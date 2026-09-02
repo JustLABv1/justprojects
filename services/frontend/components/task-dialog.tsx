@@ -23,7 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import type { Milestone, ProjectStatus, Task } from "@/lib/types"
+import type { Milestone, ProjectStatus, Task, TenantMember } from "@/lib/types"
+import { UserAvatar } from "@/components/status-pill"
 import { useI18n } from "@/components/language-provider"
 
 export interface NewTaskInput {
@@ -35,6 +36,7 @@ export interface NewTaskInput {
   startDate: string
   dueDate: string
   estimateMinutes?: number
+  assigneeId?: string | null
   visibility: string
 }
 
@@ -45,6 +47,7 @@ export function TaskDialog({
   onOpenChange,
   statuses,
   milestones,
+  members = [],
   parentTask,
   task,
   onCreate,
@@ -55,6 +58,7 @@ export function TaskDialog({
   onOpenChange: (open: boolean) => void
   statuses: ProjectStatus[]
   milestones: Milestone[]
+  members?: TenantMember[]
   parentTask?: Task
   task?: Task
   onCreate?: (input: NewTaskInput) => Promise<void> | void
@@ -72,6 +76,7 @@ export function TaskDialog({
   const [startDate, setStartDate] = useState("")
   const [dueDate, setDueDate] = useState("")
   const [estimate, setEstimate] = useState("")
+  const [assigneeId, setAssigneeId] = useState("unassigned")
   const [visibility, setVisibility] = useState("internal")
   const [submitting, setSubmitting] = useState(false)
   const priorityLabel =
@@ -96,6 +101,7 @@ export function TaskDialog({
     setStartDate(task.startDate?.slice(0, 10) ?? "")
     setDueDate(task.dueDate?.slice(0, 10) ?? "")
     setEstimate(task.estimateMinutes?.toString() ?? "")
+    setAssigneeId(task.assigneeId ?? "unassigned")
     setVisibility(task.visibility)
   }, [open, task])
 
@@ -116,6 +122,7 @@ export function TaskDialog({
     setStartDate("")
     setDueDate("")
     setEstimate("")
+    setAssigneeId("unassigned")
     setVisibility("internal")
   }
 
@@ -134,6 +141,7 @@ export function TaskDialog({
         startDate,
         dueDate,
         estimateMinutes: estimate ? Number(estimate) : undefined,
+        assigneeId: assigneeId === "unassigned" ? null : assigneeId,
         visibility,
       }
       if (task) {
@@ -235,6 +243,43 @@ export function TaskDialog({
                   <SelectItem value="medium">{t("priority.medium")}</SelectItem>
                   <SelectItem value="high">{t("priority.high")}</SelectItem>
                   <SelectItem value="urgent">{t("priority.urgent")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="task-assignee">{t("dialog.assignee")}</Label>
+              <Select
+                value={assigneeId}
+                onValueChange={(value) => setAssigneeId(value ?? "unassigned")}
+              >
+                <SelectTrigger id="task-assignee" className="w-full">
+                  <SelectValue>
+                    {members.find((member) => member.user.id === assigneeId)
+                      ?.user.name ?? t("dialog.unassigned")}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">
+                    <span className="flex items-center gap-2">
+                      <UserAvatar size="sm" />
+                      <span>{t("dialog.unassigned")}</span>
+                    </span>
+                  </SelectItem>
+                  {members.map((member) => (
+                    <SelectItem key={member.user.id} value={member.user.id}>
+                      <span className="flex min-w-0 items-center gap-2">
+                        <UserAvatar name={member.user.name} size="sm" />
+                        <span className="min-w-0">
+                          <span className="block truncate">
+                            {member.user.name}
+                          </span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {member.user.email}
+                          </span>
+                        </span>
+                      </span>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

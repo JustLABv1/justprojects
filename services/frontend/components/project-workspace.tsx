@@ -163,6 +163,7 @@ const emptyWorkspace: WorkspaceData = {
   project: { id: "", name: "", key: "", status: "active", version: 0 },
   projects: [],
   statuses: [],
+  members: [],
   tasks: [],
   milestones: [],
   labels: [],
@@ -271,6 +272,7 @@ export function ProjectWorkspace({
           listLabels(resolvedProjectId),
           listGitConnections(),
           listSyncRuns(),
+          listTenantMembers(),
         ])
         const nextErrors: Record<string, string> = {}
         const failed = (key: string) => {
@@ -296,9 +298,14 @@ export function ProjectWorkspace({
           resources[4].status === "fulfilled"
             ? resources[4].value
             : (failed("sync"), { items: [] })
+        const members =
+          resources[5].status === "fulfilled"
+            ? resources[5].value
+            : (failed("members"), { members: [] })
         setResourceErrors(nextErrors)
         setData((current) => ({
           ...current,
+          members: members.members ?? [],
           tasks: tasks.items ?? [],
           milestones: milestones.items ?? [],
           labels: labels.items ?? [],
@@ -535,6 +542,11 @@ export function ProjectWorkspace({
       startDate: input.startDate || null,
       dueDate: input.dueDate || null,
       estimateMinutes: input.estimateMinutes ?? null,
+      assigneeId: input.assigneeId ?? null,
+      assigneeName: input.assigneeId
+        ? data.members.find((member) => member.user.id === input.assigneeId)
+            ?.user.name
+        : undefined,
       visibility: input.visibility,
     }
     setData((current) => ({
@@ -553,6 +565,9 @@ export function ProjectWorkspace({
         startDate: input.startDate,
         dueDate: input.dueDate,
         estimateMinutes: input.estimateMinutes ?? 0,
+        // The API accepts an empty string as the explicit clear value for the
+        // nullable assignee field in a PATCH payload.
+        assigneeId: input.assigneeId ?? "",
         visibility: input.visibility,
         version: input.version,
       })
@@ -797,6 +812,7 @@ export function ProjectWorkspace({
               onOpenChange={setTaskDialogOpen}
               statuses={data.statuses}
               milestones={data.milestones}
+              members={data.members}
               onCreate={handleCreateTask}
               trigger={false}
             />
@@ -805,6 +821,7 @@ export function ProjectWorkspace({
               onOpenChange={(open) => !open && setEditingTask(null)}
               statuses={data.statuses}
               milestones={data.milestones}
+              members={data.members}
               task={editingTask ?? undefined}
               onUpdate={handleUpdateTask}
               trigger={false}
@@ -3171,6 +3188,7 @@ function resourceLabel(resource: string, t: Translator) {
     labels: "workspace.resource.labels",
     connections: "workspace.resource.connections",
     sync: "workspace.resource.sync",
+    members: "workspace.resource.members",
   } as const
   const key = resourceKeys[resource as keyof typeof resourceKeys]
   return key ? t(key) : resource

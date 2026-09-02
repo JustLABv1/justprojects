@@ -174,6 +174,7 @@ export interface WorkspaceData {
   project: Project
   projects: Project[]
   statuses: ProjectStatus[]
+  members: TenantMember[]
   tasks: Task[]
   milestones: Milestone[]
   labels: Label[]

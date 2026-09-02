@@ -224,6 +224,7 @@ export function createTask(
     startDate?: string
     dueDate?: string
     estimateMinutes?: number
+    assigneeId?: string | null
     visibility?: string
   }
 ) {
