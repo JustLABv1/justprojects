@@ -14,10 +14,19 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { login, getOidcStartUrl, isApiConfigured } from "@/lib/api"
+import { LanguageSwitcher } from "@/components/language-switcher"
+import { useI18n } from "@/components/language-provider"
+import {
+  ApiError,
+  getOidcStartUrl,
+  getSession,
+  isApiConfigured,
+  login,
+} from "@/lib/api"
 
 export default function LoginPage() {
   const router = useRouter()
+  const { t } = useI18n()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string>()
@@ -27,15 +36,22 @@ export default function LoginPage() {
     event.preventDefault()
     setError(undefined)
     if (!isApiConfigured) {
-      router.push("/")
+      setError(t("auth.apiRequired"))
       return
     }
     setLoading(true)
     try {
       await login({ email, password })
-      router.push("/")
+      await getSession()
+      router.replace("/app")
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not sign in.")
+      setError(
+        caught instanceof ApiError && caught.status === 401
+          ? t("auth.sessionUnavailable")
+          : caught instanceof Error
+            ? caught.message
+            : t("workspace.loadError")
+      )
     } finally {
       setLoading(false)
     }
@@ -47,7 +63,7 @@ export default function LoginPage() {
       window.location.assign(result.url)
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "OIDC is not configured."
+        caught instanceof Error ? caught.message : t("login.continueOIDC")
       )
     }
   }
@@ -62,43 +78,43 @@ export default function LoginPage() {
           JustProjects
         </div>
         <div className="max-w-lg">
-          <p className="mb-4 text-sm text-white/50">Delivery, clearly.</p>
+          <p className="mb-4 text-sm text-white/50">{t("login.heroEyebrow")}</p>
           <h1 className="text-5xl leading-[1.05] font-semibold tracking-tight">
-            Give every project a clear next step.
+            {t("login.heroHeading")}
           </h1>
           <p className="mt-6 max-w-md text-base leading-relaxed text-white/60">
-            Connect your team, your GitHub work, and your customers around one
-            trustworthy project story.
+            {t("login.heroDescription")}
           </p>
         </div>
-        <p className="text-xs text-white/40">
-          Built for teams who care about the handoff.
-        </p>
+        <p className="text-xs text-white/40">{t("login.heroFooter")}</p>
       </section>
       <section className="flex items-center justify-center p-5 sm:p-10">
         <div className="w-full max-w-sm">
-          <Link
-            href="/"
-            className="mb-8 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <RiArrowLeftLine className="size-3.5" aria-hidden="true" />
-            Back to preview
-          </Link>
+          <div className="mb-8 flex items-center justify-between gap-4">
+            <Link
+              href="/app"
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <RiArrowLeftLine className="size-3.5" aria-hidden="true" />
+              {t("login.backPreview")}
+            </Link>
+            <LanguageSwitcher />
+          </div>
           <Card className="rounded-3xl p-6 shadow-xl shadow-slate-950/5 sm:p-8">
             <div className="mb-7">
               <div className="mb-4 flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                 <RiLockPasswordLine className="size-5" aria-hidden="true" />
               </div>
               <h2 className="text-2xl font-semibold tracking-tight">
-                Welcome back
+                {t("login.welcome")}
               </h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Sign in to your workspace and pick up where you left off.
+                {t("login.signInDescription")}
               </p>
             </div>
             <form onSubmit={submit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="login-email">Email</Label>
+                <Label htmlFor="login-email">{t("login.email")}</Label>
                 <Input
                   id="login-email"
                   type="email"
@@ -111,12 +127,12 @@ export default function LoginPage() {
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="login-password">Password</Label>
+                  <Label htmlFor="login-password">{t("login.password")}</Label>
                   <button
                     type="button"
                     className="text-xs text-primary hover:underline"
                   >
-                    Forgot password?
+                    {t("login.forgotPassword")}
                   </button>
                 </div>
                 <Input
@@ -144,12 +160,17 @@ export default function LoginPage() {
                     aria-hidden="true"
                   />
                 )}
-                Sign in
+                {t("login.signIn")}
               </Button>
             </form>
+            {!isApiConfigured && (
+              <p className="mt-4 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+                {t("auth.apiRequired")}
+              </p>
+            )}
             <div className="my-6 flex items-center gap-3 text-[10px] tracking-[0.16em] text-muted-foreground uppercase">
               <span className="h-px flex-1 bg-border" />
-              or
+              {t("login.or")}
               <span className="h-px flex-1 bg-border" />
             </div>
             <Button
@@ -159,19 +180,18 @@ export default function LoginPage() {
               onClick={() => void oidc()}
             >
               <RiGithubLine className="size-4" aria-hidden="true" />
-              Continue with OIDC
+              {t("login.continueOIDC")}
             </Button>
             <p className="mt-6 text-center text-xs leading-relaxed text-muted-foreground">
-              Local accounts and OIDC sessions are owned by the backend. Your
-              browser only receives an httpOnly session cookie.
+              {t("login.sessionNote")}
             </p>
             <p className="mt-4 text-center text-xs text-muted-foreground">
-              New workspace?{" "}
+              {t("login.newWorkspace")}{" "}
               <Link
                 href="/register"
                 className="font-medium text-primary hover:underline"
               >
-                Create an account
+                {t("login.createAccount")}
               </Link>
             </p>
           </Card>

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { useI18n } from "@/components/language-provider"
 
 export interface NewProjectInput {
   name: string
@@ -33,12 +34,14 @@ export function ProjectDialog({
   onOpenChange: (open: boolean) => void
   onCreate: (input: NewProjectInput) => Promise<void> | void
 }) {
+  const { t } = useI18n()
   const [name, setName] = useState("")
   const [key, setKey] = useState("")
   const [description, setDescription] = useState("")
   const [startDate, setStartDate] = useState("")
   const [targetDate, setTargetDate] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string>()
 
   const reset = () => {
     setName("")
@@ -51,6 +54,7 @@ export function ProjectDialog({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!name.trim()) return
+    setError(undefined)
     setSubmitting(true)
     try {
       await onCreate({
@@ -62,6 +66,12 @@ export function ProjectDialog({
       })
       reset()
       onOpenChange(false)
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : t("dialog.projectCreateError")
+      )
     } finally {
       setSubmitting(false)
     }
@@ -71,27 +81,26 @@ export function ProjectDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Create a project</DialogTitle>
+          <DialogTitle>{t("dialog.createProject")}</DialogTitle>
           <DialogDescription>
-            Start a new delivery workspace with its own workflow, tasks, and
-            customer page.
+            {t("dialog.projectDescription")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-[1fr_130px]">
             <div className="space-y-2">
-              <Label htmlFor="project-name">Project name</Label>
+              <Label htmlFor="project-name">{t("dialog.projectName")}</Label>
               <Input
                 id="project-name"
                 autoFocus
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="e.g. Northstar launch"
+                placeholder={t("dialog.projectNamePlaceholder")}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="project-key">Key</Label>
+              <Label htmlFor="project-key">{t("dialog.key")}</Label>
               <Input
                 id="project-key"
                 value={key}
@@ -102,18 +111,22 @@ export function ProjectDialog({
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="project-description">Description</Label>
+            <Label htmlFor="project-description">
+              {t("dialog.description")}
+            </Label>
             <Textarea
               id="project-description"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="What is this project delivering?"
+              placeholder={t("dialog.projectDescriptionPlaceholder")}
               rows={3}
             />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="project-start-date">Start date</Label>
+              <Label htmlFor="project-start-date">
+                {t("dialog.startDate")}
+              </Label>
               <Input
                 id="project-start-date"
                 type="date"
@@ -122,7 +135,9 @@ export function ProjectDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="project-target-date">Target date</Label>
+              <Label htmlFor="project-target-date">
+                {t("dialog.targetDate")}
+              </Label>
               <Input
                 id="project-target-date"
                 type="date"
@@ -131,13 +146,21 @@ export function ProjectDialog({
               />
             </div>
           </div>
+          {error && (
+            <p
+              role="alert"
+              className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive"
+            >
+              {error}
+            </p>
+          )}
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              {t("dialog.cancel")}
             </Button>
             <Button type="submit" disabled={submitting || !name.trim()}>
               {submitting && (
@@ -146,7 +169,7 @@ export function ProjectDialog({
                   aria-hidden="true"
                 />
               )}
-              Create project
+              {submitting ? t("dialog.creating") : t("dialog.createProject")}
             </Button>
           </DialogFooter>
         </form>

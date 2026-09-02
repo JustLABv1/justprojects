@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import { RiAddLine, RiFlagLine } from "@remixicon/react"
+import { de as germanDateLocale, enUS } from "date-fns/locale"
 
 import { Gantt } from "@/components/reui/gantt/gantt"
 import { GanttNav } from "@/components/reui/gantt/gantt-nav"
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Frame, FramePanel } from "@/components/reui/frame"
 import type { Milestone, Project, Task } from "@/lib/types"
+import { useI18n } from "@/components/language-provider"
 
 export function RoadmapView({
   project,
@@ -27,13 +29,63 @@ export function RoadmapView({
   milestones: Milestone[]
   onCreateMilestone: () => void
 }) {
+  const { locale, t } = useI18n()
   const startDate = useMemo(
     () => parseDate(project.startDate) ?? new Date(),
     [project.startDate]
   )
   const { resources, events } = useMemo(
-    () => buildGanttData(tasks, milestones),
-    [milestones, tasks]
+    () =>
+      buildGanttData(
+        tasks,
+        milestones,
+        t("roadmap.milestones"),
+        t("roadmap.tasks")
+      ),
+    [milestones, t, tasks]
+  )
+  const ganttI18n = useMemo(
+    () => ({
+      labels: {
+        today: t("roadmap.today"),
+        previous: t("roadmap.previous"),
+        next: t("roadmap.next"),
+        addEvent: t("roadmap.addEvent"),
+        addTask: t("roadmap.addTask"),
+        allDay: t("roadmap.allDay"),
+        loading: t("roadmap.loadingEvents"),
+        event: t("roadmap.event"),
+        events: (count: number) => t("roadmap.events", { count }),
+        week: (week: number) => t("roadmap.week", { week }),
+        resources: t("roadmap.resources"),
+        goToDate: t("roadmap.goToDate"),
+        scheduleHint: t("roadmap.scheduleHint"),
+        scheduleHintDrag: t("roadmap.scheduleHintDrag"),
+        reorder: t("roadmap.reorder"),
+        selectView: t("roadmap.selectView"),
+        zoomIn: t("roadmap.zoomIn"),
+        zoomOut: t("roadmap.zoomOut"),
+        resizePanel: t("roadmap.resizePanel"),
+        jumpToBar: (title: string) => t("roadmap.jumpToBar", { title }),
+        progress: (percent: number) => t("roadmap.progress", { percent }),
+        durationDays: (days: number) => t("roadmap.durationDays", { days }),
+        continues: t("roadmap.continues"),
+        planned: (range: string) => t("roadmap.planned", { range }),
+        milestone: t("roadmap.milestone"),
+        scales: {
+          day: t("roadmap.scaleDay"),
+          week: t("roadmap.scaleWeek"),
+          month: t("roadmap.scaleMonth"),
+          quarter: t("roadmap.scaleQuarter"),
+          year: t("roadmap.scaleYear"),
+        },
+      },
+      formats: {
+        timeGutter: locale === "de" ? "HH:mm" : "h a",
+        eventTime: locale === "de" ? "HH:mm" : "h:mm a",
+      },
+    }),
+    [locale, t]
   )
 
   return (
@@ -41,15 +93,15 @@ export function RoadmapView({
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
           <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-            Delivery plan
+            {t("roadmap.deliveryPlan")}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Milestones and top-level work across the project timeline.
+            {t("roadmap.timelineDescription")}
           </p>
         </div>
         <Button className="w-fit gap-1.5" size="sm" onClick={onCreateMilestone}>
           <RiAddLine className="size-4" aria-hidden="true" />
-          New milestone
+          {t("roadmap.newMilestone")}
         </Button>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
@@ -74,20 +126,21 @@ export function RoadmapView({
                   }
                   className="h-5 text-[10px]"
                 >
-                  {milestone.status === "closed" ? "Complete" : "Upcoming"}
+                  {milestone.status === "closed"
+                    ? t("roadmap.complete")
+                    : t("roadmap.upcoming")}
                 </Badge>
               </div>
               <p className="ps-9 text-xs text-muted-foreground">
                 {milestone.dueDate
-                  ? formatDate(milestone.dueDate)
-                  : "Date to be confirmed"}
+                  ? formatDate(milestone.dueDate, locale)
+                  : t("roadmap.dateToConfirm")}
               </p>
             </Card>
           ))
         ) : (
           <div className="rounded-2xl border border-dashed p-5 text-sm text-muted-foreground sm:col-span-3">
-            No milestones yet. Add the first checkpoint to give the roadmap a
-            clear shape.
+            {t("roadmap.noMilestones")}
           </div>
         )}
       </div>
@@ -98,6 +151,8 @@ export function RoadmapView({
             events={events}
             defaultDate={startDate}
             defaultScale="week"
+            locale={locale === "de" ? germanDateLocale : enUS}
+            i18n={ganttI18n}
             interactions={{ drag: false, resize: false, selectSlot: false }}
             className="h-[540px]"
             stickyNav
@@ -109,18 +164,22 @@ export function RoadmapView({
         </FramePanel>
       </Frame>
       <p className="px-1 text-xs text-muted-foreground">
-        Roadmap bars are read-only in this view. Task and milestone edits stay
-        in their respective detail panels.
+        {t("roadmap.readOnly")}
       </p>
     </div>
   )
 }
 
-function buildGanttData(tasks: Task[], milestones: Milestone[]) {
+function buildGanttData(
+  tasks: Task[],
+  milestones: Milestone[],
+  milestoneTitle: string,
+  taskTitle: string
+) {
   const resources: GanttResource[] = [
     {
       id: "roadmap-milestones",
-      title: "Milestones",
+      title: milestoneTitle,
       color: "#0f766e",
       children: milestones.map((milestone) => ({
         id: `milestone-${milestone.id}`,
@@ -130,7 +189,7 @@ function buildGanttData(tasks: Task[], milestones: Milestone[]) {
     },
     {
       id: "roadmap-tasks",
-      title: "Tasks",
+      title: taskTitle,
       color: "#6366f1",
       children: tasks
         .filter((task) => !task.parentId)
@@ -204,10 +263,10 @@ function parseDate(value?: string | null) {
   return Number.isNaN(date.getTime()) ? undefined : date
 }
 
-function formatDate(value: string) {
+function formatDate(value: string, locale: "en" | "de" = "en") {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat(locale, {
     month: "short",
     day: "numeric",
     year: "numeric",

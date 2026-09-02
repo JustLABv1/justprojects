@@ -17,10 +17,17 @@ const (
 	CookieAuthScopes = "cookieAuth.Scopes"
 )
 
-// Defines values for GitHubConnectionAuthMethod.
+// Defines values for GitConnectionAuthMethod.
 const (
-	App   GitHubConnectionAuthMethod = "app"
-	Oauth GitHubConnectionAuthMethod = "oauth"
+	App   GitConnectionAuthMethod = "app"
+	Oauth GitConnectionAuthMethod = "oauth"
+	Pat   GitConnectionAuthMethod = "pat"
+)
+
+// Defines values for GitProvider.
+const (
+	Github GitProvider = "github"
+	Gitlab GitProvider = "gitlab"
 )
 
 // Defines values for InvitationRole.
@@ -251,31 +258,36 @@ type Error struct {
 	Error string `json:"error"`
 }
 
-// GitHubConnection defines model for GitHubConnection.
-type GitHubConnection struct {
-	Active               bool                       `json:"active"`
-	AuthMethod           GitHubConnectionAuthMethod `json:"authMethod"`
-	ExternalAccountId    int64                      `json:"externalAccountId"`
-	ExternalAccountLogin *string                    `json:"externalAccountLogin,omitempty"`
-	Id                   openapi_types.UUID         `json:"id"`
-	InstallationId       *int64                     `json:"installationId"`
-	Scopes               []string                   `json:"scopes"`
-	TenantId             openapi_types.UUID         `json:"tenantId"`
+// GitConnection defines model for GitConnection.
+type GitConnection struct {
+	Active               bool                    `json:"active"`
+	ApiBaseUrl           string                  `json:"apiBaseUrl"`
+	AuthMethod           GitConnectionAuthMethod `json:"authMethod"`
+	ExternalAccountId    int64                   `json:"externalAccountId"`
+	ExternalAccountLogin *string                 `json:"externalAccountLogin,omitempty"`
+	Id                   openapi_types.UUID      `json:"id"`
+	InstallationId       *int64                  `json:"installationId"`
+	Name                 *string                 `json:"name,omitempty"`
+	Provider             GitProvider             `json:"provider"`
+	Scopes               []string                `json:"scopes"`
+	TenantId             openapi_types.UUID      `json:"tenantId"`
+	TokenExpiresAt       *time.Time              `json:"tokenExpiresAt"`
 }
 
-// GitHubConnectionAuthMethod defines model for GitHubConnection.AuthMethod.
-type GitHubConnectionAuthMethod string
+// GitConnectionAuthMethod defines model for GitConnection.AuthMethod.
+type GitConnectionAuthMethod string
+
+// GitConnectionList defines model for GitConnectionList.
+type GitConnectionList struct {
+	Count *int             `json:"count,omitempty"`
+	Items *[]GitConnection `json:"items,omitempty"`
+}
+
+// GitHubConnection defines model for GitHubConnection.
+type GitHubConnection = GitConnection
 
 // GitHubRepository defines model for GitHubRepository.
-type GitHubRepository struct {
-	ConnectionId openapi_types.UUID `json:"connectionId"`
-	ExternalId   int64              `json:"externalId"`
-	FullName     string             `json:"fullName"`
-	Id           openapi_types.UUID `json:"id"`
-	Name         string             `json:"name"`
-	Owner        string             `json:"owner"`
-	Private      bool               `json:"private"`
-}
+type GitHubRepository = GitRepository
 
 // GitHubUserMapping defines model for GitHubUserMapping.
 type GitHubUserMapping struct {
@@ -295,6 +307,34 @@ type GitHubUserMappingList struct {
 type GitHubUserMappingRequest struct {
 	GithubLogin string             `json:"githubLogin"`
 	UserId      openapi_types.UUID `json:"userId"`
+}
+
+// GitProvider defines model for GitProvider.
+type GitProvider string
+
+// GitRepository defines model for GitRepository.
+type GitRepository struct {
+	ConnectionId openapi_types.UUID `json:"connectionId"`
+	ExternalId   int64              `json:"externalId"`
+	FullName     string             `json:"fullName"`
+	Id           openapi_types.UUID `json:"id"`
+	Name         string             `json:"name"`
+	Owner        string             `json:"owner"`
+	Private      bool               `json:"private"`
+}
+
+// GitRepositoryList defines model for GitRepositoryList.
+type GitRepositoryList struct {
+	Count *int             `json:"count,omitempty"`
+	Items *[]GitRepository `json:"items,omitempty"`
+}
+
+// GitTokenConnectionRequest defines model for GitTokenConnectionRequest.
+type GitTokenConnectionRequest struct {
+	AccessToken   *string `json:"accessToken,omitempty"`
+	BaseUrl       *string `json:"baseUrl,omitempty"`
+	Name          *string `json:"name,omitempty"`
+	WebhookSecret *string `json:"webhookSecret,omitempty"`
 }
 
 // Health defines model for Health.
@@ -466,17 +506,18 @@ type PermissionGrantRequestEffect string
 
 // Project defines model for Project.
 type Project struct {
-	CreatedAt   *time.Time          `json:"createdAt,omitempty"`
-	Description *string             `json:"description,omitempty"`
-	Id          openapi_types.UUID  `json:"id"`
-	Key         string              `json:"key"`
-	Name        string              `json:"name"`
-	StartDate   *openapi_types.Date `json:"startDate"`
-	Status      string              `json:"status"`
-	TargetDate  *openapi_types.Date `json:"targetDate"`
-	TenantId    openapi_types.UUID  `json:"tenantId"`
-	UpdatedAt   *time.Time          `json:"updatedAt,omitempty"`
-	Version     int64               `json:"version"`
+	ConnectionId *openapi_types.UUID `json:"connectionId"`
+	CreatedAt    *time.Time          `json:"createdAt,omitempty"`
+	Description  *string             `json:"description,omitempty"`
+	Id           openapi_types.UUID  `json:"id"`
+	Key          string              `json:"key"`
+	Name         string              `json:"name"`
+	StartDate    *openapi_types.Date `json:"startDate"`
+	Status       string              `json:"status"`
+	TargetDate   *openapi_types.Date `json:"targetDate"`
+	TenantId     openapi_types.UUID  `json:"tenantId"`
+	UpdatedAt    *time.Time          `json:"updatedAt,omitempty"`
+	Version      int64               `json:"version"`
 }
 
 // ProjectList defines model for ProjectList.
@@ -487,12 +528,13 @@ type ProjectList struct {
 
 // ProjectPatch defines model for ProjectPatch.
 type ProjectPatch struct {
-	Description *string             `json:"description,omitempty"`
-	Key         *string             `json:"key,omitempty"`
-	Name        string              `json:"name"`
-	StartDate   *openapi_types.Date `json:"startDate,omitempty"`
-	TargetDate  *openapi_types.Date `json:"targetDate,omitempty"`
-	Version     *int64              `json:"version,omitempty"`
+	ConnectionId *openapi_types.UUID `json:"connectionId"`
+	Description  *string             `json:"description,omitempty"`
+	Key          *string             `json:"key,omitempty"`
+	Name         string              `json:"name"`
+	StartDate    *openapi_types.Date `json:"startDate,omitempty"`
+	TargetDate   *openapi_types.Date `json:"targetDate,omitempty"`
+	Version      *int64              `json:"version,omitempty"`
 }
 
 // ProjectRepository defines model for ProjectRepository.
@@ -502,7 +544,7 @@ type ProjectRepository struct {
 		ProjectId    *openapi_types.UUID `json:"projectId,omitempty"`
 		RepositoryId *openapi_types.UUID `json:"repositoryId,omitempty"`
 	} `json:"link"`
-	Repository GitHubRepository `json:"repository"`
+	Repository GitRepository `json:"repository"`
 }
 
 // ProjectRepositoryList defines model for ProjectRepositoryList.
@@ -513,11 +555,12 @@ type ProjectRepositoryList struct {
 
 // ProjectRequest defines model for ProjectRequest.
 type ProjectRequest struct {
-	Description *string             `json:"description,omitempty"`
-	Key         *string             `json:"key,omitempty"`
-	Name        string              `json:"name"`
-	StartDate   *openapi_types.Date `json:"startDate,omitempty"`
-	TargetDate  *openapi_types.Date `json:"targetDate,omitempty"`
+	ConnectionId *openapi_types.UUID `json:"connectionId"`
+	Description  *string             `json:"description,omitempty"`
+	Key          *string             `json:"key,omitempty"`
+	Name         string              `json:"name"`
+	StartDate    *openapi_types.Date `json:"startDate,omitempty"`
+	TargetDate   *openapi_types.Date `json:"targetDate,omitempty"`
 }
 
 // ProjectStatus defines model for ProjectStatus.
@@ -678,6 +721,7 @@ type SyncEvent struct {
 	EventName    string                 `json:"eventName"`
 	Id           openapi_types.UUID     `json:"id"`
 	Payload      map[string]interface{} `json:"payload"`
+	Provider     GitProvider            `json:"provider"`
 	Status       SyncEventStatus        `json:"status"`
 	TenantId     *openapi_types.UUID    `json:"tenantId"`
 	UpdatedAt    *time.Time             `json:"updatedAt,omitempty"`
@@ -801,6 +845,12 @@ type User struct {
 // ConflictId defines model for ConflictId.
 type ConflictId = openapi_types.UUID
 
+// ConnectionId defines model for ConnectionId.
+type ConnectionId = openapi_types.UUID
+
+// ConnectionQuery defines model for ConnectionQuery.
+type ConnectionQuery = openapi_types.UUID
+
 // GrantId defines model for GrantId.
 type GrantId = openapi_types.UUID
 
@@ -893,6 +943,16 @@ type CompleteGitHubOAuthParams struct {
 	Code  OIDCCode  `form:"code" json:"code"`
 }
 
+// ListGitRepositoriesParams defines parameters for ListGitRepositories.
+type ListGitRepositoriesParams struct {
+	ConnectionId *ConnectionQuery `form:"connectionId,omitempty" json:"connectionId,omitempty"`
+}
+
+// ImportGitProjectJSONBody defines parameters for ImportGitProject.
+type ImportGitProjectJSONBody struct {
+	RepositoryId *openapi_types.UUID `json:"repositoryId,omitempty"`
+}
+
 // ImportGitHubProjectJSONBody defines parameters for ImportGitHubProject.
 type ImportGitHubProjectJSONBody struct {
 	RepositoryId *openapi_types.UUID `json:"repositoryId,omitempty"`
@@ -970,6 +1030,16 @@ type ReceiveGitHubWebhookParams struct {
 	XGitHubEvent     string `json:"X-GitHub-Event"`
 }
 
+// ReceiveGitLabWebhookJSONBody defines parameters for ReceiveGitLabWebhook.
+type ReceiveGitLabWebhookJSONBody map[string]interface{}
+
+// ReceiveGitLabWebhookParams defines parameters for ReceiveGitLabWebhook.
+type ReceiveGitLabWebhookParams struct {
+	XGitlabToken     string  `json:"X-Gitlab-Token"`
+	XGitlabEventUUID string  `json:"X-Gitlab-Event-UUID"`
+	XGitlabEvent     *string `json:"X-Gitlab-Event,omitempty"`
+}
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -979,14 +1049,23 @@ type LoginCustomerJSONRequestBody = LoginRequest
 // RegisterJSONRequestBody defines body for Register for application/json ContentType.
 type RegisterJSONRequestBody = RegisterRequest
 
+// CreateGitHubTokenConnectionJSONRequestBody defines body for CreateGitHubTokenConnection for application/json ContentType.
+type CreateGitHubTokenConnectionJSONRequestBody = GitTokenConnectionRequest
+
 // CreateGitHubUserMappingJSONRequestBody defines body for CreateGitHubUserMapping for application/json ContentType.
 type CreateGitHubUserMappingJSONRequestBody = GitHubUserMappingRequest
+
+// CreateGitLabConnectionJSONRequestBody defines body for CreateGitLabConnection for application/json ContentType.
+type CreateGitLabConnectionJSONRequestBody = GitTokenConnectionRequest
 
 // CreateProjectJSONRequestBody defines body for CreateProject for application/json ContentType.
 type CreateProjectJSONRequestBody = ProjectRequest
 
 // UpdateProjectJSONRequestBody defines body for UpdateProject for application/json ContentType.
 type UpdateProjectJSONRequestBody = ProjectPatch
+
+// ImportGitProjectJSONRequestBody defines body for ImportGitProject for application/json ContentType.
+type ImportGitProjectJSONRequestBody ImportGitProjectJSONBody
 
 // ImportGitHubProjectJSONRequestBody defines body for ImportGitHubProject for application/json ContentType.
 type ImportGitHubProjectJSONRequestBody ImportGitHubProjectJSONBody
@@ -1036,6 +1115,9 @@ type CreatePermissionGrantJSONRequestBody = PermissionGrantRequest
 // ReceiveGitHubWebhookJSONRequestBody defines body for ReceiveGitHubWebhook for application/json ContentType.
 type ReceiveGitHubWebhookJSONRequestBody ReceiveGitHubWebhookJSONBody
 
+// ReceiveGitLabWebhookJSONRequestBody defines body for ReceiveGitLabWebhook for application/json ContentType.
+type ReceiveGitLabWebhookJSONRequestBody ReceiveGitLabWebhookJSONBody
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
@@ -1066,6 +1148,12 @@ type ServerInterface interface {
 	// (GET /healthz)
 	Health(c *gin.Context)
 
+	// (GET /integrations/connections)
+	ListGitConnections(c *gin.Context)
+
+	// (DELETE /integrations/connections/{connectionId})
+	DeleteGitConnection(c *gin.Context, connectionId ConnectionId)
+
 	// (GET /integrations/github/app/callback)
 	CompleteGitHubAppInstall(c *gin.Context, params CompleteGitHubAppInstallParams)
 
@@ -1074,6 +1162,9 @@ type ServerInterface interface {
 
 	// (GET /integrations/github/connections)
 	ListGitHubConnections(c *gin.Context)
+
+	// (POST /integrations/github/connections)
+	CreateGitHubTokenConnection(c *gin.Context)
 
 	// (GET /integrations/github/oauth/callback)
 	CompleteGitHubOAuth(c *gin.Context, params CompleteGitHubOAuthParams)
@@ -1093,6 +1184,12 @@ type ServerInterface interface {
 	// (DELETE /integrations/github/user-mappings/{mappingId})
 	DeleteGitHubUserMapping(c *gin.Context, mappingId MappingId)
 
+	// (POST /integrations/gitlab/connections)
+	CreateGitLabConnection(c *gin.Context)
+
+	// (GET /integrations/repositories)
+	ListGitRepositories(c *gin.Context, params ListGitRepositoriesParams)
+
 	// (GET /me)
 	GetCurrentPrincipal(c *gin.Context)
 
@@ -1107,6 +1204,9 @@ type ServerInterface interface {
 
 	// (PATCH /projects/{projectId})
 	UpdateProject(c *gin.Context, projectId ProjectId)
+
+	// (POST /projects/{projectId}/git/import)
+	ImportGitProject(c *gin.Context, projectId ProjectId)
 
 	// (POST /projects/{projectId}/github/import)
 	ImportGitHubProject(c *gin.Context, projectId ProjectId)
@@ -1215,6 +1315,9 @@ type ServerInterface interface {
 
 	// (POST /webhooks/github)
 	ReceiveGitHubWebhook(c *gin.Context, params ReceiveGitHubWebhookParams)
+
+	// (POST /webhooks/gitlab)
+	ReceiveGitLabWebhook(c *gin.Context, params ReceiveGitLabWebhookParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -1406,6 +1509,47 @@ func (siw *ServerInterfaceWrapper) Health(c *gin.Context) {
 	siw.Handler.Health(c)
 }
 
+// ListGitConnections operation middleware
+func (siw *ServerInterfaceWrapper) ListGitConnections(c *gin.Context) {
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListGitConnections(c)
+}
+
+// DeleteGitConnection operation middleware
+func (siw *ServerInterfaceWrapper) DeleteGitConnection(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "connectionId" -------------
+	var connectionId ConnectionId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "connectionId", c.Param("connectionId"), &connectionId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter connectionId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteGitConnection(c, connectionId)
+}
+
 // CompleteGitHubAppInstall operation middleware
 func (siw *ServerInterfaceWrapper) CompleteGitHubAppInstall(c *gin.Context) {
 
@@ -1484,6 +1628,21 @@ func (siw *ServerInterfaceWrapper) ListGitHubConnections(c *gin.Context) {
 	}
 
 	siw.Handler.ListGitHubConnections(c)
+}
+
+// CreateGitHubTokenConnection operation middleware
+func (siw *ServerInterfaceWrapper) CreateGitHubTokenConnection(c *gin.Context) {
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateGitHubTokenConnection(c)
 }
 
 // CompleteGitHubOAuth operation middleware
@@ -1622,6 +1781,49 @@ func (siw *ServerInterfaceWrapper) DeleteGitHubUserMapping(c *gin.Context) {
 	siw.Handler.DeleteGitHubUserMapping(c, mappingId)
 }
 
+// CreateGitLabConnection operation middleware
+func (siw *ServerInterfaceWrapper) CreateGitLabConnection(c *gin.Context) {
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateGitLabConnection(c)
+}
+
+// ListGitRepositories operation middleware
+func (siw *ServerInterfaceWrapper) ListGitRepositories(c *gin.Context) {
+
+	var err error
+
+	c.Set(CookieAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListGitRepositoriesParams
+
+	// ------------- Optional query parameter "connectionId" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "connectionId", c.Request.URL.Query(), &params.ConnectionId)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter connectionId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListGitRepositories(c, params)
+}
+
 // GetCurrentPrincipal operation middleware
 func (siw *ServerInterfaceWrapper) GetCurrentPrincipal(c *gin.Context) {
 
@@ -1717,6 +1919,32 @@ func (siw *ServerInterfaceWrapper) UpdateProject(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateProject(c, projectId)
+}
+
+// ImportGitProject operation middleware
+func (siw *ServerInterfaceWrapper) ImportGitProject(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "projectId" -------------
+	var projectId ProjectId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "projectId", c.Param("projectId"), &projectId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter projectId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ImportGitProject(c, projectId)
 }
 
 // ImportGitHubProject operation middleware
@@ -2758,6 +2986,89 @@ func (siw *ServerInterfaceWrapper) ReceiveGitHubWebhook(c *gin.Context) {
 	siw.Handler.ReceiveGitHubWebhook(c, params)
 }
 
+// ReceiveGitLabWebhook operation middleware
+func (siw *ServerInterfaceWrapper) ReceiveGitLabWebhook(c *gin.Context) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ReceiveGitLabWebhookParams
+
+	headers := c.Request.Header
+
+	// ------------- Required header parameter "X-Gitlab-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Gitlab-Token")]; found {
+		var XGitlabToken string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Gitlab-Token, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Gitlab-Token", valueList[0], &XGitlabToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Gitlab-Token: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XGitlabToken = XGitlabToken
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-Gitlab-Token is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Required header parameter "X-Gitlab-Event-UUID" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Gitlab-Event-UUID")]; found {
+		var XGitlabEventUUID string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Gitlab-Event-UUID, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Gitlab-Event-UUID", valueList[0], &XGitlabEventUUID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Gitlab-Event-UUID: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XGitlabEventUUID = XGitlabEventUUID
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Header parameter X-Gitlab-Event-UUID is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional header parameter "X-Gitlab-Event" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Gitlab-Event")]; found {
+		var XGitlabEvent string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandler(c, fmt.Errorf("Expected one value for X-Gitlab-Event, got %d", n), http.StatusBadRequest)
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Gitlab-Event", valueList[0], &XGitlabEvent, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter X-Gitlab-Event: %w", err), http.StatusBadRequest)
+			return
+		}
+
+		params.XGitlabEvent = &XGitlabEvent
+
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ReceiveGitLabWebhook(c, params)
+}
+
 // GinServerOptions provides options for the Gin server.
 type GinServerOptions struct {
 	BaseURL      string
@@ -2794,20 +3105,26 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/register", wrapper.Register)
 	router.GET(options.BaseURL+"/auth/session", wrapper.GetSession)
 	router.GET(options.BaseURL+"/healthz", wrapper.Health)
+	router.GET(options.BaseURL+"/integrations/connections", wrapper.ListGitConnections)
+	router.DELETE(options.BaseURL+"/integrations/connections/:connectionId", wrapper.DeleteGitConnection)
 	router.GET(options.BaseURL+"/integrations/github/app/callback", wrapper.CompleteGitHubAppInstall)
 	router.GET(options.BaseURL+"/integrations/github/app/install", wrapper.StartGitHubAppInstall)
 	router.GET(options.BaseURL+"/integrations/github/connections", wrapper.ListGitHubConnections)
+	router.POST(options.BaseURL+"/integrations/github/connections", wrapper.CreateGitHubTokenConnection)
 	router.GET(options.BaseURL+"/integrations/github/oauth/callback", wrapper.CompleteGitHubOAuth)
 	router.GET(options.BaseURL+"/integrations/github/oauth/start", wrapper.StartGitHubOAuth)
 	router.GET(options.BaseURL+"/integrations/github/repositories", wrapper.ListGitHubRepositories)
 	router.GET(options.BaseURL+"/integrations/github/user-mappings", wrapper.ListGitHubUserMappings)
 	router.POST(options.BaseURL+"/integrations/github/user-mappings", wrapper.CreateGitHubUserMapping)
 	router.DELETE(options.BaseURL+"/integrations/github/user-mappings/:mappingId", wrapper.DeleteGitHubUserMapping)
+	router.POST(options.BaseURL+"/integrations/gitlab/connections", wrapper.CreateGitLabConnection)
+	router.GET(options.BaseURL+"/integrations/repositories", wrapper.ListGitRepositories)
 	router.GET(options.BaseURL+"/me", wrapper.GetCurrentPrincipal)
 	router.GET(options.BaseURL+"/projects", wrapper.ListProjects)
 	router.POST(options.BaseURL+"/projects", wrapper.CreateProject)
 	router.GET(options.BaseURL+"/projects/:projectId", wrapper.GetProject)
 	router.PATCH(options.BaseURL+"/projects/:projectId", wrapper.UpdateProject)
+	router.POST(options.BaseURL+"/projects/:projectId/git/import", wrapper.ImportGitProject)
 	router.POST(options.BaseURL+"/projects/:projectId/github/import", wrapper.ImportGitHubProject)
 	router.GET(options.BaseURL+"/projects/:projectId/labels", wrapper.ListLabels)
 	router.POST(options.BaseURL+"/projects/:projectId/labels", wrapper.CreateLabel)
@@ -2844,4 +3161,5 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/tenant/permissions", wrapper.CreatePermissionGrant)
 	router.DELETE(options.BaseURL+"/tenant/permissions/:grantId", wrapper.DeletePermissionGrant)
 	router.POST(options.BaseURL+"/webhooks/github", wrapper.ReceiveGitHubWebhook)
+	router.POST(options.BaseURL+"/webhooks/gitlab", wrapper.ReceiveGitLabWebhook)
 }

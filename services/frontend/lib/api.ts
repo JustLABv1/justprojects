@@ -1,4 +1,6 @@
 import type {
+  GitConnection,
+  GitRepository,
   GitHubConnection,
   GitHubRepository,
   Label,
@@ -8,8 +10,11 @@ import type {
   ProjectStatus,
   PublicPageSummary,
   PublicProjectData,
+  Invitation,
+  PermissionGrant,
   Session,
   Task,
+  TenantMember,
 } from "@/lib/types"
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "")
@@ -95,10 +100,90 @@ export function listProjects() {
   return request<{ items: Project[] }>("/projects")
 }
 
+export function listTenantMembers() {
+  return request<{ members: TenantMember[] }>("/tenant/members")
+}
+
+export function updateTenantMemberRole(
+  userId: string,
+  role: "admin" | "member" | "viewer"
+) {
+  return request(`/tenant/members/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ role }),
+  })
+}
+
+export function listInvitations() {
+  return request<{ items: Invitation[] }>("/tenant/invitations")
+}
+
+export function createInvitation(input: {
+  email: string
+  role: "admin" | "member" | "viewer"
+}) {
+  return request<{ invitation: Invitation; acceptUrl: string }>(
+    "/tenant/invitations",
+    { method: "POST", body: JSON.stringify(input) }
+  )
+}
+
+export function listPermissionGrants(projectId?: string) {
+  const suffix = projectId ? `?projectId=${encodeURIComponent(projectId)}` : ""
+  return request<{ items: PermissionGrant[] }>(`/tenant/permissions${suffix}`)
+}
+
 export function getProject(projectId: string) {
   return request<{ project: Project; statuses: ProjectStatus[] }>(
     `/projects/${projectId}`
   )
+}
+
+export function createProjectStatus(
+  projectId: string,
+  input: {
+    name: string
+    category: ProjectStatus["category"]
+    color?: string
+    position?: number
+  }
+) {
+  return request<ProjectStatus>(`/projects/${projectId}/statuses`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateProjectStatus(
+  projectId: string,
+  statusId: string,
+  input: Partial<{
+    name: string
+    category: ProjectStatus["category"]
+    color: string
+    position: number
+  }>
+) {
+  return request<ProjectStatus>(`/projects/${projectId}/statuses/${statusId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateProject(
+  projectId: string,
+  input: Partial<{
+    name: string
+    description: string
+    targetDate: string | null
+    connectionId: string | null
+    version: number
+  }>
+) {
+  return request<Project>(`/projects/${projectId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  })
 }
 
 export function createProject(input: {
@@ -107,6 +192,7 @@ export function createProject(input: {
   description?: string
   startDate?: string
   targetDate?: string
+  connectionId?: string
 }) {
   return request<Project>("/projects", {
     method: "POST",
@@ -201,6 +287,41 @@ export function listGitHubConnections() {
   )
 }
 
+export function listGitConnections() {
+  return request<{ items: GitConnection[]; count?: number }>(
+    "/integrations/connections"
+  )
+}
+
+export function createGitHubTokenConnection(input: {
+  name?: string
+  accessToken: string
+  webhookSecret?: string
+}) {
+  return request<GitConnection>("/integrations/github/connections", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+export function createGitLabConnection(input: {
+  name?: string
+  baseUrl?: string
+  accessToken: string
+  webhookSecret?: string
+}) {
+  return request<GitConnection>("/integrations/gitlab/connections", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+export function deleteGitConnection(connectionId: string) {
+  return request<void>(`/integrations/connections/${connectionId}`, {
+    method: "DELETE",
+  })
+}
+
 export function getGitHubOAuthStartUrl() {
   return request<{ url: string }>("/integrations/github/oauth/start")
 }
@@ -212,6 +333,15 @@ export function getGitHubAppInstallUrl() {
 export function listGitHubRepositories() {
   return request<{ items: GitHubRepository[] }>(
     "/integrations/github/repositories"
+  )
+}
+
+export function listGitRepositories(connectionId?: string) {
+  const suffix = connectionId
+    ? `?connectionId=${encodeURIComponent(connectionId)}`
+    : ""
+  return request<{ items: GitRepository[]; count?: number }>(
+    `/integrations/repositories${suffix}`
   )
 }
 
@@ -227,7 +357,7 @@ export function attachProjectRepository(
 ) {
   return request<{
     link: { id: string; projectId: string; repositoryId: string }
-    repository: GitHubRepository
+    repository: GitRepository
   }>(`/projects/${projectId}/repositories`, {
     method: "POST",
     body: JSON.stringify({ repositoryId }),
@@ -237,6 +367,16 @@ export function attachProjectRepository(
 export function importGitHubProject(projectId: string, repositoryId?: string) {
   return request<{ runId: string; status: string }>(
     `/projects/${projectId}/github/import`,
+    {
+      method: "POST",
+      body: JSON.stringify(repositoryId ? { repositoryId } : {}),
+    }
+  )
+}
+
+export function importGitProject(projectId: string, repositoryId?: string) {
+  return request<{ runId: string; status: string }>(
+    `/projects/${projectId}/git/import`,
     {
       method: "POST",
       body: JSON.stringify(repositoryId ? { repositoryId } : {}),
@@ -278,6 +418,7 @@ export function listSyncRuns() {
   return request<{
     items: Array<{
       id: string
+      provider?: string
       eventName: string
       action?: string
       status: string

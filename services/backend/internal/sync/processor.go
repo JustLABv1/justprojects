@@ -15,7 +15,9 @@ import (
 	"github.com/JustLABv1/justprojects/services/backend/internal/auth"
 	"github.com/JustLABv1/justprojects/services/backend/internal/config"
 	"github.com/JustLABv1/justprojects/services/backend/internal/db"
+	"github.com/JustLABv1/justprojects/services/backend/internal/integrations"
 	gh "github.com/JustLABv1/justprojects/services/backend/internal/integrations/github"
+	gitlab "github.com/JustLABv1/justprojects/services/backend/internal/integrations/gitlab"
 	"github.com/JustLABv1/justprojects/services/backend/internal/queue"
 	"github.com/google/uuid"
 )
@@ -44,15 +46,15 @@ func (p Processor) ProcessJob(ctx context.Context, job *db.OutboxJob) error {
 		return errors.New("outbox job is nil")
 	}
 	switch job.Kind {
-	case "github.webhook":
+	case "git.webhook", "github.webhook":
 		return p.processGitHubWebhook(ctx, job)
-	case "github.import":
+	case "git.import", "github.import":
 		return p.processGitHubImport(ctx, job)
-	case "github.issue.update":
+	case "git.issue.update", "github.issue.update":
 		return p.processIssueUpdate(ctx, job)
-	case "github.milestone.update":
+	case "git.milestone.update", "github.milestone.update":
 		return p.processMilestoneUpdate(ctx, job)
-	case "github.conflict.resolved":
+	case "git.conflict.resolved", "github.conflict.resolved":
 		return p.processConflictResolution(ctx, job)
 	default:
 		return fmt.Errorf("unknown job kind %q", job.Kind)
@@ -104,6 +106,101 @@ type webhookIssue struct {
 	Milestone *webhookMilestone `json:"milestone"`
 }
 
+type gitlabWebhookProject struct {
+	ID                int64  `json:"id"`
+	Name              string `json:"name"`
+	PathWithNamespace string `json:"path_with_namespace"`
+	Visibility        string `json:"visibility"`
+	Namespace         struct {
+		FullPath string `json:"full_path"`
+	} `json:"namespace"`
+}
+
+type gitlabWebhookLabel struct {
+	Title string `json:"title"`
+	Name  string `json:"name"`
+}
+
+type gitlabWebhookAssignee struct {
+	Username string `json:"username"`
+	Name     string `json:"name"`
+}
+
+type gitlabWebhookMilestone struct {
+	ID          int64  `json:"id"`
+	IID         int    `json:"iid"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	State       string `json:"state"`
+	DueDate     string `json:"due_date"`
+	UpdatedAt   string `json:"updated_at"`
+}
+
+type gitlabWebhookIssue struct {
+	ID          int64                   `json:"id"`
+	IID         int                     `json:"iid"`
+	Title       string                  `json:"title"`
+	Description string                  `json:"description"`
+	State       string                  `json:"state"`
+	URL         string                  `json:"url"`
+	WebURL      string                  `json:"web_url"`
+	UpdatedAt   string                  `json:"updated_at"`
+	Labels      []gitlabWebhookLabel    `json:"labels"`
+	Assignees   []gitlabWebhookAssignee `json:"assignees"`
+	Milestone   *gitlabWebhookMilestone `json:"milestone"`
+}
+
+func parseWebhookTime(value string) time.Time {
+	for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05 MST"} {
+		if parsed, err := time.Parse(layout, value); err == nil {
+			return parsed
+		}
+	}
+	return time.Time{}
+}
+
+func gitlabRemoteMilestone(value gitlabWebhookMilestone) gh.Milestone {
+	var dueOn *time.Time
+	if value.DueDate != "" {
+		if parsed, err := time.Parse("2006-01-02", value.DueDate); err == nil {
+			dueOn = &parsed
+		}
+	}
+	return gh.Milestone{ID: value.ID, Number: value.IID, Title: value.Title, Description: value.Description, State: value.State, DueOn: dueOn, UpdatedAt: parseWebhookTime(value.UpdatedAt)}
+}
+
+func gitlabRemoteIssue(value gitlabWebhookIssue) gh.Issue {
+	state := value.State
+	if state == "opened" {
+		state = "open"
+	}
+	remote := gh.Issue{ID: value.ID, Number: value.IID, Title: value.Title, Body: value.Description, State: state, HTMLURL: value.WebURL, UpdatedAt: parseWebhookTime(value.UpdatedAt)}
+	if remote.HTMLURL == "" {
+		remote.HTMLURL = value.URL
+	}
+	for _, label := range value.Labels {
+		name := label.Title
+		if name == "" {
+			name = label.Name
+		}
+		remote.Labels = append(remote.Labels, name)
+	}
+	for _, assignee := range value.Assignees {
+		login := assignee.Username
+		if login == "" {
+			login = assignee.Name
+		}
+		if login != "" {
+			remote.Assignees = append(remote.Assignees, login)
+		}
+	}
+	if value.Milestone != nil {
+		milestone := gitlabRemoteMilestone(*value.Milestone)
+		remote.Milestone = &milestone
+	}
+	return remote
+}
+
 func decodePayload(payload map[string]any, target any) error {
 	encoded, err := json.Marshal(payload)
 	if err != nil {
@@ -143,6 +240,9 @@ func webhookRemoteMilestone(milestone webhookMilestone) gh.Milestone {
 }
 
 func (p Processor) processGitHubWebhook(ctx context.Context, job *db.OutboxJob) (returnErr error) {
+	if provider, ok := stringPayload(job.Payload, "provider"); ok && provider == "gitlab" {
+		return p.processGitLabWebhook(ctx, job)
+	}
 	deliveryID, ok := stringPayload(job.Payload, "deliveryId")
 	if !ok {
 		return errors.New("github webhook job has no delivery id")
@@ -236,6 +336,100 @@ func (p Processor) processGitHubWebhook(ctx context.Context, job *db.OutboxJob) 
 	return p.setSyncEvent(ctx, event.ID, "succeeded", &tenantID, &connectionID, "")
 }
 
+func (p Processor) processGitLabWebhook(ctx context.Context, job *db.OutboxJob) (returnErr error) {
+	deliveryID, ok := stringPayload(job.Payload, "deliveryId")
+	if !ok {
+		return errors.New("gitlab webhook job has no delivery id")
+	}
+	var event db.SyncEvent
+	if err := p.Store.DB.NewSelect().Model(&event).Where("delivery_id = ? AND provider = 'gitlab'", deliveryID).Scan(ctx); err != nil {
+		return fmt.Errorf("load gitlab delivery: %w", err)
+	}
+	if event.Status == "succeeded" {
+		return nil
+	}
+	if err := p.setSyncEvent(ctx, event.ID, "processing", event.TenantID, event.ConnectionID, ""); err != nil {
+		return err
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			panicErr := fmt.Errorf("gitlab webhook reconciliation panic: %v", recovered)
+			if markErr := p.failSyncEvent(ctx, event.ID, panicErr); markErr != nil {
+				returnErr = fmt.Errorf("%w; mark delivery failed: %v", panicErr, markErr)
+			} else {
+				returnErr = panicErr
+			}
+			slog.Error("gitlab webhook reconciliation panic", "delivery_id", deliveryID, "error", returnErr)
+		}
+	}()
+
+	var projectPayload gitlabWebhookProject
+	if err := decodeNested(event.Payload, "project", &projectPayload); err != nil || projectPayload.ID == 0 {
+		return p.failSyncEvent(ctx, event.ID, errors.New("decode gitlab project"))
+	}
+	var connection db.GitConnection
+	if event.ConnectionID != nil {
+		if event.TenantID == nil {
+			return p.failSyncEvent(ctx, event.ID, errors.New("gitlab delivery has no tenant"))
+		}
+		if err := p.Store.DB.NewSelect().Model(&connection).Where("id = ? AND tenant_id = ? AND provider = 'gitlab' AND active = true", *event.ConnectionID, *event.TenantID).Scan(ctx); err != nil {
+			return p.failSyncEvent(ctx, event.ID, fmt.Errorf("load gitlab connection: %w", err))
+		}
+	} else {
+		if err := p.Store.DB.NewSelect().Model(&connection).Join("JOIN git_repositories AS gr ON gr.connection_id = gc.id").Where("gr.external_id = ? AND gc.provider = 'gitlab' AND gc.active = true").Order("gc.created_at ASC").Limit(1).Scan(ctx); err != nil {
+			return p.failSyncEvent(ctx, event.ID, fmt.Errorf("resolve gitlab connection: %w", err))
+		}
+	}
+	var repository db.GitRepository
+	if err := p.Store.DB.NewSelect().Model(&repository).Where("connection_id = ? AND external_id = ?", connection.ID, projectPayload.ID).Scan(ctx); err != nil {
+		return p.failSyncEvent(ctx, event.ID, fmt.Errorf("resolve gitlab repository: %w", err))
+	}
+	var project db.Project
+	if err := p.Store.DB.NewSelect().Model(&project).
+		Join("JOIN project_repositories AS pr ON pr.project_id = p.id").
+		Where("pr.repository_id = ? AND p.tenant_id = ?", repository.ID, connection.TenantID).
+		Order("p.created_at ASC").Limit(1).Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return p.setSyncEvent(ctx, event.ID, "succeeded", &connection.TenantID, &connection.ID, "")
+		}
+		return p.failSyncEvent(ctx, event.ID, fmt.Errorf("find linked gitlab project: %w", err))
+	}
+	eventName := strings.ToLower(event.EventName)
+	var syncErr error
+	switch {
+	case strings.Contains(eventName, "milestone"):
+		var payload struct {
+			Attributes gitlabWebhookMilestone `json:"object_attributes"`
+		}
+		if err := decodePayload(event.Payload, &payload); err != nil || payload.Attributes.ID == 0 {
+			syncErr = errors.New("decode gitlab milestone")
+		} else {
+			remote := gitlabRemoteMilestone(payload.Attributes)
+			if remote.UpdatedAt.IsZero() {
+				remote.UpdatedAt = event.CreatedAt
+			}
+			_, syncErr = p.reconcileMilestone(ctx, connection.TenantID, project, repository, remote, deliveryID, remote.UpdatedAt)
+		}
+	case strings.Contains(eventName, "issue"):
+		var payload struct {
+			Attributes gitlabWebhookIssue `json:"object_attributes"`
+		}
+		if err := decodePayload(event.Payload, &payload); err != nil || payload.Attributes.ID == 0 {
+			syncErr = errors.New("decode gitlab issue")
+		} else {
+			remote := gitlabRemoteIssue(payload.Attributes)
+			if remote.UpdatedAt.IsZero() {
+				remote.UpdatedAt = event.CreatedAt
+			}
+			syncErr = p.reconcileIssue(ctx, connection.TenantID, project, repository, remote, deliveryID, remote.UpdatedAt)
+		}
+	}
+	if syncErr != nil {
+		return p.failSyncEvent(ctx, event.ID, syncErr)
+	}
+	return p.setSyncEvent(ctx, event.ID, "succeeded", &connection.TenantID, &connection.ID, "")
+}
+
 func (p Processor) setSyncEvent(ctx context.Context, eventID uuid.UUID, status string, tenantID, connectionID *uuid.UUID, message string) error {
 	query := p.Store.DB.NewUpdate().Model((*db.SyncEvent)(nil)).Set("status = ?", status).Set("updated_at = ?", time.Now().UTC())
 	if tenantID != nil {
@@ -260,40 +454,40 @@ func (p Processor) failSyncEvent(ctx context.Context, eventID uuid.UUID, eventEr
 	return eventErr
 }
 
-func (p Processor) resolveWebhookRepository(ctx context.Context, remote webhookRepository, installationID int64) (db.GitHubConnection, db.GitHubRepository, error) {
-	var connection db.GitHubConnection
+func (p Processor) resolveWebhookRepository(ctx context.Context, remote webhookRepository, installationID int64) (db.GitConnection, db.GitRepository, error) {
+	var connection db.GitConnection
 	if installationID > 0 {
 		if err := p.Store.DB.NewSelect().Model(&connection).
-			Where("active = true AND auth_method = 'app' AND (installation_id = ? OR external_account_id = ?)", installationID, installationID).
+			Where("active = true AND provider = 'github' AND auth_method = 'app' AND (installation_id = ? OR external_account_id = ?)", installationID, installationID).
 			Limit(1).Scan(ctx); err != nil {
-			return db.GitHubConnection{}, db.GitHubRepository{}, errUnmatchedWebhook
+			return db.GitConnection{}, db.GitRepository{}, errUnmatchedWebhook
 		}
 	} else {
-		var stored db.GitHubRepository
-		if err := p.Store.DB.NewSelect().Model(&stored).Where("external_id = ?", remote.ID).Order("created_at ASC").Limit(1).Scan(ctx); err != nil {
-			return db.GitHubConnection{}, db.GitHubRepository{}, errUnmatchedWebhook
+		var stored db.GitRepository
+		if err := p.Store.DB.NewSelect().Model(&stored).Join("JOIN git_connections AS c ON c.id = gr.connection_id").Where("gr.external_id = ? AND c.provider = 'github' AND c.active = true", remote.ID).Order("gr.created_at ASC").Limit(1).Scan(ctx); err != nil {
+			return db.GitConnection{}, db.GitRepository{}, errUnmatchedWebhook
 		}
-		if err := p.Store.DB.NewSelect().Model(&connection).Where("id = ? AND active = true", stored.ConnectionID).Scan(ctx); err != nil {
-			return db.GitHubConnection{}, db.GitHubRepository{}, errUnmatchedWebhook
+		if err := p.Store.DB.NewSelect().Model(&connection).Where("id = ? AND provider = 'github' AND active = true", stored.ConnectionID).Scan(ctx); err != nil {
+			return db.GitConnection{}, db.GitRepository{}, errUnmatchedWebhook
 		}
 	}
 	if remote.FullName == "" {
 		remote.FullName = remote.Owner.Login + "/" + remote.Name
 	}
-	var repository db.GitHubRepository
+	var repository db.GitRepository
 	if err := p.Store.DB.NewSelect().Model(&repository).Where("connection_id = ? AND external_id = ?", connection.ID, remote.ID).Scan(ctx); err == nil {
-		_, err = p.Store.DB.NewUpdate().Model((*db.GitHubRepository)(nil)).Set("owner = ?", remote.Owner.Login).Set("name = ?", remote.Name).Set("full_name = ?", remote.FullName).Set("private = ?", remote.Private).Set("updated_at = ?", time.Now().UTC()).Where("id = ?", repository.ID).Exec(ctx)
+		_, err = p.Store.DB.NewUpdate().Model((*db.GitRepository)(nil)).Set("owner = ?", remote.Owner.Login).Set("name = ?", remote.Name).Set("full_name = ?", remote.FullName).Set("private = ?", remote.Private).Set("updated_at = ?", time.Now().UTC()).Where("id = ?", repository.ID).Exec(ctx)
 		return connection, repository, err
 	} else if !errors.Is(err, sql.ErrNoRows) {
-		return db.GitHubConnection{}, db.GitHubRepository{}, err
+		return db.GitConnection{}, db.GitRepository{}, err
 	}
 	now := time.Now().UTC()
-	repository = db.GitHubRepository{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, ConnectionID: connection.ID, ExternalID: remote.ID, Owner: remote.Owner.Login, Name: remote.Name, FullName: remote.FullName, Private: remote.Private}
+	repository = db.GitRepository{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, ConnectionID: connection.ID, ExternalID: remote.ID, Owner: remote.Owner.Login, Name: remote.Name, FullName: remote.FullName, Private: remote.Private}
 	if _, err := p.Store.DB.NewInsert().Model(&repository).Exec(ctx); err != nil {
 		// A concurrent delivery may have created the repository. Re-read it so
 		// both deliveries converge on the same local identity.
 		if readErr := p.Store.DB.NewSelect().Model(&repository).Where("connection_id = ? AND external_id = ?", connection.ID, remote.ID).Scan(ctx); readErr != nil {
-			return db.GitHubConnection{}, db.GitHubRepository{}, err
+			return db.GitConnection{}, db.GitRepository{}, err
 		}
 	}
 	return connection, repository, nil
@@ -304,9 +498,13 @@ func stringPayload(payload map[string]any, key string) (string, bool) {
 	return value, ok && strings.TrimSpace(value) != ""
 }
 
-func (p Processor) reconcileIssue(ctx context.Context, tenantID uuid.UUID, project db.Project, repository db.GitHubRepository, remote gh.Issue, deliveryID string, remoteTime time.Time) error {
+func (p Processor) reconcileIssue(ctx context.Context, tenantID uuid.UUID, project db.Project, repository db.GitRepository, remote gh.Issue, deliveryID string, remoteTime time.Time) error {
 	if remoteTime.IsZero() {
 		remoteTime = time.Now().UTC()
+	}
+	provider, err := p.repositoryProvider(ctx, repository.ID)
+	if err != nil {
+		return err
 	}
 	var statuses []db.ProjectStatus
 	if err := p.Store.DB.NewSelect().Model(&statuses).Where("project_id = ?", project.ID).Order("position ASC").Scan(ctx); err != nil {
@@ -328,7 +526,7 @@ func (p Processor) reconcileIssue(ctx context.Context, tenantID uuid.UUID, proje
 	if err != nil {
 		return err
 	}
-	assigneeID, err := p.assigneeID(ctx, tenantID, remote.Assignees)
+	assigneeID, err := p.assigneeID(ctx, tenantID, provider, remote.Assignees)
 	if err != nil {
 		return err
 	}
@@ -365,7 +563,7 @@ func (p Processor) reconcileIssue(ctx context.Context, tenantID uuid.UUID, proje
 	if err != nil {
 		return err
 	}
-	currentAssignees, err := p.taskAssigneeLogins(ctx, tenantID, task.AssigneeID)
+	currentAssignees, err := p.taskAssigneeLogins(ctx, tenantID, provider, task.AssigneeID)
 	if err != nil {
 		return err
 	}
@@ -440,7 +638,7 @@ func (p Processor) reconcileIssue(ctx context.Context, tenantID uuid.UUID, proje
 	return p.updateExternalLink(ctx, link, base, remoteTime)
 }
 
-func (p Processor) reconcileMilestone(ctx context.Context, tenantID uuid.UUID, project db.Project, repository db.GitHubRepository, remote gh.Milestone, deliveryID string, remoteTime time.Time) (uuid.UUID, error) {
+func (p Processor) reconcileMilestone(ctx context.Context, tenantID uuid.UUID, project db.Project, repository db.GitRepository, remote gh.Milestone, deliveryID string, remoteTime time.Time) (uuid.UUID, error) {
 	if remoteTime.IsZero() {
 		remoteTime = time.Now().UTC()
 	}
@@ -670,10 +868,10 @@ func (p Processor) taskLabelNames(ctx context.Context, taskID uuid.UUID) ([]stri
 	return names, nil
 }
 
-func (p Processor) assigneeID(ctx context.Context, tenantID uuid.UUID, logins []string) (*uuid.UUID, error) {
+func (p Processor) assigneeID(ctx context.Context, tenantID uuid.UUID, provider string, logins []string) (*uuid.UUID, error) {
 	for _, login := range logins {
-		var mapping db.GitHubUserMapping
-		if err := p.Store.DB.NewSelect().Model(&mapping).Where("tenant_id = ? AND lower(github_login) = lower(?)", tenantID, login).Limit(1).Scan(ctx); err == nil {
+		var mapping db.GitUserMapping
+		if err := p.Store.DB.NewSelect().Model(&mapping).Where("tenant_id = ? AND provider = ? AND lower(remote_login) = lower(?)", tenantID, provider, login).Limit(1).Scan(ctx); err == nil {
 			return &mapping.UserID, nil
 		} else if !errors.Is(err, sql.ErrNoRows) {
 			return nil, err
@@ -682,18 +880,29 @@ func (p Processor) assigneeID(ctx context.Context, tenantID uuid.UUID, logins []
 	return nil, nil
 }
 
-func (p Processor) taskAssigneeLogins(ctx context.Context, tenantID uuid.UUID, userID *uuid.UUID) ([]string, error) {
+func (p Processor) taskAssigneeLogins(ctx context.Context, tenantID uuid.UUID, provider string, userID *uuid.UUID) ([]string, error) {
 	if userID == nil {
 		return []string{}, nil
 	}
-	var mapping db.GitHubUserMapping
-	if err := p.Store.DB.NewSelect().Model(&mapping).Where("tenant_id = ? AND user_id = ?", tenantID, *userID).Limit(1).Scan(ctx); err != nil {
+	var mapping db.GitUserMapping
+	if err := p.Store.DB.NewSelect().Model(&mapping).Where("tenant_id = ? AND provider = ? AND user_id = ?", tenantID, provider, *userID).Limit(1).Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return []string{}, nil
 		}
 		return nil, err
 	}
-	return []string{mapping.GitHubLogin}, nil
+	return []string{mapping.RemoteLogin}, nil
+}
+
+func (p Processor) repositoryProvider(ctx context.Context, repositoryID uuid.UUID) (string, error) {
+	var connection db.GitConnection
+	if err := p.Store.DB.NewSelect().Model(&connection).Join("JOIN git_repositories AS gr ON gr.connection_id = gc.id").Where("gr.id = ?", repositoryID).Scan(ctx); err != nil {
+		return "", err
+	}
+	if connection.Provider == "" {
+		return "github", nil
+	}
+	return connection.Provider, nil
 }
 
 func (p Processor) localMilestoneExternalID(ctx context.Context, repositoryID uuid.UUID, milestoneID *uuid.UUID) (any, error) {
@@ -743,11 +952,11 @@ func (p Processor) processGitHubImport(ctx context.Context, job *db.OutboxJob) (
 	if err = p.Store.DB.NewSelect().Model(&project).Where("id = ? AND tenant_id = ?", projectID, tenantID).Scan(ctx); err != nil {
 		return err
 	}
-	var repository db.GitHubRepository
+	var repository db.GitRepository
 	if err = p.Store.DB.NewSelect().Model(&repository).Where("id = ?", repositoryID).Scan(ctx); err != nil {
 		return err
 	}
-	var connection db.GitHubConnection
+	var connection db.GitConnection
 	if err = p.Store.DB.NewSelect().Model(&connection).Where("id = ? AND tenant_id = ? AND active = true", repository.ConnectionID, tenantID).Scan(ctx); err != nil {
 		return err
 	}
@@ -757,7 +966,7 @@ func (p Processor) processGitHubImport(ctx context.Context, job *db.OutboxJob) (
 	}
 	milestones, err := client.ListMilestones(ctx, repository.Owner, repository.Name)
 	if err != nil {
-		return fmt.Errorf("list github milestones: %w", err)
+		return fmt.Errorf("list %s milestones: %w", connection.Provider, err)
 	}
 	for _, milestone := range milestones {
 		if _, err = p.reconcileMilestone(ctx, tenantID, project, repository, milestone, job.ID.String(), milestone.UpdatedAt); err != nil {
@@ -766,7 +975,7 @@ func (p Processor) processGitHubImport(ctx context.Context, job *db.OutboxJob) (
 	}
 	issues, err := client.ListIssues(ctx, repository.Owner, repository.Name)
 	if err != nil {
-		return fmt.Errorf("list github issues: %w", err)
+		return fmt.Errorf("list %s issues: %w", connection.Provider, err)
 	}
 	for _, issue := range issues {
 		if err = p.reconcileIssue(ctx, tenantID, project, repository, issue, job.ID.String(), issue.UpdatedAt); err != nil {
@@ -788,11 +997,15 @@ func payloadUUID(payload map[string]any, key string) (uuid.UUID, error) {
 	return parsed, nil
 }
 
-func (p Processor) clientForConnection(ctx context.Context, connection db.GitHubConnection) (*gh.Client, error) {
+func (p Processor) clientForConnection(ctx context.Context, connection db.GitConnection) (integrations.Provider, error) {
+	provider := connection.Provider
+	if provider == "" {
+		provider = "github"
+	}
 	switch connection.AuthMethod {
-	case "oauth":
+	case "oauth", "pat":
 		if connection.EncryptedAccessToken == "" {
-			return nil, errors.New("github oauth connection has no access token")
+			return nil, fmt.Errorf("%s connection has no access token", provider)
 		}
 		cipher := p.Cipher
 		if cipher == nil {
@@ -804,13 +1017,23 @@ func (p Processor) clientForConnection(ctx context.Context, connection db.GitHub
 		}
 		token, err := cipher.Decrypt(connection.EncryptedAccessToken)
 		if err != nil {
-			return nil, fmt.Errorf("decrypt github access token: %w", err)
+			return nil, fmt.Errorf("decrypt %s access token: %w", provider, err)
 		}
-		if !hasRepositoryScope(connection.Scopes) {
+		if provider == "github" && connection.AuthMethod == "oauth" && !hasRepositoryScope(connection.Scopes) {
 			return nil, errors.New("github connection is missing repository access scope")
 		}
-		return gh.NewClient(token), nil
+		switch provider {
+		case "github":
+			return gh.NewClient(token), nil
+		case "gitlab":
+			return gitlab.NewClient(connection.APIBaseURL, token)
+		default:
+			return nil, fmt.Errorf("unsupported git provider %q", provider)
+		}
 	case "app":
+		if provider != "github" {
+			return nil, fmt.Errorf("%s does not support app connections", provider)
+		}
 		if connection.InstallationID == nil {
 			return nil, errors.New("github app connection has no installation id")
 		}
@@ -830,14 +1053,14 @@ func hasRepositoryScope(scopes []string) bool {
 	return false
 }
 
-func (p Processor) connectionAndRepository(ctx context.Context, tenantID, repositoryID uuid.UUID) (db.GitHubConnection, db.GitHubRepository, error) {
-	var repository db.GitHubRepository
+func (p Processor) connectionAndRepository(ctx context.Context, tenantID, repositoryID uuid.UUID) (db.GitConnection, db.GitRepository, error) {
+	var repository db.GitRepository
 	if err := p.Store.DB.NewSelect().Model(&repository).Where("id = ?", repositoryID).Scan(ctx); err != nil {
-		return db.GitHubConnection{}, db.GitHubRepository{}, err
+		return db.GitConnection{}, db.GitRepository{}, err
 	}
-	var connection db.GitHubConnection
+	var connection db.GitConnection
 	if err := p.Store.DB.NewSelect().Model(&connection).Where("id = ? AND tenant_id = ? AND active = true", repository.ConnectionID, tenantID).Scan(ctx); err != nil {
-		return db.GitHubConnection{}, db.GitHubRepository{}, err
+		return db.GitConnection{}, db.GitRepository{}, err
 	}
 	return connection, repository, nil
 }
@@ -877,7 +1100,11 @@ func (p Processor) processIssueUpdate(ctx context.Context, job *db.OutboxJob) er
 	if err != nil {
 		return err
 	}
-	assignees, err := p.taskAssigneeLogins(ctx, tenantID, task.AssigneeID)
+	provider := connection.Provider
+	if provider == "" {
+		provider = "github"
+	}
+	assignees, err := p.taskAssigneeLogins(ctx, tenantID, provider, task.AssigneeID)
 	if err != nil {
 		return err
 	}
@@ -961,9 +1188,9 @@ func (p Processor) processConflictResolution(ctx context.Context, job *db.Outbox
 	if conflict.Resolution == "local" {
 		jobs := queue.Queue{Store: p.Store}
 		if link.LocalType == "task" {
-			return jobs.Enqueue(ctx, "github.issue.update", map[string]any{"tenantId": conflict.TenantID.String(), "taskId": link.LocalID.String()})
+			return jobs.Enqueue(ctx, "git.issue.update", map[string]any{"tenantId": conflict.TenantID.String(), "taskId": link.LocalID.String()})
 		}
-		return jobs.Enqueue(ctx, "github.milestone.update", map[string]any{"tenantId": conflict.TenantID.String(), "milestoneId": link.LocalID.String()})
+		return jobs.Enqueue(ctx, "git.milestone.update", map[string]any{"tenantId": conflict.TenantID.String(), "milestoneId": link.LocalID.String()})
 	}
 	if conflict.Resolution == "remote" {
 		if err = p.applyRemoteConflict(ctx, conflict, link); err != nil {
@@ -982,6 +1209,10 @@ func (p Processor) processConflictResolution(ctx context.Context, job *db.Outbox
 }
 
 func (p Processor) applyRemoteConflict(ctx context.Context, conflict db.SyncConflict, link db.ExternalLink) error {
+	provider, err := p.repositoryProvider(ctx, link.RepositoryID)
+	if err != nil {
+		return err
+	}
 	switch link.LocalType {
 	case "task":
 		var task db.Task
@@ -1032,7 +1263,7 @@ func (p Processor) applyRemoteConflict(ctx context.Context, conflict db.SyncConf
 		case "assignees":
 			assignees, ok := stringSlice(conflict.RemoteValue)
 			if ok {
-				assigneeID, err := p.assigneeID(ctx, conflict.TenantID, assignees)
+				assigneeID, err := p.assigneeID(ctx, conflict.TenantID, provider, assignees)
 				if err != nil {
 					return err
 				}

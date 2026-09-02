@@ -24,7 +24,7 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	store, err := db.Open(ctx, cfg.DatabaseURL)
+	store, err := db.Open(ctx, cfg.Database)
 	if err != nil {
 		logger.Error("open database", "error", err)
 		os.Exit(1)

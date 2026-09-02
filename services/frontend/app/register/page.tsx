@@ -9,10 +9,13 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { LanguageSwitcher } from "@/components/language-switcher"
+import { useI18n } from "@/components/language-provider"
 import { isApiConfigured, register } from "@/lib/api"
 
 export default function RegisterPage() {
   const router = useRouter()
+  const { t } = useI18n()
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -26,16 +29,16 @@ export default function RegisterPage() {
     event.preventDefault()
     setError(undefined)
     if (!isApiConfigured) {
-      router.push("/")
+      setError(t("auth.apiRequired"))
       return
     }
     setLoading(true)
     try {
       await register(form)
-      router.push("/")
+      router.push("/app")
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Could not create workspace."
+        caught instanceof Error ? caught.message : t("workspace.loadError")
       )
     } finally {
       setLoading(false)
@@ -45,30 +48,32 @@ export default function RegisterPage() {
   return (
     <main className="flex min-h-svh items-center justify-center bg-muted/30 p-5 sm:p-10">
       <div className="w-full max-w-md">
-        <Link
-          href="/login"
-          className="mb-8 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <RiArrowLeftLine className="size-3.5" aria-hidden="true" />
-          Back to sign in
-        </Link>
+        <div className="mb-8 flex items-center justify-between gap-4">
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <RiArrowLeftLine className="size-3.5" aria-hidden="true" />
+            {t("register.backSignIn")}
+          </Link>
+          <LanguageSwitcher />
+        </div>
         <Card className="rounded-3xl p-6 shadow-xl shadow-slate-950/5 sm:p-8">
           <div className="mb-7">
             <div className="mb-4 flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <RiRocketLine className="size-5" aria-hidden="true" />
             </div>
             <h1 className="text-2xl font-semibold tracking-tight">
-              Create your workspace
+              {t("register.createWorkspace")}
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Start with a local account. You can invite the team and connect
-              GitHub afterward.
+              {t("register.createDescription")}
             </p>
           </div>
           <form onSubmit={submit} className="space-y-4">
             <Field
               id="register-name"
-              label="Your name"
+              label={t("register.yourName")}
               value={form.name}
               onChange={(value) =>
                 setForm((current) => ({ ...current, name: value }))
@@ -78,7 +83,7 @@ export default function RegisterPage() {
             />
             <Field
               id="register-email"
-              label="Email"
+              label={t("register.email")}
               type="email"
               value={form.email}
               onChange={(value) =>
@@ -89,17 +94,17 @@ export default function RegisterPage() {
             />
             <Field
               id="register-workspace"
-              label="Workspace name"
+              label={t("register.workspaceName")}
               value={form.tenantName}
               onChange={(value) =>
                 setForm((current) => ({ ...current, tenantName: value }))
               }
-              placeholder="Northstar Studio"
+              placeholder={t("register.workspacePlaceholder")}
               required
             />
             <Field
               id="register-password"
-              label="Password"
+              label={t("register.password")}
               type="password"
               value={form.password}
               onChange={(value) =>
@@ -124,7 +129,7 @@ export default function RegisterPage() {
                   aria-hidden="true"
                 />
               )}
-              Create workspace
+              {t("register.create")}
             </Button>
           </form>
         </Card>

@@ -23,9 +23,10 @@ import (
 const apiVersion = "2022-11-28"
 
 type Client struct {
-	HTTPClient *http.Client
-	BaseURL    string
-	Token      string
+	HTTPClient   *http.Client
+	BaseURL      string
+	Token        string
+	Installation bool
 }
 
 func NewClient(token string) *Client {
@@ -60,7 +61,9 @@ func NewInstallationClient(ctx context.Context, appID, privateKey string, instal
 	if response.Token == "" {
 		return nil, fmt.Errorf("github installation token response was empty")
 	}
-	return NewClient(response.Token), nil
+	installationClient := NewClient(response.Token)
+	installationClient.Installation = true
+	return installationClient, nil
 }
 
 func parsePrivateKey(value string) (*rsa.PrivateKey, error) {
@@ -144,6 +147,9 @@ func (c *Client) do(ctx context.Context, method, path string, input any, output 
 }
 
 func (c *Client) ListRepositories(ctx context.Context) ([]Repository, error) {
+	if c.Installation {
+		return c.ListInstallationRepositories(ctx)
+	}
 	var response []struct {
 		ID       int64  `json:"id"`
 		Name     string `json:"name"`

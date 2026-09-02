@@ -1,6 +1,5 @@
-import { ProjectWorkspace } from "@/components/project-workspace"
-import { demoWorkspace } from "@/lib/demo-data"
+import { redirect } from "next/navigation"
 
 export default function Page() {
-  return <ProjectWorkspace initialData={demoWorkspace} />
+  redirect("/app")
 }

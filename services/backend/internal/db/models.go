@@ -81,15 +81,16 @@ type PermissionGrant struct {
 type Project struct {
 	bun.BaseModel `bun:"table:projects,alias:p"`
 	RecordFields
-	TenantID    uuid.UUID  `bun:",type:uuid,notnull" json:"tenantId"`
-	Name        string     `bun:",notnull" json:"name"`
-	Key         string     `bun:",notnull" json:"key"`
-	Description string     `bun:",nullzero" json:"description"`
-	StartDate   *time.Time `bun:",nullzero" json:"startDate,omitempty"`
-	TargetDate  *time.Time `bun:",nullzero" json:"targetDate,omitempty"`
-	Status      string     `bun:",notnull,default:'active'" json:"status"`
-	CreatedBy   uuid.UUID  `bun:",type:uuid,notnull" json:"createdBy"`
-	Version     int64      `bun:",notnull,default:1" json:"version"`
+	TenantID     uuid.UUID  `bun:",type:uuid,notnull" json:"tenantId"`
+	Name         string     `bun:",notnull" json:"name"`
+	Key          string     `bun:",notnull" json:"key"`
+	Description  string     `bun:",nullzero" json:"description"`
+	StartDate    *time.Time `bun:",nullzero" json:"startDate,omitempty"`
+	TargetDate   *time.Time `bun:",nullzero" json:"targetDate,omitempty"`
+	Status       string     `bun:",notnull,default:'active'" json:"status"`
+	CreatedBy    uuid.UUID  `bun:",type:uuid,notnull" json:"createdBy"`
+	ConnectionID *uuid.UUID `bun:",type:uuid,nullzero" json:"connectionId,omitempty"`
+	Version      int64      `bun:",notnull,default:1" json:"version"`
 }
 
 type ProjectStatus struct {
@@ -139,7 +140,7 @@ type Task struct {
 	Priority     string     `bun:",notnull,default:'medium'" json:"priority"`
 	StartDate    *time.Time `bun:",nullzero" json:"startDate,omitempty"`
 	DueDate      *time.Time `bun:",nullzero" json:"dueDate,omitempty"`
-	EstimateMins *int       `bun:",nullzero" json:"estimateMinutes,omitempty"`
+	EstimateMins *int       `bun:"estimate_minutes,nullzero" json:"estimateMinutes,omitempty"`
 	AssigneeID   *uuid.UUID `bun:",type:uuid,nullzero" json:"assigneeId,omitempty"`
 	Visibility   string     `bun:",notnull,default:'internal'" json:"visibility"`
 	Position     int        `bun:",notnull,default:0" json:"position"`
@@ -153,23 +154,27 @@ type TaskLabel struct {
 	LabelID uuid.UUID `bun:",type:uuid,notnull" json:"labelId"`
 }
 
-type GitHubConnection struct {
-	bun.BaseModel `bun:"table:github_connections,alias:gc"`
+type GitConnection struct {
+	bun.BaseModel `bun:"table:git_connections,alias:gc"`
 	RecordFields
-	TenantID              uuid.UUID  `bun:",type:uuid,notnull" json:"tenantId"`
-	AuthMethod            string     `bun:",notnull" json:"authMethod"`
-	InstallationID        *int64     `bun:",nullzero" json:"installationId,omitempty"`
-	ExternalAccountID     int64      `bun:",notnull" json:"externalAccountId"`
-	ExternalAccountLogin  string     `bun:",nullzero" json:"externalAccountLogin"`
-	EncryptedAccessToken  string     `bun:",nullzero" json:"-"`
-	EncryptedRefreshToken string     `bun:",nullzero" json:"-"`
-	TokenExpiresAt        *time.Time `bun:",nullzero" json:"tokenExpiresAt,omitempty"`
-	Scopes                []string   `bun:",type:jsonb,notnull,default:'[]'" json:"scopes"`
-	Active                bool       `bun:",notnull,default:true" json:"active"`
+	Provider               string     `bun:",notnull" json:"provider"`
+	TenantID               uuid.UUID  `bun:",type:uuid,notnull" json:"tenantId"`
+	Name                   string     `bun:",nullzero" json:"name"`
+	APIBaseURL             string     `bun:",notnull" json:"apiBaseUrl"`
+	AuthMethod             string     `bun:",notnull" json:"authMethod"`
+	InstallationID         *int64     `bun:",nullzero" json:"installationId,omitempty"`
+	ExternalAccountID      int64      `bun:",notnull" json:"externalAccountId"`
+	ExternalAccountLogin   string     `bun:",nullzero" json:"externalAccountLogin"`
+	EncryptedAccessToken   string     `bun:",nullzero" json:"-"`
+	EncryptedRefreshToken  string     `bun:",nullzero" json:"-"`
+	EncryptedWebhookSecret string     `bun:",nullzero" json:"-"`
+	TokenExpiresAt         *time.Time `bun:",nullzero" json:"tokenExpiresAt,omitempty"`
+	Scopes                 []string   `bun:",type:jsonb,notnull,default:'[]'" json:"scopes"`
+	Active                 bool       `bun:",notnull,default:true" json:"active"`
 }
 
-type GitHubRepository struct {
-	bun.BaseModel `bun:"table:github_repositories,alias:gr"`
+type GitRepository struct {
+	bun.BaseModel `bun:"table:git_repositories,alias:gr"`
 	RecordFields
 	ConnectionID uuid.UUID `bun:",type:uuid,notnull" json:"connectionId"`
 	ExternalID   int64     `bun:",notnull" json:"externalId"`
@@ -179,11 +184,13 @@ type GitHubRepository struct {
 	Private      bool      `bun:",notnull,default:false" json:"private"`
 }
 
-type GitHubUserMapping struct {
-	bun.BaseModel `bun:"table:github_user_mappings,alias:gum"`
+type GitUserMapping struct {
+	bun.BaseModel `bun:"table:git_user_mappings,alias:gum"`
 	RecordFields
 	TenantID    uuid.UUID `bun:",type:uuid,notnull" json:"tenantId"`
-	GitHubLogin string    `bun:",notnull" json:"githubLogin"`
+	Provider    string    `bun:",notnull,default:'github'" json:"provider"`
+	RemoteLogin string    `bun:",notnull" json:"remoteLogin"`
+	RemoteID    *int64    `bun:",nullzero" json:"remoteId,omitempty"`
 	UserID      uuid.UUID `bun:",type:uuid,notnull" json:"userId"`
 }
 
@@ -208,11 +215,18 @@ type ExternalLink struct {
 	FieldSnapshot   map[string]any `bun:",type:jsonb,notnull,default:'{}'" json:"fieldSnapshot"`
 }
 
+// The aliases keep the current internal GitHub call sites source-compatible
+// while the persisted connection/repository model is now provider-agnostic.
+type GitHubConnection = GitConnection
+type GitHubRepository = GitRepository
+type GitHubUserMapping = GitUserMapping
+
 type SyncEvent struct {
 	bun.BaseModel `bun:"table:sync_events,alias:se"`
 	RecordFields
 	TenantID     *uuid.UUID     `bun:",type:uuid,nullzero" json:"tenantId,omitempty"`
 	ConnectionID *uuid.UUID     `bun:",type:uuid,nullzero" json:"connectionId,omitempty"`
+	Provider     string         `bun:",notnull" json:"provider"`
 	DeliveryID   string         `bun:",notnull,unique" json:"deliveryId"`
 	EventName    string         `bun:",notnull" json:"eventName"`
 	Action       string         `bun:",nullzero" json:"action"`

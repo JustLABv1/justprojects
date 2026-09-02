@@ -19,8 +19,11 @@ import {
 } from "@/components/reui/timeline"
 import { Badge } from "@/components/ui/badge"
 import type { SyncEvent } from "@/lib/types"
+import { useI18n } from "@/components/language-provider"
+import type { TranslationKey } from "@/lib/i18n"
 
 export function SyncActivity({ events }: { events: SyncEvent[] }) {
+  const { locale, t } = useI18n()
   return (
     <Timeline defaultValue={events.length || 1} orientation="vertical">
       {events.map((event, index) => {
@@ -35,7 +38,7 @@ export function SyncActivity({ events }: { events: SyncEvent[] }) {
           <TimelineItem key={event.id} step={step}>
             <TimelineHeader>
               <TimelineDate dateTime={event.createdAt}>
-                {formatDate(event.createdAt)}
+                {formatDate(event.createdAt, locale)}
               </TimelineDate>
               <TimelineIndicator>
                 <Icon
@@ -45,13 +48,13 @@ export function SyncActivity({ events }: { events: SyncEvent[] }) {
                   aria-hidden="true"
                 />
               </TimelineIndicator>
-              <TimelineTitle>
-                {event.eventName.replace("github.", "GitHub ")}
-              </TimelineTitle>
+              <TimelineTitle>{eventLabel(event.eventName, t)}</TimelineTitle>
             </TimelineHeader>
             <TimelineContent className="flex items-center gap-2">
               <span>
-                {event.action ? `${event.action} delivery` : "Background sync"}
+                {event.action
+                  ? t("sync.actionDelivery", { action: event.action })
+                  : t("sync.background")}
               </span>
               <Badge
                 variant={
@@ -63,7 +66,7 @@ export function SyncActivity({ events }: { events: SyncEvent[] }) {
                 }
                 className="h-5 text-[10px] capitalize"
               >
-                {event.status}
+                {statusLabel(event.status, t)}
               </Badge>
               {event.status === "succeeded" && (
                 <RiGitPullRequestLine className="size-3.5" aria-hidden="true" />
@@ -77,10 +80,35 @@ export function SyncActivity({ events }: { events: SyncEvent[] }) {
   )
 }
 
-function formatDate(value: string) {
+type Translator = (
+  key: TranslationKey,
+  values?: Record<string, string | number>
+) => string
+
+function eventLabel(value: string, t: Translator) {
+  const [provider, resource] = value.split(".", 2)
+  if (!provider || !resource) return t("sync.unknownEvent")
+  const translatedResource =
+    resource === "issues"
+      ? t("sync.issues")
+      : resource === "milestone"
+        ? t("sync.milestone")
+        : resource
+  return `${provider === "github" ? "GitHub" : provider === "gitlab" ? "GitLab" : provider} ${translatedResource}`
+}
+
+function statusLabel(value: string, t: Translator) {
+  if (value === "queued") return t("sync.queued")
+  if (value === "processing") return t("sync.processing")
+  if (value === "succeeded") return t("sync.succeeded")
+  if (value === "failed") return t("sync.failed")
+  return value
+}
+
+function formatDate(value: string, locale: "en" | "de" = "en") {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat(locale, {
     month: "short",
     day: "numeric",
     hour: "numeric",

@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { useI18n } from "@/components/language-provider"
 
 export interface NewMilestoneInput {
   name: string
@@ -40,6 +41,7 @@ export function MilestoneDialog({
   onOpenChange: (open: boolean) => void
   onCreate: (input: NewMilestoneInput) => Promise<void> | void
 }) {
+  const { t } = useI18n()
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [startDate, setStartDate] = useState("")
@@ -78,36 +80,40 @@ export function MilestoneDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Create a milestone</DialogTitle>
+          <DialogTitle>{t("dialog.createMilestone")}</DialogTitle>
           <DialogDescription>
-            Give the team and customers a clear delivery checkpoint.
+            {t("dialog.milestoneDescription")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="milestone-name">Milestone name</Label>
+            <Label htmlFor="milestone-name">{t("dialog.milestoneName")}</Label>
             <Input
               id="milestone-name"
               autoFocus
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="e.g. Customer beta"
+              placeholder={t("dialog.milestoneNamePlaceholder")}
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="milestone-description">Description</Label>
+            <Label htmlFor="milestone-description">
+              {t("dialog.description")}
+            </Label>
             <Textarea
               id="milestone-description"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="What will be true when this checkpoint is reached?"
+              placeholder={t("dialog.milestoneDescriptionPlaceholder")}
               rows={3}
             />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="milestone-start-date">Start date</Label>
+              <Label htmlFor="milestone-start-date">
+                {t("dialog.startDate")}
+              </Label>
               <Input
                 id="milestone-start-date"
                 type="date"
@@ -116,7 +122,7 @@ export function MilestoneDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="milestone-due-date">Due date</Label>
+              <Label htmlFor="milestone-due-date">{t("dialog.dueDate")}</Label>
               <Input
                 id="milestone-due-date"
                 type="date"
@@ -126,7 +132,9 @@ export function MilestoneDialog({
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="milestone-visibility">Customer visibility</Label>
+            <Label htmlFor="milestone-visibility">
+              {t("dialog.customerVisibility")}
+            </Label>
             <Select
               value={visibility}
               onValueChange={(value) => setVisibility(value ?? "internal")}
@@ -135,8 +143,12 @@ export function MilestoneDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="internal">Internal only</SelectItem>
-                <SelectItem value="customer">Visible to customer</SelectItem>
+                <SelectItem value="internal">
+                  {t("dialog.internalOnly")}
+                </SelectItem>
+                <SelectItem value="customer">
+                  {t("dialog.visibleToCustomer")}
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -146,7 +158,7 @@ export function MilestoneDialog({
               variant="outline"
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              {t("dialog.cancel")}
             </Button>
             <Button type="submit" disabled={submitting || !name.trim()}>
               {submitting && (
@@ -155,7 +167,7 @@ export function MilestoneDialog({
                   aria-hidden="true"
                 />
               )}
-              Create milestone
+              {submitting ? t("dialog.creating") : t("dialog.createMilestone")}
             </Button>
           </DialogFooter>
         </form>

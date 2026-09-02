@@ -21,6 +21,7 @@ services/docs/*.tsbuildinfo
 services/docs/.source/
 
 .venv
+.envrc
 
 # production
 services/frontend/build

@@ -23,7 +23,12 @@ services:
       context: .
       dockerfile: services/backend/Dockerfile
     environment:
-      DATABASE_URL: postgres://justprojects:justprojects@postgres:5432/justprojects?sslmode=disable
+      DATABASE_SERVER: postgres
+      DATABASE_PORT: "5432"
+      DATABASE_NAME: justprojects
+      DATABASE_USER: justprojects
+      DATABASE_PASSWORD: justprojects
+      DATABASE_SSLMODE: disable
       FRONTEND_URL: http://localhost:3000
       API_URL: http://localhost:8080
       ALLOWED_ORIGINS: http://localhost:3000
@@ -47,7 +52,12 @@ services:
       dockerfile: services/backend/Dockerfile
     command: ["/app/worker"]
     environment:
-      DATABASE_URL: postgres://justprojects:justprojects@postgres:5432/justprojects?sslmode=disable
+      DATABASE_SERVER: postgres
+      DATABASE_PORT: "5432"
+      DATABASE_NAME: justprojects
+      DATABASE_USER: justprojects
+      DATABASE_PASSWORD: justprojects
+      DATABASE_SSLMODE: disable
       WORKER_POLL_INTERVAL: 2s
       APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-local-development-key}
       GITHUB_APP_ID: ${GITHUB_APP_ID:-}

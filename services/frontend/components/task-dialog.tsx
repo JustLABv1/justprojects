@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { Milestone, ProjectStatus, Task } from "@/lib/types"
+import { useI18n } from "@/components/language-provider"
 
 export interface NewTaskInput {
   title: string
@@ -53,6 +54,7 @@ export function TaskDialog({
   onCreate: (input: NewTaskInput) => Promise<void> | void
   trigger?: boolean
 }) {
+  const { t } = useI18n()
   const defaultStatus =
     statuses.find((status) => status.category === "todo") ?? statuses[0]
   const [title, setTitle] = useState("")
@@ -105,7 +107,7 @@ export function TaskDialog({
           render={
             <Button size="sm" className="gap-1.5">
               <RiAddLine className="size-4" aria-hidden="true" />
-              New task
+              {t("dialog.newTask")}
             </Button>
           }
         />
@@ -113,45 +115,45 @@ export function TaskDialog({
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>
-            {parentTask ? "Add a child task" : "Create a task"}
+            {parentTask ? t("dialog.addChildTask") : t("dialog.createTask")}
           </DialogTitle>
           <DialogDescription>
             {parentTask
-              ? `This task will be nested under “${parentTask.title}”.`
-              : "Capture the next piece of work while the context is fresh."}
+              ? t("dialog.childTaskDescription", { title: parentTask.title })
+              : t("dialog.taskDescription")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="task-title">Task title</Label>
+            <Label htmlFor="task-title">{t("dialog.taskTitle")}</Label>
             <Input
               id="task-title"
               autoFocus
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              placeholder="e.g. Review the customer launch checklist"
+              placeholder={t("dialog.taskTitlePlaceholder")}
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="task-description">Description</Label>
+            <Label htmlFor="task-description">{t("dialog.description")}</Label>
             <Textarea
               id="task-description"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="What does done look like?"
+              placeholder={t("dialog.descriptionPlaceholder")}
               rows={3}
             />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="task-status">Status</Label>
+              <Label htmlFor="task-status">{t("dialog.status")}</Label>
               <Select
                 value={statusId}
                 onValueChange={(value) => setStatusId(value ?? "")}
               >
                 <SelectTrigger id="task-status" className="w-full">
-                  <SelectValue placeholder="Choose a status" />
+                  <SelectValue placeholder={t("dialog.chooseStatus")} />
                 </SelectTrigger>
                 <SelectContent>
                   {statuses.map((status) => (
@@ -163,7 +165,7 @@ export function TaskDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="task-priority">Priority</Label>
+              <Label htmlFor="task-priority">{t("dialog.priority")}</Label>
               <Select
                 value={priority}
                 onValueChange={(value) => setPriority(value ?? "medium")}
@@ -172,24 +174,26 @@ export function TaskDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="urgent">Urgent</SelectItem>
+                  <SelectItem value="low">{t("priority.low")}</SelectItem>
+                  <SelectItem value="medium">{t("priority.medium")}</SelectItem>
+                  <SelectItem value="high">{t("priority.high")}</SelectItem>
+                  <SelectItem value="urgent">{t("priority.urgent")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="task-milestone">Milestone</Label>
+              <Label htmlFor="task-milestone">{t("dialog.milestone")}</Label>
               <Select
                 value={milestoneId}
                 onValueChange={(value) => setMilestoneId(value ?? "none")}
               >
                 <SelectTrigger id="task-milestone" className="w-full">
-                  <SelectValue placeholder="No milestone" />
+                  <SelectValue placeholder={t("dialog.noMilestone")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No milestone</SelectItem>
+                  <SelectItem value="none">
+                    {t("dialog.noMilestone")}
+                  </SelectItem>
                   {milestones.map((milestone) => (
                     <SelectItem key={milestone.id} value={milestone.id}>
                       {milestone.name}
@@ -199,7 +203,7 @@ export function TaskDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="task-due-date">Due date</Label>
+              <Label htmlFor="task-due-date">{t("dialog.dueDate")}</Label>
               <Input
                 id="task-due-date"
                 type="date"
@@ -208,7 +212,7 @@ export function TaskDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="task-estimate">Estimate (minutes)</Label>
+              <Label htmlFor="task-estimate">{t("dialog.estimate")}</Label>
               <Input
                 id="task-estimate"
                 type="number"
@@ -220,7 +224,9 @@ export function TaskDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="task-visibility">Customer visibility</Label>
+              <Label htmlFor="task-visibility">
+                {t("dialog.customerVisibility")}
+              </Label>
               <Select
                 value={visibility}
                 onValueChange={(value) => setVisibility(value ?? "internal")}
@@ -229,8 +235,12 @@ export function TaskDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="internal">Internal only</SelectItem>
-                  <SelectItem value="customer">Visible to customer</SelectItem>
+                  <SelectItem value="internal">
+                    {t("dialog.internalOnly")}
+                  </SelectItem>
+                  <SelectItem value="customer">
+                    {t("dialog.visibleToCustomer")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -241,7 +251,7 @@ export function TaskDialog({
               variant="outline"
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              {t("dialog.cancel")}
             </Button>
             <Button type="submit" disabled={submitting || !title.trim()}>
               {submitting && (
@@ -250,7 +260,7 @@ export function TaskDialog({
                   aria-hidden="true"
                 />
               )}
-              Create task
+              {submitting ? t("dialog.creating") : t("dialog.createTask")}
             </Button>
           </DialogFooter>
         </form>

@@ -13,7 +13,7 @@ import (
 type Config struct {
 	HTTPAddr            string
 	WorkerPollInterval  time.Duration
-	DatabaseURL         string
+	Database            DatabaseConfig
 	FrontendURL         string
 	APIURL              string
 	SessionCookieName   string
@@ -33,11 +33,36 @@ type Config struct {
 	OIDCRedirectURL     string
 }
 
+// DatabaseConfig deliberately keeps connection settings as separate values so
+// deployments can source them from their secret/configuration systems without
+// constructing or passing around a database URL.
+type DatabaseConfig struct {
+	Server         string
+	Port           int
+	Name           string
+	User           string
+	Password       string
+	SSLMode        string
+	MaxOpenConns   int
+	MaxIdleConns   int
+	ConnMaxIdleFor time.Duration
+}
+
 func Load() (Config, error) {
 	c := Config{
-		HTTPAddr:            getenv("HTTP_ADDR", ":8080"),
-		WorkerPollInterval:  getenvDuration("WORKER_POLL_INTERVAL", 5*time.Second),
-		DatabaseURL:         getenv("DATABASE_URL", "postgres://justprojects:justprojects@localhost:5432/justprojects?sslmode=disable"),
+		HTTPAddr:           getenv("HTTP_ADDR", ":8080"),
+		WorkerPollInterval: getenvDuration("WORKER_POLL_INTERVAL", 5*time.Second),
+		Database: DatabaseConfig{
+			Server:         getenv("DATABASE_SERVER", "localhost"),
+			Port:           getenvInt("DATABASE_PORT", 5432),
+			Name:           getenv("DATABASE_NAME", "justprojects"),
+			User:           getenv("DATABASE_USER", "justprojects"),
+			Password:       os.Getenv("DATABASE_PASSWORD"),
+			SSLMode:        getenv("DATABASE_SSLMODE", "disable"),
+			MaxOpenConns:   getenvInt("DATABASE_MAX_OPEN_CONNS", 20),
+			MaxIdleConns:   getenvInt("DATABASE_MAX_IDLE_CONNS", 5),
+			ConnMaxIdleFor: getenvDuration("DATABASE_CONN_MAX_IDLE", 5*time.Minute),
+		},
 		FrontendURL:         strings.TrimRight(getenv("FRONTEND_URL", "http://localhost:3000"), "/"),
 		APIURL:              strings.TrimRight(getenv("API_URL", "http://localhost:8080"), "/"),
 		SessionCookieName:   getenv("SESSION_COOKIE_NAME", "justprojects_session"),
@@ -94,6 +119,18 @@ func getenvBool(key string, fallback bool) bool {
 	}
 	parsed, err := strconv.ParseBool(value)
 	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func getenvInt(key string, fallback int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 {
 		return fallback
 	}
 	return parsed

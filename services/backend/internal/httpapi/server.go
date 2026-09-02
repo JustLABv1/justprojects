@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
+	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -23,7 +24,9 @@ import (
 	"github.com/JustLABv1/justprojects/services/backend/internal/auth"
 	"github.com/JustLABv1/justprojects/services/backend/internal/config"
 	"github.com/JustLABv1/justprojects/services/backend/internal/db"
+	"github.com/JustLABv1/justprojects/services/backend/internal/integrations"
 	gh "github.com/JustLABv1/justprojects/services/backend/internal/integrations/github"
+	gitlab "github.com/JustLABv1/justprojects/services/backend/internal/integrations/gitlab"
 	"github.com/JustLABv1/justprojects/services/backend/internal/permissions"
 	"github.com/JustLABv1/justprojects/services/backend/internal/queue"
 	"github.com/gin-gonic/gin"
@@ -74,6 +77,7 @@ func (s *Server) Router() *gin.Engine {
 
 	api.GET("/public/pages/:slug", s.publicPage)
 	api.POST("/webhooks/github", s.githubWebhook)
+	api.POST("/webhooks/gitlab", s.gitlabWebhook)
 
 	protected := api.Group("")
 	protected.Use(s.requireAuth)
@@ -113,9 +117,14 @@ func (s *Server) Router() *gin.Engine {
 	protected.GET("/sync/runs", s.listSyncRuns)
 	protected.GET("/audit/events", s.listAuditEvents)
 	protected.GET("/integrations/github/connections", s.listGitHubConnections)
+	protected.GET("/integrations/connections", s.listGitConnections)
+	protected.DELETE("/integrations/connections/:connectionId", s.deleteGitConnection)
+	protected.POST("/integrations/github/connections", s.createGitHubTokenConnection)
+	protected.POST("/integrations/gitlab/connections", s.createGitLabConnection)
 	protected.GET("/integrations/github/oauth/start", s.githubOAuthStart)
 	protected.GET("/integrations/github/oauth/callback", s.githubOAuthCallback)
 	protected.GET("/integrations/github/repositories", s.listGitHubRepositories)
+	protected.GET("/integrations/repositories", s.listGitRepositories)
 	protected.GET("/integrations/github/user-mappings", s.listGitHubUserMappings)
 	protected.POST("/integrations/github/user-mappings", s.createGitHubUserMapping)
 	protected.DELETE("/integrations/github/user-mappings/:mappingId", s.deleteGitHubUserMapping)
@@ -125,6 +134,7 @@ func (s *Server) Router() *gin.Engine {
 	protected.POST("/projects/:projectId/repositories", s.attachProjectRepository)
 	protected.DELETE("/projects/:projectId/repositories/:repositoryId", s.detachProjectRepository)
 	protected.POST("/projects/:projectId/github/import", s.importGitHubProject)
+	protected.POST("/projects/:projectId/git/import", s.importGitProject)
 
 	return router
 }
@@ -461,7 +471,7 @@ func (s *Server) listPermissionGrants(c *gin.Context) {
 		}
 		query = query.Where("project_id = ?", projectID)
 	}
-	var grants []db.PermissionGrant
+	grants := make([]db.PermissionGrant, 0)
 	if err := query.Order("created_at ASC").Scan(c.Request.Context(), &grants); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load permission grants"))
 		return
@@ -577,7 +587,7 @@ func (s *Server) listInvitations(c *gin.Context) {
 	if !s.authorize(c, "tenant.read", nil) {
 		return
 	}
-	var invitations []db.TenantInvitation
+	invitations := make([]db.TenantInvitation, 0)
 	if err := s.Store.DB.NewSelect().Model(&invitations).Where("tenant_id = ? AND accepted_at IS NULL", s.principal(c).Tenant.ID).Order("created_at DESC").Scan(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load invitations"))
 		return
@@ -680,18 +690,19 @@ func (s *Server) acceptInvitation(c *gin.Context) {
 }
 
 type projectRequest struct {
-	Name        string `json:"name"`
-	Key         string `json:"key"`
-	Description string `json:"description"`
-	StartDate   string `json:"startDate"`
-	TargetDate  string `json:"targetDate"`
+	Name         string `json:"name"`
+	Key          string `json:"key"`
+	Description  string `json:"description"`
+	StartDate    string `json:"startDate"`
+	TargetDate   string `json:"targetDate"`
+	ConnectionID string `json:"connectionId"`
 }
 
 func (s *Server) listProjects(c *gin.Context) {
 	if !s.authorize(c, "project.read", nil) {
 		return
 	}
-	var projects []db.Project
+	projects := make([]db.Project, 0)
 	if err := s.Store.DB.NewSelect().Model(&projects).Where("tenant_id = ?", s.principal(c).Tenant.ID).Order("updated_at DESC").Scan(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load projects"))
 		return
@@ -716,6 +727,15 @@ func (s *Server) createProject(c *gin.Context) {
 		badRequest(c, errors.New("project key must contain 1-12 letters, numbers, or hyphens"))
 		return
 	}
+	keyInUse, err := s.Store.DB.NewSelect().Model((*db.Project)(nil)).Where("tenant_id = ? AND lower(key) = lower(?)", s.principal(c).Tenant.ID, key).Count(c.Request.Context())
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not validate project key"))
+		return
+	}
+	if keyInUse > 0 {
+		conflict(c, "project key is already in use in this workspace")
+		return
+	}
 	startDate, err := parseDate(input.StartDate)
 	if err != nil {
 		badRequest(c, err)
@@ -726,8 +746,19 @@ func (s *Server) createProject(c *gin.Context) {
 		badRequest(c, err)
 		return
 	}
+	connectionID, err := optionalUUID(input.ConnectionID)
+	if err != nil {
+		badRequest(c, errors.New("invalid connection id"))
+		return
+	}
+	if connectionID != nil {
+		if _, err = s.gitConnection(c, *connectionID); err != nil {
+			notFound(c)
+			return
+		}
+	}
 	now := time.Now().UTC()
-	project := db.Project{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: s.principal(c).Tenant.ID, Name: strings.TrimSpace(input.Name), Key: key, Description: strings.TrimSpace(input.Description), CreatedBy: s.principal(c).User.ID, Version: 1}
+	project := db.Project{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: s.principal(c).Tenant.ID, Name: strings.TrimSpace(input.Name), Key: key, Description: strings.TrimSpace(input.Description), CreatedBy: s.principal(c).User.ID, ConnectionID: connectionID, Version: 1}
 	project.StartDate = startDate
 	project.TargetDate = targetDate
 	tx, err := s.Store.DB.BeginTx(c.Request.Context(), nil)
@@ -737,7 +768,7 @@ func (s *Server) createProject(c *gin.Context) {
 	}
 	defer func() { _ = tx.Rollback() }()
 	if _, err = tx.NewInsert().Model(&project).Exec(c.Request.Context()); err != nil {
-		badRequest(c, errors.New("could not create project"))
+		conflict(c, "project key is already in use in this workspace")
 		return
 	}
 	for position, status := range []struct{ name, category, color string }{{"Backlog", "backlog", "#94a3b8"}, {"Todo", "todo", "#60a5fa"}, {"In Progress", "in_progress", "#a78bfa"}, {"Blocked", "blocked", "#f59e0b"}, {"Done", "done", "#34d399"}} {
@@ -768,7 +799,7 @@ func (s *Server) getProject(c *gin.Context) {
 		notFound(c)
 		return
 	}
-	var statuses []db.ProjectStatus
+	statuses := make([]db.ProjectStatus, 0)
 	if err = s.Store.DB.NewSelect().Model(&statuses).Where("project_id = ?", projectID).Order("position ASC").Scan(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load workflow"))
 		return
@@ -785,10 +816,11 @@ func (s *Server) updateProject(c *gin.Context) {
 		return
 	}
 	var input struct {
-		Name        *string `json:"name"`
-		Description *string `json:"description"`
-		TargetDate  *string `json:"targetDate"`
-		Version     int64   `json:"version"`
+		Name         *string         `json:"name"`
+		Description  *string         `json:"description"`
+		TargetDate   *string         `json:"targetDate"`
+		ConnectionID json.RawMessage `json:"connectionId"`
+		Version      int64           `json:"version"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		badRequest(c, errors.New("invalid project payload"))
@@ -808,6 +840,41 @@ func (s *Server) updateProject(c *gin.Context) {
 			return
 		}
 		updates["target_date"] = parsed
+	}
+	if input.ConnectionID != nil {
+		var connectionValue string
+		if strings.TrimSpace(string(input.ConnectionID)) != "null" {
+			if err := json.Unmarshal(input.ConnectionID, &connectionValue); err != nil {
+				badRequest(c, errors.New("invalid connection id"))
+				return
+			}
+		}
+		connectionID, parseErr := optionalUUID(connectionValue)
+		if parseErr != nil {
+			badRequest(c, errors.New("invalid connection id"))
+			return
+		}
+		if connectionID != nil {
+			if _, parseErr = s.gitConnection(c, *connectionID); parseErr != nil {
+				notFound(c)
+				return
+			}
+		}
+		var attached int
+		if connectionID == nil {
+			attached, parseErr = s.Store.DB.NewSelect().Model((*db.ProjectRepository)(nil)).Where("project_id = ?", projectID).Count(c.Request.Context())
+		} else {
+			attached, parseErr = s.Store.DB.NewSelect().Model((*db.ProjectRepository)(nil)).Join("JOIN git_repositories AS gr ON gr.id = pr.repository_id").Where("pr.project_id = ? AND gr.connection_id <> ?", projectID, *connectionID).Count(c.Request.Context())
+		}
+		if parseErr != nil {
+			writeError(c, http.StatusInternalServerError, errors.New("could not validate project connection"))
+			return
+		}
+		if attached > 0 {
+			badRequest(c, errors.New("project connection must match all attached repositories"))
+			return
+		}
+		updates["connection_id"] = connectionID
 	}
 	if len(updates) == 0 {
 		badRequest(c, errors.New("no project changes supplied"))
@@ -848,6 +915,12 @@ func (s *Server) project(c *gin.Context, id uuid.UUID) (db.Project, error) {
 	var project db.Project
 	err := s.Store.DB.NewSelect().Model(&project).Where("id = ? AND tenant_id = ?", id, s.principal(c).Tenant.ID).Scan(c.Request.Context())
 	return project, err
+}
+
+func (s *Server) gitConnection(c *gin.Context, id uuid.UUID) (db.GitConnection, error) {
+	var connection db.GitConnection
+	err := s.Store.DB.NewSelect().Model(&connection).Where("id = ? AND tenant_id = ? AND active = true", id, s.principal(c).Tenant.ID).Scan(c.Request.Context())
+	return connection, err
 }
 
 func projectKey(name string) string {
@@ -917,7 +990,7 @@ func (s *Server) listStatuses(c *gin.Context) {
 		notFound(c)
 		return
 	}
-	var statuses []db.ProjectStatus
+	statuses := make([]db.ProjectStatus, 0)
 	if err := s.Store.DB.NewSelect().Model(&statuses).Where("project_id = ?", projectID).Order("position ASC").Scan(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load statuses"))
 		return
@@ -1073,7 +1146,7 @@ func (s *Server) listTasks(c *gin.Context) {
 		notFound(c)
 		return
 	}
-	var tasks []db.Task
+	tasks := make([]db.Task, 0)
 	query := s.Store.DB.NewSelect().Model(&tasks).Where("project_id = ?", projectID).Order("position ASC", "created_at ASC")
 	if value := strings.TrimSpace(c.Query("q")); value != "" {
 		query = query.Where("title ILIKE ?", "%"+value+"%")
@@ -1111,7 +1184,7 @@ func (s *Server) taskResponses(c *gin.Context, tasks []db.Task) ([]taskResponse,
 			assigneeIDs = append(assigneeIDs, *task.AssigneeID)
 		}
 	}
-	var statuses []db.ProjectStatus
+	statuses := make([]db.ProjectStatus, 0)
 	if err := s.Store.DB.NewSelect().Model(&statuses).Where("id IN (?)", bun.In(ids)).Scan(c.Request.Context()); err != nil {
 		return nil, err
 	}
@@ -1139,7 +1212,7 @@ func (s *Server) taskResponses(c *gin.Context, tasks []db.Task) ([]taskResponse,
 	}
 	labelsByID := make(map[uuid.UUID]db.Label)
 	if len(labelIDs) > 0 {
-		var labels []db.Label
+		labels := make([]db.Label, 0)
 		if err := s.Store.DB.NewSelect().Model(&labels).Where("id IN (?) AND tenant_id = ?", bun.In(labelIDs), s.principal(c).Tenant.ID).Scan(c.Request.Context()); err != nil {
 			return nil, err
 		}
@@ -1503,8 +1576,8 @@ func (s *Server) updateTask(c *gin.Context) {
 		return
 	}
 	_ = s.audit(c, "task.updated", "task", taskID, nil)
-	if err := s.Queue.Enqueue(c.Request.Context(), "github.issue.update", map[string]any{"tenantId": s.principal(c).Tenant.ID.String(), "taskId": taskID.String()}); err != nil {
-		slog.Default().Warn("queue github issue update", "task_id", taskID, "error", err)
+	if err := s.Queue.Enqueue(c.Request.Context(), "git.issue.update", map[string]any{"tenantId": s.principal(c).Tenant.ID.String(), "taskId": taskID.String()}); err != nil {
+		slog.Default().Warn("queue git issue update", "task_id", taskID, "error", err)
 	}
 	response, err := s.taskResponse(c, updated)
 	if err != nil {
@@ -1614,7 +1687,7 @@ func (s *Server) listMilestones(c *gin.Context) {
 		notFound(c)
 		return
 	}
-	var milestones []db.Milestone
+	milestones := make([]db.Milestone, 0)
 	if err := s.Store.DB.NewSelect().Model(&milestones).Where("project_id = ? AND tenant_id = ?", projectID, s.principal(c).Tenant.ID).Order("due_date ASC NULLS LAST", "created_at ASC").Scan(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load milestones"))
 		return
@@ -1772,8 +1845,8 @@ func (s *Server) updateMilestone(c *gin.Context) {
 		return
 	}
 	_ = s.audit(c, "milestone.updated", "milestone", milestoneID, nil)
-	if err := s.Queue.Enqueue(c.Request.Context(), "github.milestone.update", map[string]any{"tenantId": s.principal(c).Tenant.ID.String(), "milestoneId": milestoneID.String()}); err != nil {
-		slog.Default().Warn("queue github milestone update", "milestone_id", milestoneID, "error", err)
+	if err := s.Queue.Enqueue(c.Request.Context(), "git.milestone.update", map[string]any{"tenantId": s.principal(c).Tenant.ID.String(), "milestoneId": milestoneID.String()}); err != nil {
+		slog.Default().Warn("queue git milestone update", "milestone_id", milestoneID, "error", err)
 	}
 	c.JSON(http.StatusOK, milestone)
 }
@@ -1795,7 +1868,7 @@ func (s *Server) listLabels(c *gin.Context) {
 		notFound(c)
 		return
 	}
-	var labels []db.Label
+	labels := make([]db.Label, 0)
 	if err := s.Store.DB.NewSelect().Model(&labels).Where("tenant_id = ? AND (project_id IS NULL OR project_id = ?)", s.principal(c).Tenant.ID, projectID).Order("position ASC", "name ASC").Scan(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load labels"))
 		return
@@ -1871,7 +1944,7 @@ func (s *Server) listPublicPages(c *gin.Context) {
 	if !s.authorize(c, "public_page.read", &projectID) {
 		return
 	}
-	var pages []db.PublicPage
+	pages := make([]db.PublicPage, 0)
 	if err := s.Store.DB.NewSelect().Model(&pages).Where("tenant_id = ? AND project_id = ?", s.principal(c).Tenant.ID, projectID).Order("created_at DESC").Scan(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load public pages"))
 		return
@@ -2015,7 +2088,7 @@ func (s *Server) listPublicPageViewers(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var viewers []db.PublicPageViewer
+	viewers := make([]db.PublicPageViewer, 0)
 	if err := s.Store.DB.NewSelect().Model(&viewers).Where("public_page_id = ?", page.ID).Order("created_at ASC").Scan(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load page viewers"))
 		return
@@ -2120,7 +2193,7 @@ func (s *Server) publicPage(c *gin.Context) {
 		notFound(c)
 		return
 	}
-	var statuses []db.ProjectStatus
+	statuses := make([]db.ProjectStatus, 0)
 	if err := s.Store.DB.NewSelect().Model(&statuses).Where("project_id = ?", project.ID).Order("position ASC").Scan(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load public workflow"))
 		return
@@ -2129,7 +2202,7 @@ func (s *Server) publicPage(c *gin.Context) {
 	for _, status := range statuses {
 		statusMap[status.ID] = status
 	}
-	var tasks []db.Task
+	tasks := make([]db.Task, 0)
 	query := s.Store.DB.NewSelect().Model(&tasks).Where("project_id = ? AND visibility = 'customer'", project.ID)
 	if len(page.VisibleTaskIDs) > 0 {
 		query = query.Where("id IN (?)", bun.In(page.VisibleTaskIDs))
@@ -2138,7 +2211,7 @@ func (s *Server) publicPage(c *gin.Context) {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load public tasks"))
 		return
 	}
-	var milestones []db.Milestone
+	milestones := make([]db.Milestone, 0)
 	milestoneQuery := s.Store.DB.NewSelect().Model(&milestones).Where("project_id = ? AND visibility = 'customer'", project.ID)
 	if len(page.VisibleMilestoneIDs) > 0 {
 		milestoneQuery = milestoneQuery.Where("id IN (?)", bun.In(page.VisibleMilestoneIDs))
@@ -2239,7 +2312,7 @@ func (s *Server) listConflicts(c *gin.Context) {
 	if !s.authorize(c, "sync.resolve", projectID) {
 		return
 	}
-	var conflicts []db.SyncConflict
+	conflicts := make([]db.SyncConflict, 0)
 	query := s.Store.DB.NewSelect().Model(&conflicts).Where("tenant_id = ?", s.principal(c).Tenant.ID).Order("created_at DESC")
 	if projectID != nil {
 		query = query.Where(`external_link_id IN (
@@ -2305,7 +2378,7 @@ func (s *Server) resolveConflict(c *gin.Context) {
 		return
 	}
 	_ = s.audit(c, "sync_conflict.resolved", "sync_conflict", conflictID, map[string]any{"resolution": input.Resolution})
-	if err := s.Queue.Enqueue(c.Request.Context(), "github.conflict.resolved", map[string]any{"conflictId": conflictID.String(), "resolution": input.Resolution}); err != nil {
+	if err := s.Queue.Enqueue(c.Request.Context(), "git.conflict.resolved", map[string]any{"conflictId": conflictID.String(), "resolution": input.Resolution}); err != nil {
 		_, _ = s.Store.DB.NewUpdate().Model((*db.SyncConflict)(nil)).Set("status = 'open'").Set("resolution = NULL").Set("resolved_by = NULL").Set("updated_at = now()").Where("id = ? AND tenant_id = ?", conflictID, s.principal(c).Tenant.ID).Exec(c.Request.Context())
 		writeError(c, http.StatusServiceUnavailable, errors.New("could not queue conflict resolution"))
 		return
@@ -2362,7 +2435,7 @@ func (s *Server) listSyncRuns(c *gin.Context) {
 		}
 		query = query.Where("status = ?", status)
 	}
-	var events []db.SyncEvent
+	events := make([]db.SyncEvent, 0)
 	if err := query.Scan(c.Request.Context(), &events); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load sync runs"))
 		return
@@ -2386,7 +2459,7 @@ func (s *Server) listAuditEvents(c *gin.Context) {
 		}
 		limit = parsed
 	}
-	var events []db.AuditEvent
+	events := make([]db.AuditEvent, 0)
 	if err := s.Store.DB.NewSelect().Model(&events).Where("tenant_id = ?", s.principal(c).Tenant.ID).Order("created_at DESC").Limit(limit).Scan(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load audit events"))
 		return
@@ -2398,12 +2471,129 @@ func (s *Server) listGitHubConnections(c *gin.Context) {
 	if !s.authorize(c, "integration.manage", nil) {
 		return
 	}
-	var connections []db.GitHubConnection
-	if err := s.Store.DB.NewSelect().Model(&connections).Where("tenant_id = ? AND active = true", s.principal(c).Tenant.ID).Order("created_at DESC").Scan(c.Request.Context()); err != nil {
+	connections := make([]db.GitHubConnection, 0)
+	if err := s.Store.DB.NewSelect().Model(&connections).Where("tenant_id = ? AND provider = 'github' AND active = true", s.principal(c).Tenant.ID).Order("created_at DESC").Scan(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load github connections"))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"items": connections})
+}
+
+func (s *Server) listGitConnections(c *gin.Context) {
+	if !s.authorize(c, "integration.manage", nil) {
+		return
+	}
+	connections := make([]db.GitConnection, 0)
+	if err := s.Store.DB.NewSelect().Model(&connections).Where("tenant_id = ? AND active = true", s.principal(c).Tenant.ID).Order("created_at DESC").Scan(c.Request.Context()); err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not load git connections"))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": connections, "count": len(connections)})
+}
+
+func (s *Server) deleteGitConnection(c *gin.Context) {
+	if !s.authorize(c, "integration.manage", nil) {
+		return
+	}
+	connectionID, ok := pathUUID(c, "connectionId")
+	if !ok {
+		return
+	}
+	connection, err := s.gitConnection(c, connectionID)
+	if err != nil {
+		notFound(c)
+		return
+	}
+	result, err := s.Store.DB.NewUpdate().Model((*db.GitConnection)(nil)).Set("active = false").Set("updated_at = ?", time.Now().UTC()).Where("id = ? AND tenant_id = ?", connection.ID, s.principal(c).Tenant.ID).Exec(c.Request.Context())
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not deactivate git connection"))
+		return
+	}
+	if count, _ := result.RowsAffected(); count == 0 {
+		notFound(c)
+		return
+	}
+	_, _ = s.Store.DB.NewUpdate().Model((*db.Project)(nil)).Set("connection_id = NULL").Set("updated_at = ?", time.Now().UTC()).Where("tenant_id = ? AND connection_id = ?", s.principal(c).Tenant.ID, connection.ID).Exec(c.Request.Context())
+	_ = s.audit(c, "git_connection.deactivated", "git_connection", connection.ID, map[string]any{"provider": connection.Provider})
+	c.Status(http.StatusNoContent)
+}
+
+type tokenConnectionRequest struct {
+	Name          string `json:"name"`
+	BaseURL       string `json:"baseUrl"`
+	AccessToken   string `json:"accessToken"`
+	WebhookSecret string `json:"webhookSecret"`
+}
+
+func (s *Server) createGitHubTokenConnection(c *gin.Context) {
+	if !s.authorize(c, "integration.manage", nil) {
+		return
+	}
+	var input tokenConnectionRequest
+	if err := c.ShouldBindJSON(&input); err != nil || strings.TrimSpace(input.AccessToken) == "" {
+		badRequest(c, errors.New("github access token is required"))
+		return
+	}
+	remoteUser, err := gh.NewClient(strings.TrimSpace(input.AccessToken)).User(c.Request.Context())
+	if err != nil || remoteUser.ID == 0 {
+		writeError(c, http.StatusBadGateway, errors.New("could not validate github access token"))
+		return
+	}
+	s.saveTokenConnection(c, "github", "https://api.github.com", "pat", remoteUser.ID, remoteUser.Login, input, []string{})
+}
+
+func (s *Server) createGitLabConnection(c *gin.Context) {
+	if !s.authorize(c, "integration.manage", nil) {
+		return
+	}
+	var input tokenConnectionRequest
+	if err := c.ShouldBindJSON(&input); err != nil || strings.TrimSpace(input.AccessToken) == "" {
+		badRequest(c, errors.New("gitlab access token is required"))
+		return
+	}
+	client, err := gitlab.NewClient(input.BaseURL, input.AccessToken)
+	if err != nil {
+		badRequest(c, err)
+		return
+	}
+	remoteUser, err := client.User(c.Request.Context())
+	if err != nil || remoteUser.ID == 0 {
+		writeError(c, http.StatusBadGateway, errors.New("could not validate gitlab access token"))
+		return
+	}
+	s.saveTokenConnection(c, "gitlab", client.BaseURL, "pat", remoteUser.ID, remoteUser.Login, input, []string{})
+}
+
+func (s *Server) saveTokenConnection(c *gin.Context, provider, apiBaseURL, authMethod string, accountID int64, accountLogin string, input tokenConnectionRequest, scopes []string) {
+	encrypted, err := s.Auth.Cipher.Encrypt(strings.TrimSpace(input.AccessToken))
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not secure access token"))
+		return
+	}
+	encryptedWebhookSecret := ""
+	if strings.TrimSpace(input.WebhookSecret) != "" {
+		encryptedWebhookSecret, err = s.Auth.Cipher.Encrypt(strings.TrimSpace(input.WebhookSecret))
+		if err != nil {
+			writeError(c, http.StatusInternalServerError, errors.New("could not secure webhook secret"))
+			return
+		}
+	}
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
+		name = accountLogin
+	}
+	now := time.Now().UTC()
+	connection := db.GitConnection{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, Provider: provider, TenantID: s.principal(c).Tenant.ID, Name: name, APIBaseURL: apiBaseURL, AuthMethod: authMethod, ExternalAccountID: accountID, ExternalAccountLogin: accountLogin, EncryptedAccessToken: encrypted, EncryptedWebhookSecret: encryptedWebhookSecret, Scopes: scopes, Active: true}
+	if _, err = s.Store.DB.NewInsert().Model(&connection).On("CONFLICT (tenant_id, provider, api_base_url, auth_method, external_account_id) DO UPDATE").Set("name = EXCLUDED.name").Set("encrypted_access_token = EXCLUDED.encrypted_access_token").Set("encrypted_webhook_secret = EXCLUDED.encrypted_webhook_secret").Set("scopes = EXCLUDED.scopes").Set("active = true").Set("updated_at = now()").Exec(c.Request.Context()); err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not save git connection"))
+		return
+	}
+	if err = s.Store.DB.NewSelect().Model(&connection).Where("tenant_id = ? AND provider = ? AND api_base_url = ? AND auth_method = ? AND external_account_id = ?", s.principal(c).Tenant.ID, provider, apiBaseURL, authMethod, accountID).Scan(c.Request.Context()); err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not load saved git connection"))
+		return
+	}
+	_ = s.audit(c, "git_connection.created", "git_connection", connection.ID, map[string]any{"provider": provider, "account": accountLogin})
+	c.JSON(http.StatusCreated, connection)
 }
 
 func (s *Server) githubOAuthStart(c *gin.Context) {
@@ -2454,12 +2644,12 @@ func (s *Server) githubOAuthCallback(c *gin.Context) {
 		return
 	}
 	now := time.Now().UTC()
-	connection := db.GitHubConnection{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: s.principal(c).Tenant.ID, AuthMethod: "oauth", ExternalAccountID: remoteUser.ID, ExternalAccountLogin: remoteUser.Login, EncryptedAccessToken: encrypted, Scopes: strings.Fields(token.Scope), Active: true}
+	connection := db.GitConnection{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, Provider: "github", TenantID: s.principal(c).Tenant.ID, Name: remoteUser.Login, APIBaseURL: "https://api.github.com", AuthMethod: "oauth", ExternalAccountID: remoteUser.ID, ExternalAccountLogin: remoteUser.Login, EncryptedAccessToken: encrypted, Scopes: strings.Fields(token.Scope), Active: true}
 	if token.ExpiresIn > 0 {
 		expires := now.Add(time.Duration(token.ExpiresIn) * time.Second)
 		connection.TokenExpiresAt = &expires
 	}
-	if _, err = s.Store.DB.NewInsert().Model(&connection).On("CONFLICT (tenant_id, auth_method, external_account_id) DO UPDATE").Set("encrypted_access_token = EXCLUDED.encrypted_access_token").Set("encrypted_refresh_token = EXCLUDED.encrypted_refresh_token").Set("token_expires_at = EXCLUDED.token_expires_at").Set("scopes = EXCLUDED.scopes").Set("active = true").Set("updated_at = now()").Exec(c.Request.Context()); err != nil {
+	if _, err = s.Store.DB.NewInsert().Model(&connection).On("CONFLICT (tenant_id, provider, api_base_url, auth_method, external_account_id) DO UPDATE").Set("name = EXCLUDED.name").Set("encrypted_access_token = EXCLUDED.encrypted_access_token").Set("encrypted_refresh_token = EXCLUDED.encrypted_refresh_token").Set("token_expires_at = EXCLUDED.token_expires_at").Set("scopes = EXCLUDED.scopes").Set("active = true").Set("updated_at = now()").Exec(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not save github connection"))
 		return
 	}
@@ -2500,8 +2690,8 @@ func (s *Server) githubAppCallback(c *gin.Context) {
 		return
 	}
 	now := time.Now().UTC()
-	connection := db.GitHubConnection{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: s.principal(c).Tenant.ID, AuthMethod: "app", ExternalAccountID: installationID, InstallationID: &installationID, Scopes: []string{"issues:read", "issues:write", "metadata:read"}, Active: true}
-	if _, err = s.Store.DB.NewInsert().Model(&connection).On("CONFLICT (tenant_id, auth_method, external_account_id) DO UPDATE").Set("installation_id = EXCLUDED.installation_id").Set("scopes = EXCLUDED.scopes").Set("active = true").Set("updated_at = now()").Exec(c.Request.Context()); err != nil {
+	connection := db.GitConnection{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, Provider: "github", TenantID: s.principal(c).Tenant.ID, Name: "GitHub App installation " + strconv.FormatInt(installationID, 10), APIBaseURL: "https://api.github.com", AuthMethod: "app", ExternalAccountID: installationID, InstallationID: &installationID, Scopes: []string{"issues:read", "issues:write", "metadata:read"}, Active: true}
+	if _, err = s.Store.DB.NewInsert().Model(&connection).On("CONFLICT (tenant_id, provider, api_base_url, auth_method, external_account_id) DO UPDATE").Set("name = EXCLUDED.name").Set("installation_id = EXCLUDED.installation_id").Set("scopes = EXCLUDED.scopes").Set("active = true").Set("updated_at = now()").Exec(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not save github app installation"))
 		return
 	}
@@ -2534,12 +2724,16 @@ func (s *Server) listProjectRepositories(c *gin.Context) {
 	result := make([]projectRepositoryResponse, 0, len(links))
 	for _, link := range links {
 		var repository db.GitHubRepository
-		if err := s.Store.DB.NewSelect().Model(&repository).Join("JOIN github_connections AS c ON c.id = gr.connection_id").Where("gr.id = ? AND c.tenant_id = ? AND c.active = true", link.RepositoryID, s.principal(c).Tenant.ID).Scan(c.Request.Context()); err != nil {
+		if err := s.Store.DB.NewSelect().Model(&repository).Join("JOIN git_connections AS c ON c.id = gr.connection_id").Where("gr.id = ? AND c.tenant_id = ? AND c.active = true", link.RepositoryID, s.principal(c).Tenant.ID).Scan(c.Request.Context()); err != nil {
 			continue
 		}
 		result = append(result, projectRepositoryResponse{Link: link, Repository: repository})
 	}
 	c.JSON(http.StatusOK, gin.H{"items": result, "count": len(result)})
+}
+
+func (s *Server) listGitRepositories(c *gin.Context) {
+	s.listGitRepositoriesFor(c, "")
 }
 
 func (s *Server) attachProjectRepository(c *gin.Context) {
@@ -2550,7 +2744,8 @@ func (s *Server) attachProjectRepository(c *gin.Context) {
 	if !s.authorize(c, "integration.manage", &projectID) {
 		return
 	}
-	if _, err := s.project(c, projectID); err != nil {
+	project, err := s.project(c, projectID)
+	if err != nil {
 		notFound(c)
 		return
 	}
@@ -2567,8 +2762,12 @@ func (s *Server) attachProjectRepository(c *gin.Context) {
 		return
 	}
 	var repository db.GitHubRepository
-	if err = s.Store.DB.NewSelect().Model(&repository).Join("JOIN github_connections AS c ON c.id = gr.connection_id").Where("gr.id = ? AND c.tenant_id = ? AND c.active = true", repositoryID, s.principal(c).Tenant.ID).Scan(c.Request.Context()); err != nil {
+	if err = s.Store.DB.NewSelect().Model(&repository).Join("JOIN git_connections AS c ON c.id = gr.connection_id").Where("gr.id = ? AND c.tenant_id = ? AND c.active = true", repositoryID, s.principal(c).Tenant.ID).Scan(c.Request.Context()); err != nil {
 		notFound(c)
+		return
+	}
+	if project.ConnectionID != nil && *project.ConnectionID != repository.ConnectionID {
+		badRequest(c, errors.New("repository belongs to a different project connection"))
 		return
 	}
 	link := db.ProjectRepository{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}, ProjectID: projectID, RepositoryID: repositoryID}
@@ -2579,6 +2778,9 @@ func (s *Server) attachProjectRepository(c *gin.Context) {
 	if err = s.Store.DB.NewSelect().Model(&link).Where("project_id = ? AND repository_id = ?", projectID, repositoryID).Scan(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load attached repository"))
 		return
+	}
+	if project.ConnectionID == nil {
+		_, _ = s.Store.DB.NewUpdate().Model((*db.Project)(nil)).Set("connection_id = ?", repository.ConnectionID).Set("updated_at = ?", time.Now().UTC()).Where("id = ? AND tenant_id = ? AND connection_id IS NULL", projectID, s.principal(c).Tenant.ID).Exec(c.Request.Context())
 	}
 	c.JSON(http.StatusCreated, projectRepositoryResponse{Link: link, Repository: repository})
 }
@@ -2612,6 +2814,10 @@ func (s *Server) detachProjectRepository(c *gin.Context) {
 }
 
 func (s *Server) importGitHubProject(c *gin.Context) {
+	s.importGitProject(c)
+}
+
+func (s *Server) importGitProject(c *gin.Context) {
 	projectID, ok := pathUUID(c, "projectId")
 	if !ok {
 		return
@@ -2626,9 +2832,9 @@ func (s *Server) importGitHubProject(c *gin.Context) {
 	var input struct {
 		RepositoryID string `json:"repositoryId"`
 	}
-	if c.Request.ContentLength != 0 {
+	if c.Request.ContentLength > 0 {
 		if err := c.ShouldBindJSON(&input); err != nil {
-			badRequest(c, errors.New("invalid github import payload"))
+			badRequest(c, errors.New("invalid git import payload"))
 			return
 		}
 	}
@@ -2640,7 +2846,7 @@ func (s *Server) importGitHubProject(c *gin.Context) {
 			return
 		}
 		if err = s.Store.DB.NewSelect().Model(&repository).
-			Join("JOIN github_connections AS c ON c.id = gr.connection_id").
+			Join("JOIN git_connections AS c ON c.id = gr.connection_id").
 			Where("gr.id = ? AND c.tenant_id = ? AND c.active = true", repositoryID, s.principal(c).Tenant.ID).Scan(c.Request.Context()); err != nil {
 			notFound(c)
 			return
@@ -2657,7 +2863,7 @@ func (s *Server) importGitHubProject(c *gin.Context) {
 	} else {
 		if err := s.Store.DB.NewSelect().Model(&repository).
 			Join("JOIN project_repositories AS pr ON pr.repository_id = gr.id").
-			Join("JOIN github_connections AS c ON c.id = gr.connection_id").
+			Join("JOIN git_connections AS c ON c.id = gr.connection_id").
 			Where("pr.project_id = ? AND c.tenant_id = ? AND c.active = true", projectID, s.principal(c).Tenant.ID).
 			Order("pr.created_at ASC").Limit(1).Scan(c.Request.Context()); err != nil {
 			notFound(c)
@@ -2665,14 +2871,24 @@ func (s *Server) importGitHubProject(c *gin.Context) {
 		}
 	}
 	now := time.Now().UTC()
-	event := &db.SyncEvent{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: uuidPtr(s.principal(c).Tenant.ID), ConnectionID: uuidPtr(repository.ConnectionID), DeliveryID: "import-" + uuid.NewString(), EventName: "import", Action: "manual", Payload: map[string]any{"projectId": projectID.String(), "repositoryId": repository.ID.String()}, Status: "queued"}
-	if _, err := s.Store.DB.NewInsert().Model(event).Exec(c.Request.Context()); err != nil {
-		writeError(c, http.StatusInternalServerError, errors.New("could not create github sync run"))
+	var connection db.GitConnection
+	if err := s.Store.DB.NewSelect().Model(&connection).Where("id = ? AND tenant_id = ? AND active = true", repository.ConnectionID, s.principal(c).Tenant.ID).Scan(c.Request.Context()); err != nil {
+		notFound(c)
 		return
 	}
-	if err := s.Queue.Enqueue(c.Request.Context(), "github.import", map[string]any{"tenantId": s.principal(c).Tenant.ID.String(), "projectId": projectID.String(), "repositoryId": repository.ID.String(), "syncEventId": event.ID.String()}); err != nil {
+	provider := connection.Provider
+	if provider == "" {
+		provider = "github"
+	}
+	event := &db.SyncEvent{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: uuidPtr(s.principal(c).Tenant.ID), ConnectionID: uuidPtr(repository.ConnectionID), DeliveryID: "import-" + uuid.NewString(), EventName: "import", Action: "manual", Payload: map[string]any{"projectId": projectID.String(), "repositoryId": repository.ID.String()}, Status: "queued"}
+	event.Provider = provider
+	if _, err := s.Store.DB.NewInsert().Model(event).Exec(c.Request.Context()); err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not create git sync run"))
+		return
+	}
+	if err := s.Queue.Enqueue(c.Request.Context(), "git.import", map[string]any{"tenantId": s.principal(c).Tenant.ID.String(), "projectId": projectID.String(), "repositoryId": repository.ID.String(), "syncEventId": event.ID.String()}); err != nil {
 		_ = s.setSyncRunFailed(c, event.ID, err.Error())
-		writeError(c, http.StatusInternalServerError, errors.New("could not queue github import"))
+		writeError(c, http.StatusInternalServerError, errors.New("could not queue git import"))
 		return
 	}
 	c.JSON(http.StatusAccepted, gin.H{"runId": event.ID, "status": event.Status})
@@ -2688,34 +2904,46 @@ func (s *Server) setSyncRunFailed(c *gin.Context, eventID uuid.UUID, message str
 }
 
 func (s *Server) listGitHubRepositories(c *gin.Context) {
+	s.listGitRepositoriesFor(c, "github")
+}
+
+func (s *Server) listGitRepositoriesFor(c *gin.Context, provider string) {
 	if !s.authorize(c, "integration.manage", nil) {
 		return
 	}
-	var connections []db.GitHubConnection
-	if err := s.Store.DB.NewSelect().Model(&connections).Where("tenant_id = ? AND active = true", s.principal(c).Tenant.ID).Order("created_at ASC").Scan(c.Request.Context()); err != nil {
-		writeError(c, http.StatusInternalServerError, errors.New("could not load github connections"))
+	var connectionID *uuid.UUID
+	if raw := strings.TrimSpace(c.Query("connectionId")); raw != "" {
+		parsed, err := uuid.Parse(raw)
+		if err != nil {
+			badRequest(c, errors.New("invalid connection id"))
+			return
+		}
+		connectionID = &parsed
+	}
+	connections := make([]db.GitConnection, 0)
+	query := s.Store.DB.NewSelect().Model(&connections).Where("tenant_id = ? AND active = true", s.principal(c).Tenant.ID).Order("created_at ASC")
+	if provider != "" {
+		query = query.Where("provider = ?", provider)
+	}
+	if connectionID != nil {
+		query = query.Where("id = ?", *connectionID)
+	}
+	if err := query.Scan(c.Request.Context()); err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not load git connections"))
 		return
 	}
-	result := make([]db.GitHubRepository, 0)
+	result := make([]db.GitRepository, 0)
 	for _, connection := range connections {
-		client, clientErr := s.githubClient(c.Request.Context(), connection)
+		client, clientErr := s.gitClient(c.Request.Context(), connection)
 		if clientErr != nil {
 			continue
 		}
-		var repositories []gh.Repository
-		var listErr error
-		if connection.AuthMethod == "app" {
-			repositories, listErr = client.ListInstallationRepositories(c.Request.Context())
-		} else {
-			repositories, listErr = client.ListRepositories(c.Request.Context())
-		}
+		remotes, listErr := client.ListRepositories(c.Request.Context())
 		if listErr != nil {
 			continue
 		}
-		for _, remote := range repositories {
-			var repository db.GitHubRepository
-			now := time.Now().UTC()
-			repository = db.GitHubRepository{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, ConnectionID: connection.ID, ExternalID: remote.ID, Owner: remote.Owner, Name: remote.Name, FullName: remote.FullName, Private: remote.Private}
+		for _, remote := range remotes {
+			repository := db.GitRepository{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}, ConnectionID: connection.ID, ExternalID: remote.ID, Owner: remote.Owner, Name: remote.Name, FullName: remote.FullName, Private: remote.Private}
 			if _, err := s.Store.DB.NewInsert().Model(&repository).
 				On("CONFLICT (connection_id, external_id) DO UPDATE").
 				Set("owner = EXCLUDED.owner").Set("name = EXCLUDED.name").Set("full_name = EXCLUDED.full_name").Set("private = EXCLUDED.private").Set("updated_at = now()").Exec(c.Request.Context()); err != nil {
@@ -2727,27 +2955,34 @@ func (s *Server) listGitHubRepositories(c *gin.Context) {
 			result = append(result, repository)
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"items": result})
+	c.JSON(http.StatusOK, gin.H{"items": result, "count": len(result)})
 }
 
-func (s *Server) githubClient(ctx context.Context, connection db.GitHubConnection) (*gh.Client, error) {
-	switch connection.AuthMethod {
-	case "oauth":
-		if connection.EncryptedAccessToken == "" {
-			return nil, errors.New("github oauth token is missing")
-		}
-		token, err := s.Auth.Cipher.Decrypt(connection.EncryptedAccessToken)
-		if err != nil {
-			return nil, err
-		}
-		return gh.NewClient(token), nil
-	case "app":
+func (s *Server) gitClient(ctx context.Context, connection db.GitConnection) (integrations.Provider, error) {
+	provider := connection.Provider
+	if provider == "" {
+		provider = "github"
+	}
+	if connection.AuthMethod == "app" && provider == "github" {
 		if connection.InstallationID == nil {
 			return nil, errors.New("github installation id is missing")
 		}
 		return gh.NewInstallationClient(ctx, s.Config.GitHubAppID, s.Config.GitHubAppPrivateKey, *connection.InstallationID)
+	}
+	if connection.EncryptedAccessToken == "" {
+		return nil, fmt.Errorf("%s connection token is missing", provider)
+	}
+	token, err := s.Auth.Cipher.Decrypt(connection.EncryptedAccessToken)
+	if err != nil {
+		return nil, err
+	}
+	switch provider {
+	case "github":
+		return gh.NewClient(token), nil
+	case "gitlab":
+		return gitlab.NewClient(connection.APIBaseURL, token)
 	default:
-		return nil, errors.New("unsupported github auth method")
+		return nil, fmt.Errorf("unsupported git provider %q", provider)
 	}
 }
 
@@ -2755,8 +2990,8 @@ func (s *Server) listGitHubUserMappings(c *gin.Context) {
 	if !s.authorize(c, "integration.manage", nil) {
 		return
 	}
-	var mappings []db.GitHubUserMapping
-	if err := s.Store.DB.NewSelect().Model(&mappings).Where("tenant_id = ?", s.principal(c).Tenant.ID).Order("github_login ASC").Scan(c.Request.Context()); err != nil {
+	mappings := make([]db.GitHubUserMapping, 0)
+	if err := s.Store.DB.NewSelect().Model(&mappings).Where("tenant_id = ? AND provider = 'github'", s.principal(c).Tenant.ID).Order("remote_login ASC").Scan(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load github user mappings"))
 		return
 	}
@@ -2797,18 +3032,18 @@ func (s *Server) createGitHubUserMapping(c *gin.Context) {
 		return
 	}
 	now := time.Now().UTC()
-	mapping := db.GitHubUserMapping{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: s.principal(c).Tenant.ID, GitHubLogin: login, UserID: userID}
+	mapping := db.GitUserMapping{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: s.principal(c).Tenant.ID, Provider: "github", RemoteLogin: login, UserID: userID}
 	if _, err = s.Store.DB.NewInsert().Model(&mapping).
-		On("CONFLICT (tenant_id, github_login) DO UPDATE").
+		On("CONFLICT (tenant_id, provider, remote_login) DO UPDATE").
 		Set("user_id = EXCLUDED.user_id").Set("updated_at = now()").Exec(c.Request.Context()); err != nil {
 		conflict(c, "github login is already mapped")
 		return
 	}
-	if err = s.Store.DB.NewSelect().Model(&mapping).Where("tenant_id = ? AND github_login = ?", s.principal(c).Tenant.ID, login).Scan(c.Request.Context()); err != nil {
+	if err = s.Store.DB.NewSelect().Model(&mapping).Where("tenant_id = ? AND provider = 'github' AND remote_login = ?", s.principal(c).Tenant.ID, login).Scan(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load saved github mapping"))
 		return
 	}
-	_ = s.audit(c, "github_user_mapping.created", "github_user_mapping", mapping.ID, map[string]any{"githubLogin": login, "userId": userID})
+	_ = s.audit(c, "git_user_mapping.created", "git_user_mapping", mapping.ID, map[string]any{"provider": "github", "remoteLogin": login, "userId": userID})
 	c.JSON(http.StatusCreated, mapping)
 }
 
@@ -2820,7 +3055,7 @@ func (s *Server) deleteGitHubUserMapping(c *gin.Context) {
 	if !ok {
 		return
 	}
-	result, err := s.Store.DB.NewDelete().Model((*db.GitHubUserMapping)(nil)).Where("id = ? AND tenant_id = ?", mappingID, s.principal(c).Tenant.ID).Exec(c.Request.Context())
+	result, err := s.Store.DB.NewDelete().Model((*db.GitUserMapping)(nil)).Where("id = ? AND tenant_id = ?", mappingID, s.principal(c).Tenant.ID).Exec(c.Request.Context())
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not delete github user mapping"))
 		return
@@ -2843,8 +3078,9 @@ func (s *Server) githubWebhook(c *gin.Context) {
 		writeError(c, http.StatusRequestEntityTooLarge, errors.New("webhook payload is too large"))
 		return
 	}
-	if s.Config.GitHubWebhookSecret == "" {
-		writeError(c, http.StatusServiceUnavailable, errors.New("github webhook secret is not configured"))
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		badRequest(c, errors.New("invalid webhook json"))
 		return
 	}
 	signatureHeader := c.GetHeader("X-Hub-Signature-256")
@@ -2857,15 +3093,9 @@ func (s *Server) githubWebhook(c *gin.Context) {
 		writeError(c, http.StatusUnauthorized, errors.New("invalid webhook signature"))
 		return
 	}
-	mac := hmac.New(sha256.New, []byte(s.Config.GitHubWebhookSecret))
-	_, _ = mac.Write(body)
-	if !hmac.Equal(mac.Sum(nil), signature) {
+	connection, connectionErr := s.githubWebhookConnection(c, payload, body, signature)
+	if connectionErr != nil {
 		writeError(c, http.StatusUnauthorized, errors.New("invalid webhook signature"))
-		return
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
-		badRequest(c, errors.New("invalid webhook json"))
 		return
 	}
 	deliveryID := c.GetHeader("X-GitHub-Delivery")
@@ -2874,7 +3104,11 @@ func (s *Server) githubWebhook(c *gin.Context) {
 		badRequest(c, errors.New("webhook delivery id is required"))
 		return
 	}
-	event := &db.SyncEvent{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}, DeliveryID: deliveryID, EventName: eventName, Payload: payload, Status: "queued"}
+	event := &db.SyncEvent{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}, Provider: "github", DeliveryID: deliveryID, EventName: eventName, Payload: payload, Status: "queued"}
+	if connection != nil {
+		event.TenantID = uuidPtr(connection.TenantID)
+		event.ConnectionID = uuidPtr(connection.ID)
+	}
 	if action, ok := payload["action"].(string); ok {
 		event.Action = action
 	}
@@ -2896,7 +3130,7 @@ func (s *Server) githubWebhook(c *gin.Context) {
 			return
 		}
 	}
-	if err = s.Queue.Enqueue(c.Request.Context(), "github.webhook", map[string]any{"deliveryId": deliveryID, "event": eventName}); err != nil {
+	if err = s.Queue.Enqueue(c.Request.Context(), "git.webhook", map[string]any{"deliveryId": deliveryID, "event": eventName, "provider": "github"}); err != nil {
 		failedEventID := event.ID
 		if duplicate {
 			var existing db.SyncEvent
@@ -2909,4 +3143,230 @@ func (s *Server) githubWebhook(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusAccepted, gin.H{"accepted": true, "duplicate": duplicate})
+}
+
+// githubWebhookConnection validates a delivery against a secret saved on the
+// matching tenant connection. The global secret remains a compatibility
+// fallback for a GitHub App installation that was registered before per-tenant
+// connections existed; ordinary OAuth/PAT connections do not depend on it.
+func (s *Server) githubWebhookConnection(c *gin.Context, payload map[string]any, body, signature []byte) (*db.GitConnection, error) {
+	repositoryID, _ := gitHubPayloadRepositoryID(payload)
+	installationID, _ := strconv.ParseInt(strings.TrimSpace(c.GetHeader("X-GitHub-Hook-Installation-Target-ID")), 10, 64)
+
+	connections := make([]db.GitConnection, 0)
+	query := s.Store.DB.NewSelect().Model(&connections).Where("gc.provider = 'github' AND gc.active = true")
+	if repositoryID > 0 {
+		query = query.Join("JOIN git_repositories AS gr ON gr.connection_id = gc.id").Where("gr.external_id = ?", repositoryID)
+	}
+	if installationID > 0 {
+		if repositoryID > 0 {
+			query = query.Where("(gc.installation_id = ? OR gc.external_account_id = ?)", installationID, installationID)
+		} else {
+			query = query.Where("gc.installation_id = ? OR gc.external_account_id = ?", installationID, installationID)
+		}
+	}
+	if err := query.Order("gc.created_at ASC").Scan(c.Request.Context()); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	for index := range connections {
+		connection := &connections[index]
+		if connection.EncryptedWebhookSecret == "" {
+			continue
+		}
+		secret, err := s.Auth.Cipher.Decrypt(connection.EncryptedWebhookSecret)
+		if err != nil {
+			continue
+		}
+		if validWebhookSignature(body, signature, secret) {
+			return connection, nil
+		}
+	}
+	if strings.TrimSpace(s.Config.GitHubWebhookSecret) != "" && validWebhookSignature(body, signature, s.Config.GitHubWebhookSecret) {
+		return nil, nil
+	}
+	return nil, errors.New("github webhook signature did not match a connection")
+}
+
+func validWebhookSignature(body, signature []byte, secret string) bool {
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write(body)
+	return hmac.Equal(mac.Sum(nil), signature)
+}
+
+func gitHubPayloadRepositoryID(payload map[string]any) (int64, bool) {
+	repository, ok := payload["repository"].(map[string]any)
+	if !ok {
+		return 0, false
+	}
+	return jsonInt64(repository["id"])
+}
+
+func (s *Server) gitlabWebhook(c *gin.Context) {
+	const maxWebhookBody = 2 << 20
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxWebhookBody+1))
+	if err != nil {
+		writeError(c, http.StatusBadRequest, errors.New("could not read webhook"))
+		return
+	}
+	if len(body) > maxWebhookBody {
+		writeError(c, http.StatusRequestEntityTooLarge, errors.New("webhook payload is too large"))
+		return
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		badRequest(c, errors.New("invalid gitlab webhook json"))
+		return
+	}
+	projectID, ok := gitLabPayloadProjectID(payload)
+	if !ok {
+		badRequest(c, errors.New("gitlab webhook project id is required"))
+		return
+	}
+	connection, repository, err := s.gitLabWebhookConnection(c, projectID, c.GetHeader("X-Gitlab-Token"), payload)
+	if err != nil {
+		writeError(c, http.StatusUnauthorized, errors.New("invalid gitlab webhook token"))
+		return
+	}
+	rawDeliveryID := strings.TrimSpace(c.GetHeader("X-Gitlab-Event-UUID"))
+	if rawDeliveryID == "" {
+		rawDeliveryID = strings.TrimSpace(c.GetHeader("X-Gitlab-Delivery"))
+	}
+	if rawDeliveryID == "" {
+		badRequest(c, errors.New("gitlab webhook delivery id is required"))
+		return
+	}
+	deliveryID := "gitlab:" + rawDeliveryID
+	eventName := strings.ToLower(strings.TrimSpace(c.GetHeader("X-Gitlab-Event")))
+	if eventName == "" {
+		if objectKind, ok := payload["object_kind"].(string); ok {
+			eventName = strings.ToLower(objectKind)
+		}
+	}
+	if eventName == "" {
+		badRequest(c, errors.New("gitlab webhook event is required"))
+		return
+	}
+	event := &db.SyncEvent{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}, TenantID: uuidPtr(connection.TenantID), ConnectionID: uuidPtr(connection.ID), Provider: "gitlab", DeliveryID: deliveryID, EventName: eventName, Payload: payload, Status: "queued"}
+	if attributes, ok := payload["object_attributes"].(map[string]any); ok {
+		if action, ok := attributes["action"].(string); ok {
+			event.Action = action
+		}
+	}
+	result, err := s.Store.DB.NewInsert().Model(event).On("CONFLICT (delivery_id) DO NOTHING").Exec(c.Request.Context())
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not persist gitlab webhook"))
+		return
+	}
+	count, _ := result.RowsAffected()
+	duplicate := count == 0
+	if duplicate {
+		var existing db.SyncEvent
+		if err = s.Store.DB.NewSelect().Model(&existing).Where("delivery_id = ?", deliveryID).Scan(c.Request.Context()); err != nil {
+			writeError(c, http.StatusInternalServerError, errors.New("could not load existing gitlab webhook"))
+			return
+		}
+		if existing.Status == "succeeded" {
+			c.JSON(http.StatusAccepted, gin.H{"accepted": true, "duplicate": true})
+			return
+		}
+	}
+	if err = s.Queue.Enqueue(c.Request.Context(), "git.webhook", map[string]any{"deliveryId": deliveryID, "event": eventName, "provider": "gitlab", "connectionId": connection.ID.String(), "repositoryId": repository.ID.String()}); err != nil {
+		failedEventID := event.ID
+		if duplicate {
+			var existing db.SyncEvent
+			if lookupErr := s.Store.DB.NewSelect().Model(&existing).Where("delivery_id = ?", deliveryID).Scan(c.Request.Context()); lookupErr == nil {
+				failedEventID = existing.ID
+			}
+		}
+		_, _ = s.Store.DB.NewUpdate().Model((*db.SyncEvent)(nil)).Set("status = 'failed'").Set("error_message = ?", err.Error()).Set("updated_at = ?", time.Now().UTC()).Where("id = ?", failedEventID).Exec(c.Request.Context())
+		writeError(c, http.StatusServiceUnavailable, errors.New("could not queue gitlab webhook"))
+		return
+	}
+	c.JSON(http.StatusAccepted, gin.H{"accepted": true, "duplicate": duplicate})
+}
+
+func (s *Server) gitLabWebhookConnection(c *gin.Context, projectID int64, presentedToken string, payload map[string]any) (db.GitConnection, db.GitRepository, error) {
+	if strings.TrimSpace(presentedToken) == "" {
+		return db.GitConnection{}, db.GitRepository{}, errors.New("gitlab webhook token is missing")
+	}
+	connections := make([]db.GitConnection, 0)
+	if err := s.Store.DB.NewSelect().Model(&connections).Where("provider = 'gitlab' AND active = true").Order("created_at ASC").Scan(c.Request.Context()); err != nil {
+		return db.GitConnection{}, db.GitRepository{}, err
+	}
+	for _, connection := range connections {
+		if connection.EncryptedWebhookSecret == "" {
+			continue
+		}
+		secret, err := s.Auth.Cipher.Decrypt(connection.EncryptedWebhookSecret)
+		if err != nil || subtle.ConstantTimeCompare([]byte(secret), []byte(presentedToken)) != 1 {
+			continue
+		}
+		var repository db.GitRepository
+		if err = s.Store.DB.NewSelect().Model(&repository).Where("connection_id = ? AND external_id = ?", connection.ID, projectID).Scan(c.Request.Context()); err == nil {
+			return connection, repository, nil
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return db.GitConnection{}, db.GitRepository{}, err
+		}
+		repository = gitLabRepositoryFromPayload(connection.ID, projectID, payload)
+		if repository.FullName == "" {
+			return db.GitConnection{}, db.GitRepository{}, errors.New("gitlab webhook repository is missing")
+		}
+		if _, err = s.Store.DB.NewInsert().Model(&repository).On("CONFLICT (connection_id, external_id) DO UPDATE").Set("owner = EXCLUDED.owner").Set("name = EXCLUDED.name").Set("full_name = EXCLUDED.full_name").Set("private = EXCLUDED.private").Set("updated_at = now()").Exec(c.Request.Context()); err != nil {
+			return db.GitConnection{}, db.GitRepository{}, err
+		}
+		if err = s.Store.DB.NewSelect().Model(&repository).Where("connection_id = ? AND external_id = ?", connection.ID, projectID).Scan(c.Request.Context()); err != nil {
+			return db.GitConnection{}, db.GitRepository{}, err
+		}
+		return connection, repository, nil
+	}
+	return db.GitConnection{}, db.GitRepository{}, errors.New("gitlab webhook token did not match a connection")
+}
+
+func gitLabPayloadProjectID(payload map[string]any) (int64, bool) {
+	project, ok := payload["project"].(map[string]any)
+	if !ok {
+		return 0, false
+	}
+	return jsonInt64(project["id"])
+}
+
+func jsonInt64(value any) (int64, bool) {
+	switch parsed := value.(type) {
+	case float64:
+		return int64(parsed), parsed > 0
+	case json.Number:
+		value, err := parsed.Int64()
+		return value, err == nil && value > 0
+	case int64:
+		return parsed, parsed > 0
+	case int:
+		return int64(parsed), parsed > 0
+	case string:
+		value, err := strconv.ParseInt(parsed, 10, 64)
+		return value, err == nil && value > 0
+	default:
+		return 0, false
+	}
+}
+
+func gitLabRepositoryFromPayload(connectionID uuid.UUID, projectID int64, payload map[string]any) db.GitRepository {
+	project, _ := payload["project"].(map[string]any)
+	name, _ := project["name"].(string)
+	fullName, _ := project["path_with_namespace"].(string)
+	namespace, _ := project["namespace"].(map[string]any)
+	owner, _ := namespace["full_path"].(string)
+	if owner == "" && fullName != "" {
+		if index := strings.LastIndex(fullName, "/"); index > 0 {
+			owner = fullName[:index]
+		}
+	}
+	if fullName == "" && owner != "" && name != "" {
+		fullName = owner + "/" + name
+	}
+	private := false
+	if visibility, ok := project["visibility"].(string); ok {
+		private = visibility == "private"
+	}
+	now := time.Now().UTC()
+	return db.GitRepository{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, ConnectionID: connectionID, ExternalID: projectID, Owner: owner, Name: name, FullName: fullName, Private: private}
 }

@@ -30,10 +30,10 @@ cd services/backend && go run ./cmd/worker
 cd services/frontend && pnpm install && pnpm dev
 ```
 
-The frontend renders a complete seeded preview when `NEXT_PUBLIC_API_URL` is
-unset. Set it to `http://localhost:8080` to use the API, then create an account
-at `POST /api/v1/auth/register` or through the app’s account flow. Backend
-migrations run automatically on API and worker startup.
+Set `NEXT_PUBLIC_API_URL` to `http://localhost:8080` before starting the
+frontend. The app redirects unauthenticated visitors to `/login`; create an
+account through the app or `POST /api/v1/auth/register`. Backend migrations run
+automatically on API and worker startup.
 
 ## Contract generation
 
@@ -53,12 +53,15 @@ backend toolchain before running the Go generation step.
 ## Security boundaries
 
 Sessions are random opaque tokens stored as hashes and delivered in an
-`HttpOnly` cookie. Passwords use Argon2id. GitHub access tokens are encrypted
-at rest, webhook signatures are verified before persistence, delivery IDs are
-deduplicated, public links store only hashes, and customer pages expose only
-customer-visible records. Production deployments should provide a stable
-`APP_ENCRYPTION_KEY`, HTTPS, restrictive `ALLOWED_ORIGINS`, and a real GitHub
-webhook secret.
+`HttpOnly` cookie. Passwords use Argon2id. Git credentials and webhook secrets
+are encrypted at rest, webhook signatures/tokens are verified before
+persistence, delivery IDs are deduplicated, public links store only hashes,
+and customer pages expose only customer-visible records. Production
+deployments should provide a stable `APP_ENCRYPTION_KEY`, discrete
+`DATABASE_*` settings, HTTPS, restrictive `ALLOWED_ORIGINS`, and provider
+connection webhook secrets. GitHub App/OAuth client registration values remain
+backend application settings; individual GitHub/GitLab accounts are added in
+the workspace and stored as encrypted tenant connections.
 
 ## Verification
 

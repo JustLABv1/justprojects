@@ -22,6 +22,29 @@ export interface Membership {
   role: "owner" | "admin" | "member" | "viewer" | string
 }
 
+export interface TenantMember {
+  membership: Membership & { tenantId: string; userId: string }
+  user: User
+}
+
+export interface Invitation {
+  id: string
+  tenantId: string
+  email: string
+  role: "admin" | "member" | "viewer" | string
+  expiresAt: string
+  acceptedAt?: string | null
+}
+
+export interface PermissionGrant {
+  id: string
+  tenantId: string
+  userId: string
+  projectId?: string | null
+  permission: string
+  effect: "allow" | "deny" | string
+}
+
 export interface Session {
   user: User
   tenant: Tenant
@@ -35,6 +58,7 @@ export interface Project {
   description?: string
   startDate?: string | null
   targetDate?: string | null
+  connectionId?: string | null
   status: string
   version: number
 }
@@ -92,6 +116,7 @@ export interface Milestone {
 
 export interface SyncEvent {
   id: string
+  provider?: "github" | "gitlab" | string
   eventName: string
   action?: string
   status: "queued" | "processing" | "succeeded" | "failed" | string
@@ -99,15 +124,22 @@ export interface SyncEvent {
   errorMessage?: string
 }
 
-export interface GitHubConnection {
+export type GitProvider = "github" | "gitlab"
+
+export interface GitConnection {
   id: string
-  authMethod: "app" | "oauth" | string
+  provider: GitProvider | string
+  name?: string
+  apiBaseUrl?: string
+  authMethod: "app" | "oauth" | "pat" | string
+  externalAccountId?: number
   externalAccountLogin?: string
+  installationId?: number | null
   scopes: string[]
   active: boolean
 }
 
-export interface GitHubRepository {
+export interface GitRepository {
   id: string
   connectionId: string
   externalId: number
@@ -117,13 +149,16 @@ export interface GitHubRepository {
   private: boolean
 }
 
+export type GitHubConnection = GitConnection
+export type GitHubRepository = GitRepository
+
 export interface ProjectRepository {
   link: {
     id: string
     projectId: string
     repositoryId: string
   }
-  repository: GitHubRepository
+  repository: GitRepository
 }
 
 export interface PublicPageSummary {
@@ -144,7 +179,7 @@ export interface WorkspaceData {
   labels: Label[]
   session?: Session
   syncEvents: SyncEvent[]
-  githubConnections: GitHubConnection[]
+  gitConnections: GitConnection[]
 }
 
 export interface PublicProjectData {

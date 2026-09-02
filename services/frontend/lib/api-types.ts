@@ -4,2688 +4,3002 @@
  */
 
 export interface paths {
-  "/healthz": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["health"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/readyz": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["readiness"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/auth/register": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post: operations["register"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/auth/login": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post: operations["login"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/auth/logout": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post: operations["logout"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/auth/session": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["getSession"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/auth/oidc/start": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["startOIDC"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/auth/oidc/callback": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["completeOIDC"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/auth/public/pages/{slug}/login": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post: operations["loginCustomer"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/me": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["getCurrentPrincipal"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/tenant": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["getTenant"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/tenant/members": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["listTenantMembers"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/tenant/members/{userId}": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch: operations["updateTenantMember"]
-    trace?: never
-  }
-  "/tenant/permissions": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["listPermissionGrants"]
-    put?: never
-    post: operations["createPermissionGrant"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/tenant/permissions/{grantId}": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post?: never
-    delete: operations["deletePermissionGrant"]
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/tenant/invitations": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["listInvitations"]
-    put?: never
-    post: operations["createInvitation"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/tenant/invitations/{token}/accept": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post: operations["acceptInvitation"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/projects": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["listProjects"]
-    put?: never
-    post: operations["createProject"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/projects/{projectId}": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["getProject"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch: operations["updateProject"]
-    trace?: never
-  }
-  "/projects/{projectId}/statuses": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["listStatuses"]
-    put?: never
-    post: operations["createStatus"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/projects/{projectId}/statuses/{statusId}": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch: operations["updateStatus"]
-    trace?: never
-  }
-  "/projects/{projectId}/tasks": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["listTasks"]
-    put?: never
-    post: operations["createTask"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/projects/{projectId}/tasks/{taskId}": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch: operations["updateTask"]
-    trace?: never
-  }
-  "/projects/{projectId}/milestones": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["listMilestones"]
-    put?: never
-    post: operations["createMilestone"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/projects/{projectId}/milestones/{milestoneId}": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch: operations["updateMilestone"]
-    trace?: never
-  }
-  "/projects/{projectId}/labels": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["listLabels"]
-    put?: never
-    post: operations["createLabel"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/projects/{projectId}/repositories": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["listProjectRepositories"]
-    put?: never
-    post: operations["attachProjectRepository"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/projects/{projectId}/repositories/{repositoryId}": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post?: never
-    delete: operations["detachProjectRepository"]
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/projects/{projectId}/public-pages": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["listPublicPages"]
-    put?: never
-    post: operations["createPublicPage"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/public-pages/{pageId}/revoke": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post: operations["revokePublicPage"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/public-pages/{pageId}/viewers": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["listPublicPageViewers"]
-    put?: never
-    post: operations["addPublicPageViewer"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/public-pages/{pageId}/viewers/{userId}": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post?: never
-    delete: operations["removePublicPageViewer"]
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/public/pages/{slug}": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["getPublicPage"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/sync/conflicts": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["listSyncConflicts"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/sync/conflicts/{conflictId}/resolve": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post: operations["resolveSyncConflict"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/sync/runs": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["listSyncRuns"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/audit/events": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["listAuditEvents"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/integrations/github/connections": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["listGitHubConnections"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/integrations/github/oauth/start": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["startGitHubOAuth"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/integrations/github/oauth/callback": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["completeGitHubOAuth"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/integrations/github/app/install": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["startGitHubAppInstall"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/integrations/github/app/callback": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["completeGitHubAppInstall"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/integrations/github/repositories": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["listGitHubRepositories"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/integrations/github/user-mappings": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get: operations["listGitHubUserMappings"]
-    put?: never
-    post: operations["createGitHubUserMapping"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/integrations/github/user-mappings/{mappingId}": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post?: never
-    delete: operations["deleteGitHubUserMapping"]
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/projects/{projectId}/github/import": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post: operations["importGitHubProject"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/webhooks/github": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post: operations["receiveGitHubWebhook"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
+    "/healthz": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["health"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/readyz": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["readiness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oidc/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["startOIDC"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oidc/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["completeOIDC"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/public/pages/{slug}/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["loginCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getCurrentPrincipal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getTenant"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenant/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listTenantMembers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenant/members/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateTenantMember"];
+        trace?: never;
+    };
+    "/tenant/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPermissionGrants"];
+        put?: never;
+        post: operations["createPermissionGrant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenant/permissions/{grantId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deletePermissionGrant"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenant/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listInvitations"];
+        put?: never;
+        post: operations["createInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenant/invitations/{token}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["acceptInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listProjects"];
+        put?: never;
+        post: operations["createProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getProject"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateProject"];
+        trace?: never;
+    };
+    "/projects/{projectId}/statuses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listStatuses"];
+        put?: never;
+        post: operations["createStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/statuses/{statusId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateStatus"];
+        trace?: never;
+    };
+    "/projects/{projectId}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listTasks"];
+        put?: never;
+        post: operations["createTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/tasks/{taskId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateTask"];
+        trace?: never;
+    };
+    "/projects/{projectId}/milestones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listMilestones"];
+        put?: never;
+        post: operations["createMilestone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/milestones/{milestoneId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateMilestone"];
+        trace?: never;
+    };
+    "/projects/{projectId}/labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listLabels"];
+        put?: never;
+        post: operations["createLabel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/repositories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listProjectRepositories"];
+        put?: never;
+        post: operations["attachProjectRepository"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/repositories/{repositoryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["detachProjectRepository"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/public-pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPublicPages"];
+        put?: never;
+        post: operations["createPublicPage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public-pages/{pageId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["revokePublicPage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public-pages/{pageId}/viewers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPublicPageViewers"];
+        put?: never;
+        post: operations["addPublicPageViewer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public-pages/{pageId}/viewers/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["removePublicPageViewer"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/pages/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPublicPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sync/conflicts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listSyncConflicts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sync/conflicts/{conflictId}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resolveSyncConflict"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sync/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listSyncRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/audit/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAuditEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/github/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listGitHubConnections"];
+        put?: never;
+        post: operations["createGitHubTokenConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listGitConnections"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/connections/{connectionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteGitConnection"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/gitlab/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createGitLabConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/github/oauth/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["startGitHubOAuth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/github/oauth/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["completeGitHubOAuth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/github/app/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["startGitHubAppInstall"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/github/app/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["completeGitHubAppInstall"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/github/repositories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listGitHubRepositories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/repositories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listGitRepositories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/github/user-mappings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listGitHubUserMappings"];
+        put?: never;
+        post: operations["createGitHubUserMapping"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/github/user-mappings/{mappingId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteGitHubUserMapping"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/github/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importGitHubProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{projectId}/git/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importGitProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhooks/github": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["receiveGitHubWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhooks/gitlab": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["receiveGitLabWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
-export type webhooks = Record<string, never>
+export type webhooks = Record<string, never>;
 export interface components {
-  schemas: {
-    Error: {
-      error: string
-    }
-    Health: {
-      status: string
-    }
-    RegisterRequest: {
-      /** Format: email */
-      email: string
-      name: string
-      password: string
-      tenantName: string
-    }
-    LoginRequest: {
-      /** Format: email */
-      email: string
-      password: string
-      /** Format: uuid */
-      tenantId?: string
-    }
-    User: {
-      /** Format: uuid */
-      id: string
-      /** Format: email */
-      email: string
-      name: string
-      emailVerified?: boolean
-    }
-    Tenant: {
-      /** Format: uuid */
-      id: string
-      name: string
-      slug: string
-    }
-    Membership: {
-      /** Format: uuid */
-      id: string
-      /** Format: uuid */
-      tenantId: string
-      /** Format: uuid */
-      userId: string
-      /** @enum {string} */
-      role: "owner" | "admin" | "member" | "viewer"
-    }
-    Session: {
-      user: components["schemas"]["User"]
-      tenant: components["schemas"]["Tenant"]
-      membership: components["schemas"]["Membership"]
-    }
-    TenantMember: {
-      membership: components["schemas"]["Membership"]
-      user: components["schemas"]["User"]
-    }
-    Invitation: {
-      /** Format: uuid */
-      id: string
-      /** Format: uuid */
-      tenantId: string
-      /** Format: email */
-      email: string
-      /** @enum {string} */
-      role: "admin" | "member" | "viewer"
-      /** Format: date-time */
-      expiresAt: string
-      /** Format: date-time */
-      acceptedAt?: string | null
-    }
-    InvitationRequest: {
-      /** Format: email */
-      email: string
-      /**
-       * @default member
-       * @enum {string}
-       */
-      role: "admin" | "member" | "viewer"
-    }
-    InvitationCreated: {
-      invitation: components["schemas"]["Invitation"]
-      token: string
-      /** Format: uri */
-      acceptUrl: string
-    }
-    InvitationList: {
-      items?: components["schemas"]["Invitation"][]
-      count?: number
-    }
-    Project: {
-      /** Format: uuid */
-      id: string
-      /** Format: uuid */
-      tenantId: string
-      name: string
-      key: string
-      description?: string
-      /** Format: date */
-      startDate?: string | null
-      /** Format: date */
-      targetDate?: string | null
-      status: string
-      /** Format: int64 */
-      version: number
-      /** Format: date-time */
-      createdAt?: string
-      /** Format: date-time */
-      updatedAt?: string
-    }
-    ProjectRequest: {
-      name: string
-      key?: string
-      description?: string
-      /** Format: date */
-      startDate?: string
-      /** Format: date */
-      targetDate?: string
-    }
-    ProjectPatch: components["schemas"]["ProjectRequest"] & {
-      /** Format: int64 */
-      version?: number
-    }
-    ProjectList: {
-      items?: components["schemas"]["Project"][]
-      count?: number
-    }
-    /** @enum {string} */
-    StatusCategory: "backlog" | "todo" | "in_progress" | "blocked" | "done"
-    ProjectStatus: {
-      /** Format: uuid */
-      id: string
-      /** Format: uuid */
-      projectId: string
-      name: string
-      category: components["schemas"]["StatusCategory"]
-      position: number
-      color?: string
-    }
-    StatusRequest: {
-      name?: string
-      category?: components["schemas"]["StatusCategory"]
-      color?: string
-      position?: number
-    }
-    Task: {
-      /** Format: uuid */
-      id: string
-      /** Format: uuid */
-      tenantId: string
-      /** Format: uuid */
-      projectId: string
-      /** Format: uuid */
-      parentId?: string | null
-      /** Format: uuid */
-      milestoneId?: string | null
-      /** Format: uuid */
-      statusId: string
-      statusName?: string
-      statusCategory?: components["schemas"]["StatusCategory"]
-      title: string
-      description?: string
-      /** @enum {string} */
-      priority: "low" | "medium" | "high" | "urgent"
-      /** Format: date */
-      startDate?: string | null
-      /** Format: date */
-      dueDate?: string | null
-      estimateMinutes?: number | null
-      /** Format: uuid */
-      assigneeId?: string | null
-      assigneeName?: string
-      labels?: components["schemas"]["Label"][]
-      /** @enum {string} */
-      visibility: "internal" | "customer"
-      position?: number
-      /** Format: int64 */
-      version: number
-      /** Format: date-time */
-      createdAt?: string
-      /** Format: date-time */
-      updatedAt?: string
-    }
-    TaskRequest: {
-      title: string
-      description?: string
-      /** Format: uuid */
-      statusId?: string
-      /** Format: uuid */
-      parentId?: string | null
-      /** Format: uuid */
-      milestoneId?: string | null
-      /** @enum {string} */
-      priority?: "low" | "medium" | "high" | "urgent"
-      /** Format: date */
-      startDate?: string
-      /** Format: date */
-      dueDate?: string
-      estimateMinutes?: number
-      /** Format: uuid */
-      assigneeId?: string | null
-      labelIds?: string[]
-      /** @enum {string} */
-      visibility?: "internal" | "customer"
-      position?: number
-    }
-    TaskPatch: components["schemas"]["TaskRequest"] & {
-      /** Format: int64 */
-      version?: number
-    }
-    TaskList: {
-      items?: components["schemas"]["Task"][]
-      count?: number
-    }
-    Milestone: {
-      /** Format: uuid */
-      id: string
-      /** Format: uuid */
-      tenantId: string
-      /** Format: uuid */
-      projectId: string
-      name: string
-      description?: string
-      /** Format: date */
-      startDate?: string | null
-      /** Format: date */
-      dueDate?: string | null
-      /** @enum {string} */
-      status: "open" | "closed"
-      /** @enum {string} */
-      visibility: "internal" | "customer"
-      /** Format: int64 */
-      version: number
-    }
-    MilestoneRequest: {
-      name: string
-      description?: string
-      /** Format: date */
-      startDate?: string
-      /** Format: date */
-      dueDate?: string
-      /** @enum {string} */
-      status?: "open" | "closed"
-      /** @enum {string} */
-      visibility?: "internal" | "customer"
-    }
-    MilestonePatch: components["schemas"]["MilestoneRequest"] & {
-      /** Format: int64 */
-      version?: number
-    }
-    MilestoneList: {
-      items?: components["schemas"]["Milestone"][]
-      count?: number
-    }
-    Label: {
-      /** Format: uuid */
-      id: string
-      /** Format: uuid */
-      tenantId: string
-      /** Format: uuid */
-      projectId?: string | null
-      name: string
-      color: string
-    }
-    LabelRequest: {
-      name: string
-      color?: string
-    }
-    LabelList: {
-      items?: components["schemas"]["Label"][]
-    }
-    GitHubConnection: {
-      /** Format: uuid */
-      id: string
-      /** Format: uuid */
-      tenantId: string
-      /** @enum {string} */
-      authMethod: "app" | "oauth"
-      /** Format: int64 */
-      externalAccountId: number
-      externalAccountLogin?: string
-      /** Format: int64 */
-      installationId?: number | null
-      scopes: string[]
-      active: boolean
-    }
-    GitHubRepository: {
-      /** Format: uuid */
-      id: string
-      /** Format: uuid */
-      connectionId: string
-      /** Format: int64 */
-      externalId: number
-      owner: string
-      name: string
-      fullName: string
-      private: boolean
-    }
-    ProjectRepository: {
-      link: {
-        /** Format: uuid */
-        id?: string
-        /** Format: uuid */
-        projectId?: string
-        /** Format: uuid */
-        repositoryId?: string
-      }
-      repository: components["schemas"]["GitHubRepository"]
-    }
-    ProjectRepositoryList: {
-      items?: components["schemas"]["ProjectRepository"][]
-      count?: number
-    }
-    PublicPage: {
-      /** Format: uuid */
-      id: string
-      /** Format: uuid */
-      tenantId: string
-      /** Format: uuid */
-      projectId: string
-      slug: string
-      /** @enum {string} */
-      accessMode: "link" | "login"
-      title?: string
-      visibleTaskIds?: string[]
-      visibleMilestoneIds?: string[]
-      revoked: boolean
-    }
-    PublicPageRequest: {
-      /**
-       * @default link
-       * @enum {string}
-       */
-      accessMode: "link" | "login"
-      title?: string
-      visibleTaskIds?: string[]
-      visibleMilestoneIds?: string[]
-      viewerUserIds?: string[]
-    }
-    PublicPageCreated: {
-      page: components["schemas"]["PublicPage"]
-      token: string
-      /** Format: uri */
-      url: string
-    }
-    PublicPageList: {
-      items?: components["schemas"]["PublicPage"][]
-    }
-    PublicPageViewer: {
-      /** Format: uuid */
-      id: string
-      /** Format: uuid */
-      publicPageId: string
-      /** Format: uuid */
-      userId: string
-    }
-    PublicPagePayload: {
-      page: {
-        title?: string
-        accessMode?: string
-      }
-      project: {
-        name?: string
-        key?: string
-        description?: string
-        /** Format: date */
-        targetDate?: string | null
-      }
-      tasks: components["schemas"]["PublicTask"][]
-      milestones: components["schemas"]["PublicMilestone"][]
-    }
-    PublicTask: {
-      /** Format: uuid */
-      id: string
-      /** Format: uuid */
-      parentId?: string | null
-      /** Format: uuid */
-      milestoneId?: string | null
-      title: string
-      description?: string
-      /** @enum {string} */
-      priority: "low" | "medium" | "high" | "urgent"
-      /** Format: date */
-      startDate?: string | null
-      /** Format: date */
-      dueDate?: string | null
-      statusName: string
-      statusCategory: components["schemas"]["StatusCategory"]
-      estimateMinutes?: number | null
-    }
-    PublicMilestone: {
-      /** Format: uuid */
-      id: string
-      name: string
-      description?: string
-      /** Format: date */
-      startDate?: string | null
-      /** Format: date */
-      dueDate?: string | null
-      /** @enum {string} */
-      status: "open" | "closed"
-    }
-    SyncConflict: {
-      /** Format: uuid */
-      id: string
-      /** Format: uuid */
-      tenantId: string
-      /** Format: uuid */
-      externalLinkId: string
-      field: string
-      localValue: unknown
-      remoteValue: unknown
-      /** Format: date-time */
-      localChangedAt: string
-      /** Format: date-time */
-      remoteChangedAt: string
-      deliveryId?: string
-      /** @enum {string} */
-      status: "open" | "resolved" | "ignored"
-      resolution?: string
-    }
-    ConflictList: {
-      items?: components["schemas"]["SyncConflict"][]
-      count?: number
-    }
-    SyncEvent: {
-      /** Format: uuid */
-      id: string
-      /** Format: uuid */
-      tenantId?: string | null
-      /** Format: uuid */
-      connectionId?: string | null
-      deliveryId: string
-      eventName: string
-      action?: string
-      payload: {
-        [key: string]: unknown
-      }
-      /** @enum {string} */
-      status: "queued" | "processing" | "succeeded" | "failed"
-      errorMessage?: string
-      /** Format: date-time */
-      createdAt?: string
-      /** Format: date-time */
-      updatedAt?: string
-    }
-    SyncEventList: {
-      items?: components["schemas"]["SyncEvent"][]
-      count?: number
-    }
-    AuditEvent: {
-      /** Format: uuid */
-      id: string
-      /** Format: uuid */
-      tenantId: string
-      /** Format: uuid */
-      actorId?: string | null
-      action: string
-      entityType: string
-      /** Format: uuid */
-      entityId: string
-      metadata: {
-        [key: string]: unknown
-      }
-      /** Format: date-time */
-      createdAt?: string
-    }
-    AuditEventList: {
-      items?: components["schemas"]["AuditEvent"][]
-      count?: number
-    }
-    PermissionGrant: {
-      /** Format: uuid */
-      id: string
-      /** Format: uuid */
-      tenantId: string
-      /** Format: uuid */
-      userId: string
-      /** Format: uuid */
-      projectId?: string | null
-      permission: string
-      /** @enum {string} */
-      effect: "allow" | "deny"
-    }
-    PermissionGrantRequest: {
-      /** Format: uuid */
-      userId: string
-      /** Format: uuid */
-      projectId?: string | null
-      permission: string
-      /**
-       * @default allow
-       * @enum {string}
-       */
-      effect: "allow" | "deny"
-    }
-    PermissionGrantList: {
-      items?: components["schemas"]["PermissionGrant"][]
-      count?: number
-    }
-    GitHubUserMapping: {
-      /** Format: uuid */
-      id: string
-      /** Format: uuid */
-      tenantId: string
-      githubLogin: string
-      /** Format: uuid */
-      userId: string
-    }
-    GitHubUserMappingRequest: {
-      githubLogin: string
-      /** Format: uuid */
-      userId: string
-    }
-    GitHubUserMappingList: {
-      items?: components["schemas"]["GitHubUserMapping"][]
-      count?: number
-    }
-  }
-  responses: {
-    /** @description API error. */
-    Error: {
-      headers: {
-        [name: string]: unknown
-      }
-      content: {
-        "application/json": components["schemas"]["Error"]
-      }
-    }
-    /** @description Current backend-owned session context. */
-    Session: {
-      headers: {
-        [name: string]: unknown
-      }
-      content: {
-        "application/json": components["schemas"]["Session"]
-      }
-    }
-    /** @description Tenant and members. */
-    TenantWithMembers: {
-      headers: {
-        [name: string]: unknown
-      }
-      content: {
-        "application/json": {
-          tenant: components["schemas"]["Tenant"]
-          members: components["schemas"]["TenantMember"][]
-        }
-      }
-    }
-  }
-  parameters: {
-    ProjectId: string
-    StatusId: string
-    TaskId: string
-    MilestoneId: string
-    RepositoryId: string
-    PageId: string
-    UserId: string
-    GrantId: string
-    MappingId: string
-    ConflictId: string
-    PageSlug: string
-    InvitationToken: string
-    OIDCState: string
-    OIDCCode: string
-    PublicToken: string
-    SyncStatus: "queued" | "processing" | "succeeded" | "failed"
-    Limit: number
-    UserQuery: string
-    ProjectQuery: string
-    Query: string
-    StatusQuery: string
-    MilestoneQuery: string
-  }
-  requestBodies: never
-  headers: never
-  pathItems: never
-}
-export type $defs = Record<string, never>
-export interface operations {
-  health: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Process is alive. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Health"]
-        }
-      }
-    }
-  }
-  readiness: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Database is ready. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Health"]
-        }
-      }
-      503: components["responses"]["Error"]
-    }
-  }
-  register: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["RegisterRequest"]
-      }
-    }
-    responses: {
-      201: components["responses"]["Session"]
-      400: components["responses"]["Error"]
-    }
-  }
-  login: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["LoginRequest"]
-      }
-    }
-    responses: {
-      200: components["responses"]["Session"]
-      401: components["responses"]["Error"]
-    }
-  }
-  logout: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Session revoked. */
-      204: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-    }
-  }
-  getSession: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      200: components["responses"]["Session"]
-      401: components["responses"]["Error"]
-    }
-  }
-  startOIDC: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description OIDC authorization URL. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": {
-            /** Format: uri */
-            url: string
-          }
-        }
-      }
-    }
-  }
-  completeOIDC: {
-    parameters: {
-      query: {
-        state: components["parameters"]["OIDCState"]
-        code: components["parameters"]["OIDCCode"]
-      }
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Redirect to the frontend after successful login. */
-      302: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-    }
-  }
-  loginCustomer: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        slug: components["parameters"]["PageSlug"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["LoginRequest"]
-      }
-    }
-    responses: {
-      200: components["responses"]["Session"]
-      401: components["responses"]["Error"]
-    }
-  }
-  getCurrentPrincipal: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      200: components["responses"]["Session"]
-      401: components["responses"]["Error"]
-    }
-  }
-  getTenant: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Tenant and members. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": {
-            tenant: components["schemas"]["Tenant"]
-            members: components["schemas"]["TenantMember"][]
-          }
-        }
-      }
-    }
-  }
-  listTenantMembers: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      200: components["responses"]["TenantWithMembers"]
-    }
-  }
-  updateTenantMember: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        userId: components["parameters"]["UserId"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": {
-          /** @enum {string} */
-          role: "admin" | "member" | "viewer"
-        }
-      }
-    }
-    responses: {
-      /** @description Membership updated. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Membership"]
-        }
-      }
-    }
-  }
-  listPermissionGrants: {
-    parameters: {
-      query?: {
-        userId?: components["parameters"]["UserQuery"]
-        projectId?: components["parameters"]["ProjectQuery"]
-      }
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Tenant and project permission overrides. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["PermissionGrantList"]
-        }
-      }
-    }
-  }
-  createPermissionGrant: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["PermissionGrantRequest"]
-      }
-    }
-    responses: {
-      /** @description Permission override created. */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["PermissionGrant"]
-        }
-      }
-    }
-  }
-  deletePermissionGrant: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        grantId: components["parameters"]["GrantId"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Permission override deleted. */
-      204: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-    }
-  }
-  listInvitations: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Pending invitations. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["InvitationList"]
-        }
-      }
-    }
-  }
-  createInvitation: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["InvitationRequest"]
-      }
-    }
-    responses: {
-      /** @description Invitation created. The raw token is returned once for email delivery. */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["InvitationCreated"]
-        }
-      }
-    }
-  }
-  acceptInvitation: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        token: components["parameters"]["InvitationToken"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Membership created. */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": {
-            membership: components["schemas"]["Membership"]
-          }
-        }
-      }
-    }
-  }
-  listProjects: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Tenant projects. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["ProjectList"]
-        }
-      }
-    }
-  }
-  createProject: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["ProjectRequest"]
-      }
-    }
-    responses: {
-      /** @description Project created. */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Project"]
-        }
-      }
-    }
-  }
-  getProject: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Project with workflow statuses. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": {
-            project: components["schemas"]["Project"]
-            statuses: components["schemas"]["ProjectStatus"][]
-          }
-        }
-      }
-    }
-  }
-  updateProject: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["ProjectPatch"]
-      }
-    }
-    responses: {
-      /** @description Project updated. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Project"]
-        }
-      }
-      409: components["responses"]["Error"]
-    }
-  }
-  listStatuses: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Configurable project workflow. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": {
-            items?: components["schemas"]["ProjectStatus"][]
-          }
-        }
-      }
-    }
-  }
-  createStatus: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["StatusRequest"]
-      }
-    }
-    responses: {
-      /** @description Status created. */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["ProjectStatus"]
-        }
-      }
-    }
-  }
-  updateStatus: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-        statusId: components["parameters"]["StatusId"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["StatusRequest"]
-      }
-    }
-    responses: {
-      /** @description Status updated. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["ProjectStatus"]
-        }
-      }
-    }
-  }
-  listTasks: {
-    parameters: {
-      query?: {
-        q?: components["parameters"]["Query"]
-        statusId?: components["parameters"]["StatusQuery"]
-        milestoneId?: components["parameters"]["MilestoneQuery"]
-      }
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Tenant-scoped task list. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["TaskList"]
-        }
-      }
-    }
-  }
-  createTask: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["TaskRequest"]
-      }
-    }
-    responses: {
-      /** @description Task created. */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Task"]
-        }
-      }
-    }
-  }
-  updateTask: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-        taskId: components["parameters"]["TaskId"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["TaskPatch"]
-      }
-    }
-    responses: {
-      /** @description Task updated. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Task"]
-        }
-      }
-      409: components["responses"]["Error"]
-    }
-  }
-  listMilestones: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Project milestones. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["MilestoneList"]
-        }
-      }
-    }
-  }
-  createMilestone: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["MilestoneRequest"]
-      }
-    }
-    responses: {
-      /** @description Milestone created. */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Milestone"]
-        }
-      }
-    }
-  }
-  updateMilestone: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-        milestoneId: components["parameters"]["MilestoneId"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["MilestonePatch"]
-      }
-    }
-    responses: {
-      /** @description Milestone updated. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Milestone"]
-        }
-      }
-    }
-  }
-  listLabels: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Project labels. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["LabelList"]
-        }
-      }
-    }
-  }
-  createLabel: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["LabelRequest"]
-      }
-    }
-    responses: {
-      /** @description Label created. */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Label"]
-        }
-      }
-    }
-  }
-  listProjectRepositories: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Repositories attached to a project. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["ProjectRepositoryList"]
-        }
-      }
-    }
-  }
-  attachProjectRepository: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": {
-          /** Format: uuid */
-          repositoryId: string
-        }
-      }
-    }
-    responses: {
-      /** @description Repository attached. */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["ProjectRepository"]
-        }
-      }
-    }
-  }
-  detachProjectRepository: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-        repositoryId: components["parameters"]["RepositoryId"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Repository detached. */
-      204: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-    }
-  }
-  listPublicPages: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Configured customer pages. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["PublicPageList"]
-        }
-      }
-    }
-  }
-  createPublicPage: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["PublicPageRequest"]
-      }
-    }
-    responses: {
-      /** @description Public page and one-time raw token. */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["PublicPageCreated"]
-        }
-      }
-    }
-  }
-  revokePublicPage: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        pageId: components["parameters"]["PageId"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Public page revoked. */
-      204: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-    }
-  }
-  listPublicPageViewers: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        pageId: components["parameters"]["PageId"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Approved customer viewers. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": {
-            items?: components["schemas"]["PublicPageViewer"][]
-            count?: number
-          }
-        }
-      }
-    }
-  }
-  addPublicPageViewer: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        pageId: components["parameters"]["PageId"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": {
-          /** Format: uuid */
-          userId: string
-        }
-      }
-    }
-    responses: {
-      /** @description Customer viewer added. */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["PublicPageViewer"]
-        }
-      }
-    }
-  }
-  removePublicPageViewer: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        pageId: components["parameters"]["PageId"]
-        userId: components["parameters"]["UserId"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Customer viewer removed. */
-      204: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-    }
-  }
-  getPublicPage: {
-    parameters: {
-      query?: {
-        token?: components["parameters"]["PublicToken"]
-      }
-      header?: never
-      path: {
-        slug: components["parameters"]["PageSlug"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Read-only customer page. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["PublicPagePayload"]
-        }
-      }
-      401: components["responses"]["Error"]
-      404: components["responses"]["Error"]
-    }
-  }
-  listSyncConflicts: {
-    parameters: {
-      query?: {
-        status?: "open" | "resolved" | "ignored"
-        projectId?: components["parameters"]["ProjectQuery"]
-      }
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Tenant-scoped conflicts. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["ConflictList"]
-        }
-      }
-    }
-  }
-  resolveSyncConflict: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        conflictId: components["parameters"]["ConflictId"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": {
-          /** @enum {string} */
-          resolution: "local" | "remote" | "ignore"
-        }
-      }
-    }
-    responses: {
-      /** @description Conflict resolved. */
-      204: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-    }
-  }
-  listSyncRuns: {
-    parameters: {
-      query?: {
-        status?: components["parameters"]["SyncStatus"]
-        limit?: components["parameters"]["Limit"]
-      }
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Tenant-scoped synchronization deliveries and imports. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["SyncEventList"]
-        }
-      }
-    }
-  }
-  listAuditEvents: {
-    parameters: {
-      query?: {
-        limit?: components["parameters"]["Limit"]
-      }
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Tenant audit history. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["AuditEventList"]
-        }
-      }
-    }
-  }
-  listGitHubConnections: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Active GitHub connections. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": {
-            items?: components["schemas"]["GitHubConnection"][]
-          }
-        }
-      }
-    }
-  }
-  startGitHubOAuth: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description GitHub OAuth authorization URL. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": {
-            /** Format: uri */
-            url: string
-          }
-        }
-      }
-    }
-  }
-  completeGitHubOAuth: {
-    parameters: {
-      query: {
-        state: components["parameters"]["OIDCState"]
-        code: components["parameters"]["OIDCCode"]
-      }
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Redirect to the frontend. */
-      302: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-    }
-  }
-  startGitHubAppInstall: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description GitHub App installation URL. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": {
-            /** Format: uri */
-            url: string
-          }
-        }
-      }
-    }
-  }
-  completeGitHubAppInstall: {
-    parameters: {
-      query: {
-        state: components["parameters"]["OIDCState"]
-        installation_id: number
-      }
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Redirect to the frontend. */
-      302: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-    }
-  }
-  listGitHubRepositories: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Repositories available to attach. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": {
-            items?: components["schemas"]["GitHubRepository"][]
-          }
-        }
-      }
-    }
-  }
-  listGitHubUserMappings: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Tenant-local GitHub assignee mappings. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["GitHubUserMappingList"]
-        }
-      }
-    }
-  }
-  createGitHubUserMapping: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["GitHubUserMappingRequest"]
-      }
-    }
-    responses: {
-      /** @description Mapping saved. */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["GitHubUserMapping"]
-        }
-      }
-    }
-  }
-  deleteGitHubUserMapping: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        mappingId: components["parameters"]["MappingId"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Mapping deleted. */
-      204: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-    }
-  }
-  importGitHubProject: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        projectId: components["parameters"]["ProjectId"]
-      }
-      cookie?: never
-    }
-    requestBody?: {
-      content: {
-        "application/json": {
-          /** Format: uuid */
-          repositoryId?: string
-        }
-      }
-    }
-    responses: {
-      /** @description Import queued. */
-      202: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": {
+    schemas: {
+        Error: {
+            error: string;
+        };
+        Health: {
+            status: string;
+        };
+        RegisterRequest: {
+            /** Format: email */
+            email: string;
+            name: string;
+            password: string;
+            tenantName: string;
+        };
+        LoginRequest: {
+            /** Format: email */
+            email: string;
+            password: string;
             /** Format: uuid */
-            runId: string
-            status: string
-          }
-        }
-      }
-    }
-  }
-  receiveGitHubWebhook: {
-    parameters: {
-      query?: never
-      header: {
-        "X-Hub-Signature-256": string
-        "X-GitHub-Delivery": string
-        "X-GitHub-Event": string
-      }
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": {
-          [key: string]: unknown
-        }
-      }
-    }
+            tenantId?: string;
+        };
+        User: {
+            /** Format: uuid */
+            id: string;
+            /** Format: email */
+            email: string;
+            name: string;
+            emailVerified?: boolean;
+        };
+        Tenant: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string;
+        };
+        Membership: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenantId: string;
+            /** Format: uuid */
+            userId: string;
+            /** @enum {string} */
+            role: "owner" | "admin" | "member" | "viewer";
+        };
+        Session: {
+            user: components["schemas"]["User"];
+            tenant: components["schemas"]["Tenant"];
+            membership: components["schemas"]["Membership"];
+        };
+        TenantMember: {
+            membership: components["schemas"]["Membership"];
+            user: components["schemas"]["User"];
+        };
+        Invitation: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenantId: string;
+            /** Format: email */
+            email: string;
+            /** @enum {string} */
+            role: "admin" | "member" | "viewer";
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            acceptedAt?: string | null;
+        };
+        InvitationRequest: {
+            /** Format: email */
+            email: string;
+            /**
+             * @default member
+             * @enum {string}
+             */
+            role: "admin" | "member" | "viewer";
+        };
+        InvitationCreated: {
+            invitation: components["schemas"]["Invitation"];
+            token: string;
+            /** Format: uri */
+            acceptUrl: string;
+        };
+        InvitationList: {
+            items?: components["schemas"]["Invitation"][];
+            count?: number;
+        };
+        Project: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenantId: string;
+            name: string;
+            key: string;
+            description?: string;
+            /** Format: date */
+            startDate?: string | null;
+            /** Format: date */
+            targetDate?: string | null;
+            /** Format: uuid */
+            connectionId?: string | null;
+            status: string;
+            /** Format: int64 */
+            version: number;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        ProjectRequest: {
+            name: string;
+            key?: string;
+            description?: string;
+            /** Format: date */
+            startDate?: string;
+            /** Format: date */
+            targetDate?: string;
+            /** Format: uuid */
+            connectionId?: string | null;
+        };
+        ProjectPatch: components["schemas"]["ProjectRequest"] & {
+            /** Format: int64 */
+            version?: number;
+        };
+        ProjectList: {
+            items?: components["schemas"]["Project"][];
+            count?: number;
+        };
+        /** @enum {string} */
+        StatusCategory: "backlog" | "todo" | "in_progress" | "blocked" | "done";
+        ProjectStatus: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            name: string;
+            category: components["schemas"]["StatusCategory"];
+            position: number;
+            color?: string;
+        };
+        StatusRequest: {
+            name?: string;
+            category?: components["schemas"]["StatusCategory"];
+            color?: string;
+            position?: number;
+        };
+        Task: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenantId: string;
+            /** Format: uuid */
+            projectId: string;
+            /** Format: uuid */
+            parentId?: string | null;
+            /** Format: uuid */
+            milestoneId?: string | null;
+            /** Format: uuid */
+            statusId: string;
+            statusName?: string;
+            statusCategory?: components["schemas"]["StatusCategory"];
+            title: string;
+            description?: string;
+            /** @enum {string} */
+            priority: "low" | "medium" | "high" | "urgent";
+            /** Format: date */
+            startDate?: string | null;
+            /** Format: date */
+            dueDate?: string | null;
+            estimateMinutes?: number | null;
+            /** Format: uuid */
+            assigneeId?: string | null;
+            assigneeName?: string;
+            labels?: components["schemas"]["Label"][];
+            /** @enum {string} */
+            visibility: "internal" | "customer";
+            position?: number;
+            /** Format: int64 */
+            version: number;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        TaskRequest: {
+            title: string;
+            description?: string;
+            /** Format: uuid */
+            statusId?: string;
+            /** Format: uuid */
+            parentId?: string | null;
+            /** Format: uuid */
+            milestoneId?: string | null;
+            /** @enum {string} */
+            priority?: "low" | "medium" | "high" | "urgent";
+            /** Format: date */
+            startDate?: string;
+            /** Format: date */
+            dueDate?: string;
+            estimateMinutes?: number;
+            /** Format: uuid */
+            assigneeId?: string | null;
+            labelIds?: string[];
+            /** @enum {string} */
+            visibility?: "internal" | "customer";
+            position?: number;
+        };
+        TaskPatch: components["schemas"]["TaskRequest"] & {
+            /** Format: int64 */
+            version?: number;
+        };
+        TaskList: {
+            items?: components["schemas"]["Task"][];
+            count?: number;
+        };
+        Milestone: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenantId: string;
+            /** Format: uuid */
+            projectId: string;
+            name: string;
+            description?: string;
+            /** Format: date */
+            startDate?: string | null;
+            /** Format: date */
+            dueDate?: string | null;
+            /** @enum {string} */
+            status: "open" | "closed";
+            /** @enum {string} */
+            visibility: "internal" | "customer";
+            /** Format: int64 */
+            version: number;
+        };
+        MilestoneRequest: {
+            name: string;
+            description?: string;
+            /** Format: date */
+            startDate?: string;
+            /** Format: date */
+            dueDate?: string;
+            /** @enum {string} */
+            status?: "open" | "closed";
+            /** @enum {string} */
+            visibility?: "internal" | "customer";
+        };
+        MilestonePatch: components["schemas"]["MilestoneRequest"] & {
+            /** Format: int64 */
+            version?: number;
+        };
+        MilestoneList: {
+            items?: components["schemas"]["Milestone"][];
+            count?: number;
+        };
+        Label: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenantId: string;
+            /** Format: uuid */
+            projectId?: string | null;
+            name: string;
+            color: string;
+        };
+        LabelRequest: {
+            name: string;
+            color?: string;
+        };
+        LabelList: {
+            items?: components["schemas"]["Label"][];
+        };
+        /** @enum {string} */
+        GitProvider: "github" | "gitlab";
+        GitConnection: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenantId: string;
+            provider: components["schemas"]["GitProvider"];
+            name?: string;
+            /** Format: uri */
+            apiBaseUrl: string;
+            /** @enum {string} */
+            authMethod: "app" | "oauth" | "pat";
+            /** Format: int64 */
+            externalAccountId: number;
+            externalAccountLogin?: string;
+            /** Format: int64 */
+            installationId?: number | null;
+            scopes: string[];
+            /** Format: date-time */
+            tokenExpiresAt?: string | null;
+            active: boolean;
+        };
+        GitConnectionList: {
+            items?: components["schemas"]["GitConnection"][];
+            count?: number;
+        };
+        GitTokenConnectionRequest: {
+            name?: string;
+            /**
+             * Format: uri
+             * @default https://gitlab.com
+             */
+            baseUrl: string;
+            accessToken: string;
+            webhookSecret?: string;
+        };
+        GitRepository: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            connectionId: string;
+            /** Format: int64 */
+            externalId: number;
+            owner: string;
+            name: string;
+            fullName: string;
+            private: boolean;
+        };
+        GitRepositoryList: {
+            items?: components["schemas"]["GitRepository"][];
+            count?: number;
+        };
+        GitHubConnection: components["schemas"]["GitConnection"];
+        GitHubRepository: components["schemas"]["GitRepository"];
+        ProjectRepository: {
+            link: {
+                /** Format: uuid */
+                id?: string;
+                /** Format: uuid */
+                projectId?: string;
+                /** Format: uuid */
+                repositoryId?: string;
+            };
+            repository: components["schemas"]["GitRepository"];
+        };
+        ProjectRepositoryList: {
+            items?: components["schemas"]["ProjectRepository"][];
+            count?: number;
+        };
+        PublicPage: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenantId: string;
+            /** Format: uuid */
+            projectId: string;
+            slug: string;
+            /** @enum {string} */
+            accessMode: "link" | "login";
+            title?: string;
+            visibleTaskIds?: string[];
+            visibleMilestoneIds?: string[];
+            revoked: boolean;
+        };
+        PublicPageRequest: {
+            /**
+             * @default link
+             * @enum {string}
+             */
+            accessMode: "link" | "login";
+            title?: string;
+            visibleTaskIds?: string[];
+            visibleMilestoneIds?: string[];
+            viewerUserIds?: string[];
+        };
+        PublicPageCreated: {
+            page: components["schemas"]["PublicPage"];
+            token: string;
+            /** Format: uri */
+            url: string;
+        };
+        PublicPageList: {
+            items?: components["schemas"]["PublicPage"][];
+        };
+        PublicPageViewer: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            publicPageId: string;
+            /** Format: uuid */
+            userId: string;
+        };
+        PublicPagePayload: {
+            page: {
+                title?: string;
+                accessMode?: string;
+            };
+            project: {
+                name?: string;
+                key?: string;
+                description?: string;
+                /** Format: date */
+                targetDate?: string | null;
+            };
+            tasks: components["schemas"]["PublicTask"][];
+            milestones: components["schemas"]["PublicMilestone"][];
+        };
+        PublicTask: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            parentId?: string | null;
+            /** Format: uuid */
+            milestoneId?: string | null;
+            title: string;
+            description?: string;
+            /** @enum {string} */
+            priority: "low" | "medium" | "high" | "urgent";
+            /** Format: date */
+            startDate?: string | null;
+            /** Format: date */
+            dueDate?: string | null;
+            statusName: string;
+            statusCategory: components["schemas"]["StatusCategory"];
+            estimateMinutes?: number | null;
+        };
+        PublicMilestone: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description?: string;
+            /** Format: date */
+            startDate?: string | null;
+            /** Format: date */
+            dueDate?: string | null;
+            /** @enum {string} */
+            status: "open" | "closed";
+        };
+        SyncConflict: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenantId: string;
+            /** Format: uuid */
+            externalLinkId: string;
+            field: string;
+            localValue: unknown;
+            remoteValue: unknown;
+            /** Format: date-time */
+            localChangedAt: string;
+            /** Format: date-time */
+            remoteChangedAt: string;
+            deliveryId?: string;
+            /** @enum {string} */
+            status: "open" | "resolved" | "ignored";
+            resolution?: string;
+        };
+        ConflictList: {
+            items?: components["schemas"]["SyncConflict"][];
+            count?: number;
+        };
+        SyncEvent: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenantId?: string | null;
+            /** Format: uuid */
+            connectionId?: string | null;
+            provider: components["schemas"]["GitProvider"];
+            deliveryId: string;
+            eventName: string;
+            action?: string;
+            payload: {
+                [key: string]: unknown;
+            };
+            /** @enum {string} */
+            status: "queued" | "processing" | "succeeded" | "failed";
+            errorMessage?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        SyncEventList: {
+            items?: components["schemas"]["SyncEvent"][];
+            count?: number;
+        };
+        AuditEvent: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenantId: string;
+            /** Format: uuid */
+            actorId?: string | null;
+            action: string;
+            entityType: string;
+            /** Format: uuid */
+            entityId: string;
+            metadata: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        AuditEventList: {
+            items?: components["schemas"]["AuditEvent"][];
+            count?: number;
+        };
+        PermissionGrant: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenantId: string;
+            /** Format: uuid */
+            userId: string;
+            /** Format: uuid */
+            projectId?: string | null;
+            permission: string;
+            /** @enum {string} */
+            effect: "allow" | "deny";
+        };
+        PermissionGrantRequest: {
+            /** Format: uuid */
+            userId: string;
+            /** Format: uuid */
+            projectId?: string | null;
+            permission: string;
+            /**
+             * @default allow
+             * @enum {string}
+             */
+            effect: "allow" | "deny";
+        };
+        PermissionGrantList: {
+            items?: components["schemas"]["PermissionGrant"][];
+            count?: number;
+        };
+        GitHubUserMapping: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenantId: string;
+            githubLogin: string;
+            /** Format: uuid */
+            userId: string;
+        };
+        GitHubUserMappingRequest: {
+            githubLogin: string;
+            /** Format: uuid */
+            userId: string;
+        };
+        GitHubUserMappingList: {
+            items?: components["schemas"]["GitHubUserMapping"][];
+            count?: number;
+        };
+    };
     responses: {
-      /** @description Delivery persisted for asynchronous processing. */
-      202: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      401: components["responses"]["Error"]
-    }
-  }
+        /** @description API error. */
+        Error: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Current backend-owned session context. */
+        Session: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Session"];
+            };
+        };
+        /** @description Tenant and members. */
+        TenantWithMembers: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    tenant: components["schemas"]["Tenant"];
+                    members: components["schemas"]["TenantMember"][];
+                };
+            };
+        };
+    };
+    parameters: {
+        ProjectId: string;
+        StatusId: string;
+        TaskId: string;
+        MilestoneId: string;
+        RepositoryId: string;
+        ConnectionId: string;
+        PageId: string;
+        UserId: string;
+        GrantId: string;
+        MappingId: string;
+        ConflictId: string;
+        PageSlug: string;
+        InvitationToken: string;
+        OIDCState: string;
+        OIDCCode: string;
+        PublicToken: string;
+        SyncStatus: "queued" | "processing" | "succeeded" | "failed";
+        Limit: number;
+        UserQuery: string;
+        ProjectQuery: string;
+        Query: string;
+        StatusQuery: string;
+        MilestoneQuery: string;
+        ConnectionQuery: string;
+    };
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
+}
+export type $defs = Record<string, never>;
+export interface operations {
+    health: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Process is alive. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    readiness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Database is ready. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Health"];
+                };
+            };
+            503: components["responses"]["Error"];
+        };
+    };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            201: components["responses"]["Session"];
+            400: components["responses"]["Error"];
+        };
+    };
+    login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Session"];
+            401: components["responses"]["Error"];
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session revoked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Session"];
+            401: components["responses"]["Error"];
+        };
+    };
+    startOIDC: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OIDC authorization URL. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uri */
+                        url: string;
+                    };
+                };
+            };
+        };
+    };
+    completeOIDC: {
+        parameters: {
+            query: {
+                state: components["parameters"]["OIDCState"];
+                code: components["parameters"]["OIDCCode"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the frontend after successful login. */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    loginCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: components["parameters"]["PageSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Session"];
+            401: components["responses"]["Error"];
+        };
+    };
+    getCurrentPrincipal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Session"];
+            401: components["responses"]["Error"];
+        };
+    };
+    getTenant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenant and members. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        tenant: components["schemas"]["Tenant"];
+                        members: components["schemas"]["TenantMember"][];
+                    };
+                };
+            };
+        };
+    };
+    listTenantMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["TenantWithMembers"];
+        };
+    };
+    updateTenantMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    role: "admin" | "member" | "viewer";
+                };
+            };
+        };
+        responses: {
+            /** @description Membership updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Membership"];
+                };
+            };
+        };
+    };
+    listPermissionGrants: {
+        parameters: {
+            query?: {
+                userId?: components["parameters"]["UserQuery"];
+                projectId?: components["parameters"]["ProjectQuery"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenant and project permission overrides. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionGrantList"];
+                };
+            };
+        };
+    };
+    createPermissionGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PermissionGrantRequest"];
+            };
+        };
+        responses: {
+            /** @description Permission override created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionGrant"];
+                };
+            };
+        };
+    };
+    deletePermissionGrant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grantId: components["parameters"]["GrantId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Permission override deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listInvitations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pending invitations. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationList"];
+                };
+            };
+        };
+    };
+    createInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationRequest"];
+            };
+        };
+        responses: {
+            /** @description Invitation created. The raw token is returned once for email delivery. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationCreated"];
+                };
+            };
+        };
+    };
+    acceptInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: components["parameters"]["InvitationToken"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Membership created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        membership: components["schemas"]["Membership"];
+                    };
+                };
+            };
+        };
+    };
+    listProjects: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenant projects. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectList"];
+                };
+            };
+        };
+    };
+    createProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectRequest"];
+            };
+        };
+        responses: {
+            /** @description Project created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            /** @description Project key is already in use in this workspace. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Project with workflow statuses. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        project: components["schemas"]["Project"];
+                        statuses: components["schemas"]["ProjectStatus"][];
+                    };
+                };
+            };
+        };
+    };
+    updateProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectPatch"];
+            };
+        };
+        responses: {
+            /** @description Project updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            409: components["responses"]["Error"];
+        };
+    };
+    listStatuses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Configurable project workflow. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items?: components["schemas"]["ProjectStatus"][];
+                    };
+                };
+            };
+        };
+    };
+    createStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Status created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectStatus"];
+                };
+            };
+        };
+    };
+    updateStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                statusId: components["parameters"]["StatusId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Status updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectStatus"];
+                };
+            };
+        };
+    };
+    listTasks: {
+        parameters: {
+            query?: {
+                q?: components["parameters"]["Query"];
+                statusId?: components["parameters"]["StatusQuery"];
+                milestoneId?: components["parameters"]["MilestoneQuery"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenant-scoped task list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskList"];
+                };
+            };
+        };
+    };
+    createTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskRequest"];
+            };
+        };
+        responses: {
+            /** @description Task created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+        };
+    };
+    updateTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskPatch"];
+            };
+        };
+        responses: {
+            /** @description Task updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            409: components["responses"]["Error"];
+        };
+    };
+    listMilestones: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Project milestones. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MilestoneList"];
+                };
+            };
+        };
+    };
+    createMilestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MilestoneRequest"];
+            };
+        };
+        responses: {
+            /** @description Milestone created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Milestone"];
+                };
+            };
+        };
+    };
+    updateMilestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                milestoneId: components["parameters"]["MilestoneId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MilestonePatch"];
+            };
+        };
+        responses: {
+            /** @description Milestone updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Milestone"];
+                };
+            };
+        };
+    };
+    listLabels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Project labels. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelList"];
+                };
+            };
+        };
+    };
+    createLabel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LabelRequest"];
+            };
+        };
+        responses: {
+            /** @description Label created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Label"];
+                };
+            };
+        };
+    };
+    listProjectRepositories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Repositories attached to a project. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectRepositoryList"];
+                };
+            };
+        };
+    };
+    attachProjectRepository: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    repositoryId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Repository attached. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectRepository"];
+                };
+            };
+        };
+    };
+    detachProjectRepository: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                repositoryId: components["parameters"]["RepositoryId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Repository detached. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listPublicPages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Configured customer pages. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPageList"];
+                };
+            };
+        };
+    };
+    createPublicPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicPageRequest"];
+            };
+        };
+        responses: {
+            /** @description Public page and one-time raw token. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPageCreated"];
+                };
+            };
+        };
+    };
+    revokePublicPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pageId: components["parameters"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Public page revoked. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listPublicPageViewers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pageId: components["parameters"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Approved customer viewers. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items?: components["schemas"]["PublicPageViewer"][];
+                        count?: number;
+                    };
+                };
+            };
+        };
+    };
+    addPublicPageViewer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pageId: components["parameters"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    userId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Customer viewer added. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPageViewer"];
+                };
+            };
+        };
+    };
+    removePublicPageViewer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pageId: components["parameters"]["PageId"];
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Customer viewer removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getPublicPage: {
+        parameters: {
+            query?: {
+                token?: components["parameters"]["PublicToken"];
+            };
+            header?: never;
+            path: {
+                slug: components["parameters"]["PageSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Read-only customer page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPagePayload"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    listSyncConflicts: {
+        parameters: {
+            query?: {
+                status?: "open" | "resolved" | "ignored";
+                projectId?: components["parameters"]["ProjectQuery"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenant-scoped conflicts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictList"];
+                };
+            };
+        };
+    };
+    resolveSyncConflict: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conflictId: components["parameters"]["ConflictId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    resolution: "local" | "remote" | "ignore";
+                };
+            };
+        };
+        responses: {
+            /** @description Conflict resolved. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listSyncRuns: {
+        parameters: {
+            query?: {
+                status?: components["parameters"]["SyncStatus"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenant-scoped synchronization deliveries and imports. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncEventList"];
+                };
+            };
+        };
+    };
+    listAuditEvents: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenant audit history. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEventList"];
+                };
+            };
+        };
+    };
+    listGitHubConnections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active GitHub connections. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items?: components["schemas"]["GitHubConnection"][];
+                    };
+                };
+            };
+        };
+    };
+    createGitHubTokenConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitTokenConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description GitHub connection created or reactivated. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitConnection"];
+                };
+            };
+            400: components["responses"]["Error"];
+        };
+    };
+    listGitConnections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active connections available to the current tenant. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitConnectionList"];
+                };
+            };
+        };
+    };
+    deleteGitConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connectionId: components["parameters"]["ConnectionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Connection deactivated. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    createGitLabConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitTokenConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description GitLab.com or self-hosted GitLab connection created or reactivated. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitConnection"];
+                };
+            };
+            400: components["responses"]["Error"];
+        };
+    };
+    startGitHubOAuth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description GitHub OAuth authorization URL. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uri */
+                        url: string;
+                    };
+                };
+            };
+        };
+    };
+    completeGitHubOAuth: {
+        parameters: {
+            query: {
+                state: components["parameters"]["OIDCState"];
+                code: components["parameters"]["OIDCCode"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the frontend. */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    startGitHubAppInstall: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description GitHub App installation URL. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uri */
+                        url: string;
+                    };
+                };
+            };
+        };
+    };
+    completeGitHubAppInstall: {
+        parameters: {
+            query: {
+                state: components["parameters"]["OIDCState"];
+                installation_id: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the frontend. */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listGitHubRepositories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Repositories available to attach. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items?: components["schemas"]["GitHubRepository"][];
+                    };
+                };
+            };
+        };
+    };
+    listGitRepositories: {
+        parameters: {
+            query?: {
+                connectionId?: components["parameters"]["ConnectionQuery"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Repositories available from active connections. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitRepositoryList"];
+                };
+            };
+        };
+    };
+    listGitHubUserMappings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenant-local GitHub assignee mappings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitHubUserMappingList"];
+                };
+            };
+        };
+    };
+    createGitHubUserMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitHubUserMappingRequest"];
+            };
+        };
+        responses: {
+            /** @description Mapping saved. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitHubUserMapping"];
+                };
+            };
+        };
+    };
+    deleteGitHubUserMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mappingId: components["parameters"]["MappingId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Mapping deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    importGitHubProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    repositoryId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Import queued. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        runId: string;
+                        status: string;
+                    };
+                };
+            };
+        };
+    };
+    importGitProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    repositoryId?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Provider-agnostic import queued. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        runId: string;
+                        status: string;
+                    };
+                };
+            };
+        };
+    };
+    receiveGitHubWebhook: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Hub-Signature-256": string;
+                "X-GitHub-Delivery": string;
+                "X-GitHub-Event": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Delivery persisted for asynchronous processing. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+        };
+    };
+    receiveGitLabWebhook: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Gitlab-Token": string;
+                "X-Gitlab-Event-UUID": string;
+                "X-Gitlab-Event"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Delivery persisted for asynchronous processing. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+        };
+    };
 }
