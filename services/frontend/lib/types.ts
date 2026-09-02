@@ -1,0 +1,219 @@
+export type StatusCategory =
+  "backlog" | "todo" | "in_progress" | "blocked" | "done"
+
+export type WorkspaceView =
+  "overview" | "tasks" | "roadmap" | "integrations" | "settings"
+
+export interface User {
+  id: string
+  name: string
+  email: string
+  emailVerified?: boolean
+}
+
+export interface Tenant {
+  id: string
+  name: string
+  slug: string
+}
+
+export interface Membership {
+  id?: string
+  role: "owner" | "admin" | "member" | "viewer" | string
+}
+
+export interface TenantMember {
+  membership: Membership & { tenantId: string; userId: string }
+  user: User
+}
+
+export interface Invitation {
+  id: string
+  tenantId: string
+  email: string
+  role: "admin" | "member" | "viewer" | string
+  expiresAt: string
+  acceptedAt?: string | null
+}
+
+export interface PermissionGrant {
+  id: string
+  tenantId: string
+  userId: string
+  projectId?: string | null
+  permission: string
+  effect: "allow" | "deny" | string
+}
+
+export interface Session {
+  user: User
+  tenant: Tenant
+  membership: Membership
+}
+
+export interface Project {
+  id: string
+  name: string
+  key: string
+  description?: string
+  startDate?: string | null
+  targetDate?: string | null
+  connectionId?: string | null
+  status: string
+  version: number
+}
+
+export interface ProjectStatus {
+  id: string
+  projectId?: string
+  name: string
+  category: StatusCategory
+  position: number
+  color?: string
+}
+
+export interface Label {
+  id: string
+  name: string
+  color: string
+}
+
+export interface Task {
+  id: string
+  projectId: string
+  parentId?: string | null
+  milestoneId?: string | null
+  statusId: string
+  statusName?: string
+  statusCategory?: StatusCategory
+  title: string
+  description?: string
+  priority: "low" | "medium" | "high" | "urgent" | string
+  startDate?: string | null
+  dueDate?: string | null
+  estimateMinutes?: number | null
+  assigneeId?: string | null
+  assigneeName?: string
+  visibility: "internal" | "customer" | string
+  position: number
+  version: number
+  labels?: Label[]
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface Milestone {
+  id: string
+  projectId?: string
+  name: string
+  description?: string
+  startDate?: string | null
+  dueDate?: string | null
+  status: "open" | "closed" | string
+  visibility: "internal" | "customer" | string
+  version: number
+}
+
+export interface SyncEvent {
+  id: string
+  provider?: "github" | "gitlab" | string
+  eventName: string
+  action?: string
+  status: "queued" | "processing" | "succeeded" | "failed" | string
+  createdAt: string
+  errorMessage?: string
+}
+
+export type GitProvider = "github" | "gitlab"
+
+export interface GitConnection {
+  id: string
+  provider: GitProvider | string
+  name?: string
+  apiBaseUrl?: string
+  authMethod: "app" | "oauth" | "pat" | string
+  externalAccountId?: number
+  externalAccountLogin?: string
+  installationId?: number | null
+  scopes: string[]
+  active: boolean
+}
+
+export interface GitRepository {
+  id: string
+  connectionId: string
+  externalId: number
+  owner: string
+  name: string
+  fullName: string
+  private: boolean
+}
+
+export type GitHubConnection = GitConnection
+export type GitHubRepository = GitRepository
+
+export interface ProjectRepository {
+  link: {
+    id: string
+    projectId: string
+    repositoryId: string
+  }
+  repository: GitRepository
+}
+
+export interface PublicPageSummary {
+  id: string
+  projectId: string
+  slug: string
+  accessMode: "link" | "login" | string
+  title?: string
+  revoked: boolean
+}
+
+export interface WorkspaceData {
+  project: Project
+  projects: Project[]
+  statuses: ProjectStatus[]
+  members: TenantMember[]
+  tasks: Task[]
+  milestones: Milestone[]
+  labels: Label[]
+  session?: Session
+  syncEvents: SyncEvent[]
+  gitConnections: GitConnection[]
+}
+
+export interface PublicProjectData {
+  page: {
+    title?: string
+    accessMode: "link" | "login" | string
+  }
+  project: {
+    name: string
+    key: string
+    description?: string
+    targetDate?: string | null
+  }
+  tasks: Array<
+    Pick<
+      Task,
+      | "id"
+      | "parentId"
+      | "milestoneId"
+      | "title"
+      | "description"
+      | "priority"
+      | "startDate"
+      | "dueDate"
+      | "statusName"
+      | "statusCategory"
+      | "estimateMinutes"
+    >
+  >
+  milestones: Array<
+    Pick<
+      Milestone,
+      "id" | "name" | "description" | "startDate" | "dueDate" | "status"
+    >
+  >
+}

@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // ReUI registry sources are checked in as generated, Base UI-compatible
+    // primitives. Keep application lint focused on the consuming code.
+    "components/reui/**",
   ]),
 ]);
 

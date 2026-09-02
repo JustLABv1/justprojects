@@ -17,12 +17,6 @@
       "allowedVersions": "<7"
     },
     {
-      "description": "Keep @internationalized/date aligned with HeroUI and React Aria",
-      "matchManagers": ["npm"],
-      "matchPackageNames": ["@internationalized/date"],
-      "allowedVersions": "3.12.1"
-    },
-    {
       "description": "Group all minor/patch updates",
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "all non-major dependencies",

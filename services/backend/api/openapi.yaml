@@ -1,0 +1,1466 @@
+openapi: 3.0.3
+info:
+  title: JustProjects API
+  version: 0.1.0
+  description: Multi-tenant project management with provider-agnostic GitHub and GitLab synchronization.
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development
+security:
+  - cookieAuth: []
+tags:
+  - name: Authentication
+  - name: Tenant
+  - name: Projects
+  - name: Tasks
+  - name: Public pages
+  - name: Integrations
+  - name: Sync
+paths:
+  /healthz:
+    get:
+      tags: [Authentication]
+      operationId: health
+      security: []
+      responses:
+        '200':
+          description: Process is alive.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+  /readyz:
+    get:
+      tags: [Authentication]
+      operationId: readiness
+      security: []
+      responses:
+        '200':
+          description: Database is ready.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+        '503': { $ref: '#/components/responses/Error' }
+  /auth/register:
+    post:
+      tags: [Authentication]
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/Session' }
+        '400': { $ref: '#/components/responses/Error' }
+  /auth/login:
+    post:
+      tags: [Authentication]
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Session' }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      operationId: logout
+      responses:
+        '204': { description: Session revoked. }
+  /auth/session:
+    get:
+      tags: [Authentication]
+      operationId: getSession
+      security: []
+      responses:
+        '200': { $ref: '#/components/responses/Session' }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/oidc/start:
+    get:
+      tags: [Authentication]
+      operationId: startOIDC
+      security: []
+      responses:
+        '200':
+          description: OIDC authorization URL.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url]
+                properties: { url: { type: string, format: uri } }
+  /auth/oidc/callback:
+    get:
+      tags: [Authentication]
+      operationId: completeOIDC
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/OIDCState' }
+        - { $ref: '#/components/parameters/OIDCCode' }
+      responses:
+        '302': { description: Redirect to the frontend after successful login. }
+  /auth/public/pages/{slug}/login:
+    post:
+      tags: [Authentication]
+      operationId: loginCustomer
+      security: []
+      parameters: [{ $ref: '#/components/parameters/PageSlug' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Session' }
+        '401': { $ref: '#/components/responses/Error' }
+  /me:
+    get:
+      tags: [Authentication]
+      operationId: getCurrentPrincipal
+      responses:
+        '200': { $ref: '#/components/responses/Session' }
+        '401': { $ref: '#/components/responses/Error' }
+  /tenant:
+    get:
+      tags: [Tenant]
+      operationId: getTenant
+      responses:
+        '200':
+          description: Tenant and members.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tenant, members]
+                properties:
+                  tenant: { $ref: '#/components/schemas/Tenant' }
+                  members:
+                    type: array
+                    items: { $ref: '#/components/schemas/TenantMember' }
+  /tenant/members:
+    get:
+      tags: [Tenant]
+      operationId: listTenantMembers
+      responses:
+        '200': { $ref: '#/components/responses/TenantWithMembers' }
+  /tenant/members/{userId}:
+    patch:
+      tags: [Tenant]
+      operationId: updateTenantMember
+      parameters: [{ $ref: '#/components/parameters/UserId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties: { role: { type: string, enum: [admin, member, viewer] } }
+      responses:
+        '200':
+          description: Membership updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Membership' }
+  /tenant/permissions:
+    get:
+      tags: [Tenant]
+      operationId: listPermissionGrants
+      parameters:
+        - { $ref: '#/components/parameters/UserQuery' }
+        - { $ref: '#/components/parameters/ProjectQuery' }
+      responses:
+        '200':
+          description: Tenant and project permission overrides.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PermissionGrantList' }
+    post:
+      tags: [Tenant]
+      operationId: createPermissionGrant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PermissionGrantRequest' }
+      responses:
+        '201':
+          description: Permission override created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PermissionGrant' }
+  /tenant/permissions/{grantId}:
+    delete:
+      tags: [Tenant]
+      operationId: deletePermissionGrant
+      parameters: [{ $ref: '#/components/parameters/GrantId' }]
+      responses: { '204': { description: Permission override deleted. } }
+  /tenant/invitations:
+    get:
+      tags: [Tenant]
+      operationId: listInvitations
+      responses:
+        '200':
+          description: Pending invitations.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvitationList' }
+    post:
+      tags: [Tenant]
+      operationId: createInvitation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitationRequest' }
+      responses:
+        '201':
+          description: Invitation created. The raw token is returned once for email delivery.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvitationCreated' }
+  /tenant/invitations/{token}/accept:
+    post:
+      tags: [Tenant]
+      operationId: acceptInvitation
+      parameters:
+        - { $ref: '#/components/parameters/InvitationToken' }
+      responses:
+        '201':
+          description: Membership created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [membership]
+                properties: { membership: { $ref: '#/components/schemas/Membership' } }
+  /projects:
+    get:
+      tags: [Projects]
+      operationId: listProjects
+      responses:
+        '200':
+          description: Tenant projects.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectList' }
+    post:
+      tags: [Projects]
+      operationId: createProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectRequest' }
+      responses:
+        '201':
+          description: Project created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        '409':
+          description: Project key is already in use in this workspace.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /projects/{projectId}:
+    get:
+      tags: [Projects]
+      operationId: getProject
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      responses:
+        '200':
+          description: Project with workflow statuses.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [project, statuses]
+                properties:
+                  project: { $ref: '#/components/schemas/Project' }
+                  statuses:
+                    type: array
+                    items: { $ref: '#/components/schemas/ProjectStatus' }
+    patch:
+      tags: [Projects]
+      operationId: updateProject
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProjectPatch' }
+      responses:
+        '200':
+          description: Project updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        '409': { $ref: '#/components/responses/Error' }
+  /projects/{projectId}/statuses:
+    get:
+      tags: [Projects]
+      operationId: listStatuses
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      responses:
+        '200':
+          description: Configurable project workflow.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ProjectStatus' }
+    post:
+      tags: [Projects]
+      operationId: createStatus
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StatusRequest' }
+      responses:
+        '201':
+          description: Status created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectStatus' }
+  /projects/{projectId}/statuses/{statusId}:
+    patch:
+      tags: [Projects]
+      operationId: updateStatus
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/StatusId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StatusRequest' }
+      responses:
+        '200':
+          description: Status updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectStatus' }
+  /projects/{projectId}/tasks:
+    get:
+      tags: [Tasks]
+      operationId: listTasks
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/Query' }
+        - { $ref: '#/components/parameters/StatusQuery' }
+        - { $ref: '#/components/parameters/MilestoneQuery' }
+      responses:
+        '200':
+          description: Tenant-scoped task list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskList' }
+    post:
+      tags: [Tasks]
+      operationId: createTask
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskRequest' }
+      responses:
+        '201':
+          description: Task created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+  /projects/{projectId}/tasks/{taskId}:
+    patch:
+      tags: [Tasks]
+      operationId: updateTask
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/TaskId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskPatch' }
+      responses:
+        '200':
+          description: Task updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '409': { $ref: '#/components/responses/Error' }
+  /projects/{projectId}/milestones:
+    get:
+      tags: [Projects]
+      operationId: listMilestones
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      responses:
+        '200':
+          description: Project milestones.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MilestoneList' }
+    post:
+      tags: [Projects]
+      operationId: createMilestone
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MilestoneRequest' }
+      responses:
+        '201':
+          description: Milestone created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Milestone' }
+  /projects/{projectId}/milestones/{milestoneId}:
+    patch:
+      tags: [Projects]
+      operationId: updateMilestone
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/MilestoneId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MilestonePatch' }
+      responses:
+        '200':
+          description: Milestone updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Milestone' }
+  /projects/{projectId}/labels:
+    get:
+      tags: [Projects]
+      operationId: listLabels
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      responses:
+        '200':
+          description: Project labels.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LabelList' }
+    post:
+      tags: [Projects]
+      operationId: createLabel
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LabelRequest' }
+      responses:
+        '201':
+          description: Label created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Label' }
+  /projects/{projectId}/repositories:
+    get:
+      tags: [Integrations]
+      operationId: listProjectRepositories
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      responses:
+        '200':
+          description: Repositories attached to a project.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectRepositoryList' }
+    post:
+      tags: [Integrations]
+      operationId: attachProjectRepository
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [repositoryId]
+              properties: { repositoryId: { type: string, format: uuid } }
+      responses:
+        '201':
+          description: Repository attached.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProjectRepository' }
+  /projects/{projectId}/repositories/{repositoryId}:
+    delete:
+      tags: [Integrations]
+      operationId: detachProjectRepository
+      parameters:
+        - { $ref: '#/components/parameters/ProjectId' }
+        - { $ref: '#/components/parameters/RepositoryId' }
+      responses:
+        '204': { description: Repository detached. }
+  /projects/{projectId}/public-pages:
+    get:
+      tags: [Public pages]
+      operationId: listPublicPages
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      responses:
+        '200':
+          description: Configured customer pages.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicPageList' }
+    post:
+      tags: [Public pages]
+      operationId: createPublicPage
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PublicPageRequest' }
+      responses:
+        '201':
+          description: Public page and one-time raw token.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicPageCreated' }
+  /public-pages/{pageId}/revoke:
+    post:
+      tags: [Public pages]
+      operationId: revokePublicPage
+      parameters: [{ $ref: '#/components/parameters/PageId' }]
+      responses: { '204': { description: Public page revoked. } }
+  /public-pages/{pageId}/access-link:
+    post:
+      tags: [Public pages]
+      operationId: issuePublicPageAccessLink
+      parameters: [{ $ref: '#/components/parameters/PageId' }]
+      responses:
+        '200':
+          description: A usable public page URL. Link-mode pages receive a newly rotated token.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicPageAccessLink' }
+  /public-pages/{pageId}/viewers:
+    get:
+      tags: [Public pages]
+      operationId: listPublicPageViewers
+      parameters: [{ $ref: '#/components/parameters/PageId' }]
+      responses:
+        '200':
+          description: Approved customer viewers.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/PublicPageViewer' } }
+                  count: { type: integer }
+    post:
+      tags: [Public pages]
+      operationId: addPublicPageViewer
+      parameters: [{ $ref: '#/components/parameters/PageId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties: { userId: { type: string, format: uuid } }
+      responses:
+        '201':
+          description: Customer viewer added.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicPageViewer' }
+  /public-pages/{pageId}/viewers/{userId}:
+    delete:
+      tags: [Public pages]
+      operationId: removePublicPageViewer
+      parameters:
+        - { $ref: '#/components/parameters/PageId' }
+        - { $ref: '#/components/parameters/UserId' }
+      responses: { '204': { description: Customer viewer removed. } }
+  /public/pages/{slug}:
+    get:
+      tags: [Public pages]
+      operationId: getPublicPage
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/PageSlug' }
+        - { $ref: '#/components/parameters/PublicToken' }
+      responses:
+        '200':
+          description: Read-only customer page.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicPagePayload' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /sync/conflicts:
+    get:
+      tags: [Sync]
+      operationId: listSyncConflicts
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, resolved, ignored] }
+        - { $ref: '#/components/parameters/ProjectQuery' }
+      responses:
+        '200':
+          description: Tenant-scoped conflicts.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConflictList' }
+  /sync/conflicts/{conflictId}/resolve:
+    post:
+      tags: [Sync]
+      operationId: resolveSyncConflict
+      parameters: [{ $ref: '#/components/parameters/ConflictId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolution]
+              properties:
+                resolution: { type: string, enum: [local, remote, ignore] }
+      responses: { '204': { description: Conflict resolved. } }
+  /sync/runs:
+    get:
+      tags: [Sync]
+      operationId: listSyncRuns
+      parameters:
+        - { $ref: '#/components/parameters/SyncStatus' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200':
+          description: Tenant-scoped synchronization deliveries and imports.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncEventList' }
+  /audit/events:
+    get:
+      tags: [Tenant]
+      operationId: listAuditEvents
+      parameters: [{ $ref: '#/components/parameters/Limit' }]
+      responses:
+        '200':
+          description: Tenant audit history.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditEventList' }
+  /integrations/github/connections:
+    get:
+      tags: [Integrations]
+      operationId: listGitHubConnections
+      responses:
+        '200':
+          description: Active GitHub connections.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/GitHubConnection' }
+    post:
+      tags: [Integrations]
+      operationId: createGitHubTokenConnection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GitTokenConnectionRequest' }
+      responses:
+        '201':
+          description: GitHub connection created or reactivated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GitConnection' }
+        '400': { $ref: '#/components/responses/Error' }
+  /integrations/connections:
+    get:
+      tags: [Integrations]
+      operationId: listGitConnections
+      responses:
+        '200':
+          description: Active connections available to the current tenant.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GitConnectionList' }
+  /integrations/connections/{connectionId}:
+    delete:
+      tags: [Integrations]
+      operationId: deleteGitConnection
+      parameters: [{ $ref: '#/components/parameters/ConnectionId' }]
+      responses:
+        '204': { description: Connection deactivated. }
+  /integrations/gitlab/connections:
+    post:
+      tags: [Integrations]
+      operationId: createGitLabConnection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GitTokenConnectionRequest' }
+      responses:
+        '201':
+          description: GitLab.com or self-hosted GitLab connection created or reactivated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GitConnection' }
+        '400': { $ref: '#/components/responses/Error' }
+  /integrations/github/oauth/start:
+    get:
+      tags: [Integrations]
+      operationId: startGitHubOAuth
+      responses:
+        '200':
+          description: GitHub OAuth authorization URL.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url]
+                properties: { url: { type: string, format: uri } }
+  /integrations/github/oauth/callback:
+    get:
+      tags: [Integrations]
+      operationId: completeGitHubOAuth
+      parameters:
+        - { $ref: '#/components/parameters/OIDCState' }
+        - { $ref: '#/components/parameters/OIDCCode' }
+      responses: { '302': { description: Redirect to the frontend. } }
+  /integrations/github/app/install:
+    get:
+      tags: [Integrations]
+      operationId: startGitHubAppInstall
+      responses:
+        '200':
+          description: GitHub App installation URL.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url]
+                properties: { url: { type: string, format: uri } }
+  /integrations/github/app/callback:
+    get:
+      tags: [Integrations]
+      operationId: completeGitHubAppInstall
+      parameters:
+        - { $ref: '#/components/parameters/OIDCState' }
+        - name: installation_id
+          in: query
+          required: true
+          schema: { type: integer, format: int64 }
+      responses: { '302': { description: Redirect to the frontend. } }
+  /integrations/github/repositories:
+    get:
+      tags: [Integrations]
+      operationId: listGitHubRepositories
+      responses:
+        '200':
+          description: Repositories available to attach.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/GitHubRepository' }
+  /integrations/repositories:
+    get:
+      tags: [Integrations]
+      operationId: listGitRepositories
+      parameters:
+        - { $ref: '#/components/parameters/ConnectionQuery' }
+      responses:
+        '200':
+          description: Repositories available from active connections.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GitRepositoryList' }
+  /integrations/github/user-mappings:
+    get:
+      tags: [Integrations]
+      operationId: listGitHubUserMappings
+      responses:
+        '200':
+          description: Tenant-local GitHub assignee mappings.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GitHubUserMappingList' }
+    post:
+      tags: [Integrations]
+      operationId: createGitHubUserMapping
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GitHubUserMappingRequest' }
+      responses:
+        '201':
+          description: Mapping saved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GitHubUserMapping' }
+  /integrations/github/user-mappings/{mappingId}:
+    delete:
+      tags: [Integrations]
+      operationId: deleteGitHubUserMapping
+      parameters: [{ $ref: '#/components/parameters/MappingId' }]
+      responses: { '204': { description: Mapping deleted. } }
+  /projects/{projectId}/github/import:
+    post:
+      tags: [Integrations]
+      operationId: importGitHubProject
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { repositoryId: { type: string, format: uuid } }
+      responses:
+        '202':
+          description: Import queued.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [runId, status]
+                properties:
+                  runId: { type: string, format: uuid }
+                  status: { type: string }
+  /projects/{projectId}/git/import:
+    post:
+      tags: [Integrations]
+      operationId: importGitProject
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { repositoryId: { type: string, format: uuid } }
+      responses:
+        '202':
+          description: Provider-agnostic import queued.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [runId, status]
+                properties:
+                  runId: { type: string, format: uuid }
+                  status: { type: string }
+  /webhooks/github:
+    post:
+      tags: [Integrations]
+      operationId: receiveGitHubWebhook
+      security: []
+      parameters:
+        - name: X-Hub-Signature-256
+          in: header
+          required: true
+          schema: { type: string }
+        - name: X-GitHub-Delivery
+          in: header
+          required: true
+          schema: { type: string }
+        - name: X-GitHub-Event
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { type: object, additionalProperties: true } }
+      responses:
+        '202': { description: Delivery persisted for asynchronous processing. }
+        '401': { $ref: '#/components/responses/Error' }
+  /webhooks/gitlab:
+    post:
+      tags: [Integrations]
+      operationId: receiveGitLabWebhook
+      security: []
+      parameters:
+        - name: X-Gitlab-Token
+          in: header
+          required: true
+          schema: { type: string }
+        - name: X-Gitlab-Event-UUID
+          in: header
+          required: true
+          schema: { type: string }
+        - name: X-Gitlab-Event
+          in: header
+          required: false
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { type: object, additionalProperties: true } }
+      responses:
+        '202': { description: Delivery persisted for asynchronous processing. }
+        '401': { $ref: '#/components/responses/Error' }
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: justprojects_session
+  parameters:
+    ProjectId: { name: projectId, in: path, required: true, schema: { type: string, format: uuid } }
+    StatusId: { name: statusId, in: path, required: true, schema: { type: string, format: uuid } }
+    TaskId: { name: taskId, in: path, required: true, schema: { type: string, format: uuid } }
+    MilestoneId: { name: milestoneId, in: path, required: true, schema: { type: string, format: uuid } }
+    RepositoryId: { name: repositoryId, in: path, required: true, schema: { type: string, format: uuid } }
+    ConnectionId: { name: connectionId, in: path, required: true, schema: { type: string, format: uuid } }
+    PageId: { name: pageId, in: path, required: true, schema: { type: string, format: uuid } }
+    UserId: { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+    GrantId: { name: grantId, in: path, required: true, schema: { type: string, format: uuid } }
+    MappingId: { name: mappingId, in: path, required: true, schema: { type: string, format: uuid } }
+    ConflictId: { name: conflictId, in: path, required: true, schema: { type: string, format: uuid } }
+    PageSlug: { name: slug, in: path, required: true, schema: { type: string, minLength: 3, maxLength: 64, pattern: '^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])?$' } }
+    InvitationToken: { name: token, in: path, required: true, schema: { type: string, minLength: 20 } }
+    OIDCState: { name: state, in: query, required: true, schema: { type: string } }
+    OIDCCode: { name: code, in: query, required: true, schema: { type: string } }
+    PublicToken: { name: token, in: query, required: false, schema: { type: string, minLength: 20 } }
+    SyncStatus: { name: status, in: query, required: false, schema: { type: string, enum: [queued, processing, succeeded, failed] } }
+    Limit: { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+    UserQuery: { name: userId, in: query, required: false, schema: { type: string, format: uuid } }
+    ProjectQuery: { name: projectId, in: query, required: false, schema: { type: string, format: uuid } }
+    Query: { name: q, in: query, required: false, schema: { type: string } }
+    StatusQuery: { name: statusId, in: query, required: false, schema: { type: string, format: uuid } }
+    MilestoneQuery: { name: milestoneId, in: query, required: false, schema: { type: string, format: uuid } }
+    ConnectionQuery: { name: connectionId, in: query, required: false, schema: { type: string, format: uuid } }
+  responses:
+    Error:
+      description: API error.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Session:
+      description: Current backend-owned session context.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Session' }
+    TenantWithMembers:
+      description: Tenant and members.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [tenant, members]
+            properties:
+              tenant: { $ref: '#/components/schemas/Tenant' }
+              members:
+                type: array
+                items: { $ref: '#/components/schemas/TenantMember' }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties: { error: { type: string } }
+    Health:
+      type: object
+      required: [status]
+      properties: { status: { type: string } }
+    RegisterRequest:
+      type: object
+      required: [email, name, password, tenantName]
+      properties:
+        email: { type: string, format: email }
+        name: { type: string, minLength: 1 }
+        password: { type: string, minLength: 10 }
+        tenantName: { type: string, minLength: 1 }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+        tenantId: { type: string, format: uuid }
+    User:
+      type: object
+      required: [id, email, name]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        name: { type: string }
+        emailVerified: { type: boolean }
+    Tenant:
+      type: object
+      required: [id, name, slug]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+    Membership:
+      type: object
+      required: [id, tenantId, userId, role]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        role: { type: string, enum: [owner, admin, member, viewer] }
+    Session:
+      type: object
+      required: [user, tenant, membership]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        tenant: { $ref: '#/components/schemas/Tenant' }
+        membership: { $ref: '#/components/schemas/Membership' }
+    TenantMember:
+      type: object
+      required: [membership, user]
+      properties:
+        membership: { $ref: '#/components/schemas/Membership' }
+        user: { $ref: '#/components/schemas/User' }
+    Invitation:
+      type: object
+      required: [id, tenantId, email, role, expiresAt]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        email: { type: string, format: email }
+        role: { type: string, enum: [admin, member, viewer] }
+        expiresAt: { type: string, format: date-time }
+        acceptedAt: { type: string, format: date-time, nullable: true }
+    InvitationRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+        role: { type: string, enum: [admin, member, viewer], default: member }
+    InvitationCreated:
+      type: object
+      required: [invitation, token, acceptUrl]
+      properties:
+        invitation: { $ref: '#/components/schemas/Invitation' }
+        token: { type: string }
+        acceptUrl: { type: string, format: uri }
+    InvitationList:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Invitation' } }
+        count: { type: integer }
+    Project:
+      type: object
+      required: [id, tenantId, name, key, status, version]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        name: { type: string }
+        key: { type: string }
+        description: { type: string }
+        startDate: { type: string, format: date, nullable: true }
+        targetDate: { type: string, format: date, nullable: true }
+        connectionId: { type: string, format: uuid, nullable: true }
+        status: { type: string }
+        version: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ProjectRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        key: { type: string }
+        description: { type: string }
+        startDate: { type: string, format: date }
+        targetDate: { type: string, format: date }
+        connectionId: { type: string, format: uuid, nullable: true }
+    ProjectPatch:
+      allOf:
+        - $ref: '#/components/schemas/ProjectRequest'
+        - type: object
+          properties: { version: { type: integer, format: int64 } }
+    ProjectList:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Project' } }
+        count: { type: integer }
+    StatusCategory:
+      type: string
+      enum: [backlog, todo, in_progress, blocked, done]
+    ProjectStatus:
+      type: object
+      required: [id, projectId, name, category, position]
+      properties:
+        id: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        name: { type: string }
+        category: { $ref: '#/components/schemas/StatusCategory' }
+        position: { type: integer }
+        color: { type: string }
+    StatusRequest:
+      type: object
+      properties:
+        name: { type: string }
+        category: { $ref: '#/components/schemas/StatusCategory' }
+        color: { type: string }
+        position: { type: integer }
+    Task:
+      type: object
+      required: [id, tenantId, projectId, statusId, title, priority, visibility, version]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        parentId: { type: string, format: uuid, nullable: true }
+        milestoneId: { type: string, format: uuid, nullable: true }
+        statusId: { type: string, format: uuid }
+        statusName: { type: string }
+        statusCategory: { $ref: '#/components/schemas/StatusCategory' }
+        title: { type: string }
+        description: { type: string }
+        priority: { type: string, enum: [low, medium, high, urgent] }
+        startDate: { type: string, format: date, nullable: true }
+        dueDate: { type: string, format: date, nullable: true }
+        estimateMinutes: { type: integer, nullable: true }
+        assigneeId: { type: string, format: uuid, nullable: true }
+        assigneeName: { type: string }
+        labels: { type: array, items: { $ref: '#/components/schemas/Label' } }
+        visibility: { type: string, enum: [internal, customer] }
+        position: { type: integer }
+        version: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    TaskRequest:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        statusId: { type: string, format: uuid }
+        parentId: { type: string, format: uuid, nullable: true }
+        milestoneId: { type: string, format: uuid, nullable: true }
+        priority: { type: string, enum: [low, medium, high, urgent] }
+        startDate: { type: string, format: date }
+        dueDate: { type: string, format: date }
+        estimateMinutes: { type: integer, minimum: 0 }
+        assigneeId: { type: string, format: uuid, nullable: true }
+        labelIds: { type: array, items: { type: string, format: uuid } }
+        visibility: { type: string, enum: [internal, customer] }
+        position: { type: integer }
+    TaskPatch:
+      allOf:
+        - $ref: '#/components/schemas/TaskRequest'
+        - type: object
+          properties: { version: { type: integer, format: int64 } }
+    TaskList:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Task' } }
+        count: { type: integer }
+    Milestone:
+      type: object
+      required: [id, tenantId, projectId, name, status, visibility, version]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        startDate: { type: string, format: date, nullable: true }
+        dueDate: { type: string, format: date, nullable: true }
+        status: { type: string, enum: [open, closed] }
+        visibility: { type: string, enum: [internal, customer] }
+        version: { type: integer, format: int64 }
+    MilestoneRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        startDate: { type: string, format: date }
+        dueDate: { type: string, format: date }
+        status: { type: string, enum: [open, closed] }
+        visibility: { type: string, enum: [internal, customer] }
+    MilestonePatch:
+      allOf:
+        - $ref: '#/components/schemas/MilestoneRequest'
+        - type: object
+          properties: { version: { type: integer, format: int64 } }
+    MilestoneList:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Milestone' } }
+        count: { type: integer }
+    Label:
+      type: object
+      required: [id, tenantId, name, color]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid, nullable: true }
+        name: { type: string }
+        color: { type: string }
+    LabelRequest:
+      type: object
+      required: [name]
+      properties: { name: { type: string }, color: { type: string } }
+    LabelList:
+      type: object
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/Label' } } }
+    GitProvider:
+      type: string
+      enum: [github, gitlab]
+    GitConnection:
+      type: object
+      required: [id, tenantId, provider, apiBaseUrl, authMethod, externalAccountId, scopes, active]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        provider: { $ref: '#/components/schemas/GitProvider' }
+        name: { type: string }
+        apiBaseUrl: { type: string, format: uri }
+        authMethod: { type: string, enum: [app, oauth, pat] }
+        externalAccountId: { type: integer, format: int64 }
+        externalAccountLogin: { type: string }
+        installationId: { type: integer, format: int64, nullable: true }
+        scopes: { type: array, items: { type: string } }
+        tokenExpiresAt: { type: string, format: date-time, nullable: true }
+        active: { type: boolean }
+    GitConnectionList:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/GitConnection' } }
+        count: { type: integer }
+    GitTokenConnectionRequest:
+      type: object
+      required: [accessToken]
+      properties:
+        name: { type: string }
+        baseUrl: { type: string, format: uri, default: https://gitlab.com }
+        accessToken: { type: string, minLength: 1, writeOnly: true }
+        webhookSecret: { type: string, writeOnly: true }
+    GitRepository:
+      type: object
+      required: [id, connectionId, externalId, owner, name, fullName, private]
+      properties:
+        id: { type: string, format: uuid }
+        connectionId: { type: string, format: uuid }
+        externalId: { type: integer, format: int64 }
+        owner: { type: string }
+        name: { type: string }
+        fullName: { type: string }
+        private: { type: boolean }
+    GitRepositoryList:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/GitRepository' } }
+        count: { type: integer }
+    GitHubConnection:
+      allOf:
+        - $ref: '#/components/schemas/GitConnection'
+    GitHubRepository:
+      allOf:
+        - $ref: '#/components/schemas/GitRepository'
+    ProjectRepository:
+      type: object
+      required: [link, repository]
+      properties:
+        link:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            projectId: { type: string, format: uuid }
+            repositoryId: { type: string, format: uuid }
+        repository: { $ref: '#/components/schemas/GitRepository' }
+    ProjectRepositoryList:
+      type: object
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/ProjectRepository' } }, count: { type: integer } }
+    PublicPage:
+      type: object
+      required: [id, tenantId, projectId, slug, accessMode, revoked]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        slug: { type: string }
+        accessMode: { type: string, enum: [link, login] }
+        title: { type: string }
+        visibleTaskIds: { type: array, items: { type: string, format: uuid } }
+        visibleMilestoneIds: { type: array, items: { type: string, format: uuid } }
+        revoked: { type: boolean }
+    PublicPageRequest:
+      type: object
+      properties:
+        accessMode: { type: string, enum: [link, login], default: link }
+        title: { type: string }
+        slug: { type: string, minLength: 3, maxLength: 64, pattern: '^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])?$' }
+        visibleTaskIds: { type: array, items: { type: string, format: uuid } }
+        visibleMilestoneIds: { type: array, items: { type: string, format: uuid } }
+        viewerUserIds: { type: array, items: { type: string, format: uuid } }
+    PublicPageCreated:
+      type: object
+      required: [page, token, url]
+      properties:
+        page: { $ref: '#/components/schemas/PublicPage' }
+        token: { type: string }
+        url: { type: string, format: uri }
+    PublicPageAccessLink:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string, format: uri }
+    PublicPageList:
+      type: object
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/PublicPage' } } }
+    PublicPageViewer:
+      type: object
+      required: [id, publicPageId, userId]
+      properties:
+        id: { type: string, format: uuid }
+        publicPageId: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+    PublicPagePayload:
+      type: object
+      required: [page, project, tasks, milestones]
+      properties:
+        page:
+          type: object
+          properties: { title: { type: string }, accessMode: { type: string } }
+        project:
+          type: object
+          properties: { name: { type: string }, key: { type: string }, description: { type: string }, targetDate: { type: string, format: date, nullable: true } }
+        tasks: { type: array, items: { $ref: '#/components/schemas/PublicTask' } }
+        milestones: { type: array, items: { $ref: '#/components/schemas/PublicMilestone' } }
+    PublicTask:
+      type: object
+      required: [id, title, priority, statusName, statusCategory]
+      properties:
+        id: { type: string, format: uuid }
+        parentId: { type: string, format: uuid, nullable: true }
+        milestoneId: { type: string, format: uuid, nullable: true }
+        title: { type: string }
+        description: { type: string }
+        priority: { type: string, enum: [low, medium, high, urgent] }
+        startDate: { type: string, format: date, nullable: true }
+        dueDate: { type: string, format: date, nullable: true }
+        statusName: { type: string }
+        statusCategory: { $ref: '#/components/schemas/StatusCategory' }
+        estimateMinutes: { type: integer, nullable: true }
+    PublicMilestone:
+      type: object
+      required: [id, name, status]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        startDate: { type: string, format: date, nullable: true }
+        dueDate: { type: string, format: date, nullable: true }
+        status: { type: string, enum: [open, closed] }
+    SyncConflict:
+      type: object
+      required: [id, tenantId, externalLinkId, field, localValue, remoteValue, localChangedAt, remoteChangedAt, status]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        externalLinkId: { type: string, format: uuid }
+        field: { type: string }
+        localValue: {}
+        remoteValue: {}
+        localChangedAt: { type: string, format: date-time }
+        remoteChangedAt: { type: string, format: date-time }
+        deliveryId: { type: string }
+        status: { type: string, enum: [open, resolved, ignored] }
+        resolution: { type: string }
+    ConflictList:
+      type: object
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/SyncConflict' } }, count: { type: integer } }
+    SyncEvent:
+      type: object
+      required: [id, provider, deliveryId, eventName, payload, status]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid, nullable: true }
+        connectionId: { type: string, format: uuid, nullable: true }
+        provider: { $ref: '#/components/schemas/GitProvider' }
+        deliveryId: { type: string }
+        eventName: { type: string }
+        action: { type: string }
+        payload: { type: object, additionalProperties: true }
+        status: { type: string, enum: [queued, processing, succeeded, failed] }
+        errorMessage: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    SyncEventList:
+      type: object
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/SyncEvent' } }, count: { type: integer } }
+    AuditEvent:
+      type: object
+      required: [id, tenantId, action, entityType, entityId, metadata]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        actorId: { type: string, format: uuid, nullable: true }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: string, format: uuid }
+        metadata: { type: object, additionalProperties: true }
+        createdAt: { type: string, format: date-time }
+    AuditEventList:
+      type: object
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/AuditEvent' } }, count: { type: integer } }
+    PermissionGrant:
+      type: object
+      required: [id, tenantId, userId, permission, effect]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid, nullable: true }
+        permission: { type: string }
+        effect: { type: string, enum: [allow, deny] }
+    PermissionGrantRequest:
+      type: object
+      required: [userId, permission]
+      properties:
+        userId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid, nullable: true }
+        permission: { type: string }
+        effect: { type: string, enum: [allow, deny], default: allow }
+    PermissionGrantList:
+      type: object
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/PermissionGrant' } }, count: { type: integer } }
+    GitHubUserMapping:
+      type: object
+      required: [id, tenantId, githubLogin, userId]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        githubLogin: { type: string }
+        userId: { type: string, format: uuid }
+    GitHubUserMappingRequest:
+      type: object
+      required: [githubLogin, userId]
+      properties:
+        githubLogin: { type: string }
+        userId: { type: string, format: uuid }
+    GitHubUserMappingList:
+      type: object
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/GitHubUserMapping' } }, count: { type: integer } }
