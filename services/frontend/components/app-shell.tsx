@@ -120,7 +120,7 @@ export function AppShell({
   }
 
   return (
-    <div className="min-h-svh bg-muted/30 text-foreground">
+    <div className="min-h-svh bg-background text-foreground">
       {sidebarOpen && (
         <button
           type="button"
@@ -333,7 +333,7 @@ export function AppShell({
       </aside>
 
       <div className="min-w-0 lg:ms-[248px]">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b bg-background/90 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b bg-background px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <Button
               variant="ghost"

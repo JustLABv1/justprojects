@@ -81,7 +81,7 @@ export function PortfolioDashboard() {
   }
 
   const dashboard = (
-    <div className="min-h-svh bg-muted/30">
+    <div className="min-h-svh">
       <div className="mx-auto max-w-[1500px] space-y-8">
         <header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
           <div>
