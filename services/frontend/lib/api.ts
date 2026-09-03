@@ -110,6 +110,10 @@ export function getOidcStartUrl() {
   return request<{ url: string }>("/auth/oidc/start")
 }
 
+export function getOidcStatus() {
+  return request<{ enabled: boolean }>("/auth/oidc/status")
+}
+
 export function listProjects() {
   return request<{ items: Project[] }>("/projects")
 }

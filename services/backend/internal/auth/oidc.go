@@ -16,6 +16,13 @@ type OIDCService struct {
 	Auth   *Service
 }
 
+// Configured reports whether the minimum OIDC settings are present. It is
+// intentionally separate from provider discovery so public clients can hide
+// the OIDC option without making an authorization request.
+func (o OIDCService) Configured() bool {
+	return o.configured()
+}
+
 func (o OIDCService) configured() bool {
 	return o.Config.OIDCIssuerURL != "" && o.Config.OIDCClientID != "" && o.Config.OIDCClientSecret != "" && o.Config.OIDCRedirectURL != ""
 }

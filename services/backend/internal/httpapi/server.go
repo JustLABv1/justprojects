@@ -75,6 +75,7 @@ func (s *Server) Router() *gin.Engine {
 	authRoutes.POST("/login", s.login)
 	authRoutes.POST("/logout", s.logout)
 	authRoutes.GET("/session", s.session)
+	authRoutes.GET("/oidc/status", s.oidcStatus)
 	authRoutes.GET("/oidc/start", s.oidcStart)
 	authRoutes.GET("/oidc/callback", s.oidcCallback)
 	authRoutes.POST("/public/pages/:slug/login", s.customerLogin)
@@ -333,6 +334,12 @@ func (s *Server) session(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"user": principal.User, "tenant": principal.Tenant, "membership": principal.Membership})
+}
+
+func (s *Server) oidcStatus(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"enabled": (auth.OIDCService{Config: s.Config, Auth: s.Auth}).Configured(),
+	})
 }
 
 func (s *Server) oidcStart(c *gin.Context) {
