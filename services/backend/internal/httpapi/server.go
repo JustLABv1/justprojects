@@ -31,6 +31,7 @@ import (
 	gitlab "github.com/JustLABv1/justprojects/services/backend/internal/integrations/gitlab"
 	"github.com/JustLABv1/justprojects/services/backend/internal/permissions"
 	"github.com/JustLABv1/justprojects/services/backend/internal/queue"
+	syncservice "github.com/JustLABv1/justprojects/services/backend/internal/sync"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
@@ -1049,7 +1050,9 @@ func (s *Server) createStatus(c *gin.Context) {
 		position = *input.Position
 	}
 	now := time.Now().UTC()
-	status := db.ProjectStatus{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, ProjectID: project.ID, Name: strings.TrimSpace(input.Name), Category: input.Category, Color: input.Color, Position: position}
+	statusID := uuid.New()
+	statusName := strings.TrimSpace(input.Name)
+	status := db.ProjectStatus{RecordFields: db.RecordFields{ID: statusID, CreatedAt: now, UpdatedAt: now}, ProjectID: project.ID, Name: statusName, Category: input.Category, Color: input.Color, Position: position, ProviderLabel: syncservice.ProviderStatusLabel(project.Key, statusID, statusName)}
 	if _, err = s.Store.DB.NewInsert().Model(&status).Exec(c.Request.Context()); err != nil {
 		badRequest(c, errors.New("could not create status"))
 		return
@@ -1071,6 +1074,11 @@ func (s *Server) updateStatus(c *gin.Context) {
 		return
 	}
 	if _, err := s.project(c, projectID); err != nil {
+		notFound(c)
+		return
+	}
+	var existingStatus db.ProjectStatus
+	if err := s.Store.DB.NewSelect().Model(&existingStatus).Where("id = ? AND project_id = ?", statusID, projectID).Scan(c.Request.Context()); err != nil {
 		notFound(c)
 		return
 	}
@@ -1115,6 +1123,24 @@ func (s *Server) updateStatus(c *gin.Context) {
 	if err := s.Store.DB.NewSelect().Model(&status).Where("id = ? AND project_id = ?", statusID, projectID).Scan(c.Request.Context()); err != nil {
 		notFound(c)
 		return
+	}
+	if status.Category != existingStatus.Category {
+		var taskIDs []uuid.UUID
+		if err := s.Store.DB.NewSelect().Model((*db.Task)(nil)).
+			Column("id").
+			Where("project_id = ? AND status_id = ?", projectID, statusID).
+			Scan(c.Request.Context(), &taskIDs); err != nil {
+			slog.Default().Warn("could not load tasks for workflow status resync", "status_id", statusID, "error", err)
+		} else {
+			for _, taskID := range taskIDs {
+				if err := s.Queue.Enqueue(c.Request.Context(), "git.issue.update", map[string]any{
+					"tenantId": s.principal(c).Tenant.ID.String(),
+					"taskId":   taskID.String(),
+				}); err != nil {
+					slog.Default().Warn("could not queue workflow status resync", "status_id", statusID, "task_id", taskID, "error", err)
+				}
+			}
+		}
 	}
 	c.JSON(http.StatusOK, status)
 }
@@ -2362,6 +2388,10 @@ func (s *Server) createLabel(c *gin.Context) {
 	var input labelRequest
 	if err := c.ShouldBindJSON(&input); err != nil || strings.TrimSpace(input.Name) == "" {
 		badRequest(c, errors.New("label name is required"))
+		return
+	}
+	if syncservice.IsProviderStatusLabel(input.Name) {
+		badRequest(c, errors.New("label name uses a reserved workflow status prefix"))
 		return
 	}
 	color := input.Color
@@ -3638,17 +3668,17 @@ func (s *Server) importGitProject(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback()
-	lockKey := "justprojects:import:" + tenantID.String() + ":" + projectID.String() + ":" + repository.ID.String()
+	lockKey := "justprojects:sync:" + tenantID.String() + ":" + projectID.String() + ":" + repository.ID.String()
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`, lockKey); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not lock git import"))
 		return
 	}
 	var activeImport db.SyncEvent
 	activeErr := tx.NewSelect().Model(&activeImport).
-		Where("tenant_id = ? AND event_name = 'import' AND status IN ('queued', 'processing') AND payload->>'projectId' = ? AND payload->>'repositoryId' = ?", tenantID, projectID.String(), repository.ID.String()).
+		Where("se.tenant_id = ? AND se.event_name IN ('import', 'github.poll', 'gitlab.poll', 'github.issue', 'gitlab.issue', 'github.milestone', 'gitlab.milestone') AND (se.status IN ('queued', 'processing') OR EXISTS (SELECT 1 FROM outbox_jobs AS oj WHERE oj.payload->>'syncEventId' = se.id::text AND oj.status IN ('pending', 'processing'))) AND se.payload->>'projectId' = ? AND se.payload->>'repositoryId' = ?", tenantID, projectID.String(), repository.ID.String()).
 		Order("created_at ASC").Limit(1).Scan(ctx)
 	if activeErr == nil {
-		conflict(c, "an import for this repository is already queued or running")
+		conflict(c, "a sync for this repository is already queued or running")
 		return
 	}
 	if !errors.Is(activeErr, sql.ErrNoRows) {

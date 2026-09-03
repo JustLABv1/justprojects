@@ -159,6 +159,25 @@ func milestoneFromRaw(remote rawMilestone) integrations.Milestone {
 }
 
 func (c *Client) ListMilestones(ctx context.Context, owner, repo string) ([]integrations.Milestone, error) {
+	return c.listMilestones(ctx, owner, repo)
+}
+
+func (c *Client) ListMilestonesSince(ctx context.Context, owner, repo string, since time.Time) ([]integrations.Milestone, error) {
+	items, err := c.listMilestones(ctx, owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	since = since.UTC()
+	filtered := make([]integrations.Milestone, 0, len(items))
+	for _, item := range items {
+		if item.UpdatedAt.IsZero() || item.UpdatedAt.After(since) {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered, nil
+}
+
+func (c *Client) listMilestones(ctx context.Context, owner, repo string) ([]integrations.Milestone, error) {
 	var response []rawMilestone
 	const pageSize = 100
 	items := make([]integrations.Milestone, 0, pageSize)
@@ -213,12 +232,30 @@ func issueFromRaw(remote rawIssue) integrations.Issue {
 }
 
 func (c *Client) ListIssues(ctx context.Context, owner, repo string) ([]integrations.Issue, error) {
+	return c.listIssues(ctx, owner, repo, nil)
+}
+
+func (c *Client) ListIssuesSince(ctx context.Context, owner, repo string, since time.Time) ([]integrations.Issue, error) {
+	since = since.UTC()
+	return c.listIssues(ctx, owner, repo, &since)
+}
+
+func (c *Client) listIssues(ctx context.Context, owner, repo string, since *time.Time) ([]integrations.Issue, error) {
 	var response []rawIssue
 	const pageSize = 100
 	items := make([]integrations.Issue, 0, pageSize)
 	for page := 1; ; page++ {
 		response = nil
-		path := "/projects/" + projectPath(owner, repo) + "/issues?scope=all&state=all&per_page=" + strconv.Itoa(pageSize) + "&page=" + strconv.Itoa(page) + "&order_by=updated_at"
+		query := url.Values{}
+		query.Set("scope", "all")
+		query.Set("state", "all")
+		query.Set("per_page", strconv.Itoa(pageSize))
+		query.Set("page", strconv.Itoa(page))
+		query.Set("order_by", "updated_at")
+		if since != nil {
+			query.Set("updated_after", since.UTC().Format(time.RFC3339))
+		}
+		path := "/projects/" + projectPath(owner, repo) + "/issues?" + query.Encode()
 		if err := c.do(ctx, http.MethodGet, path, nil, "", &response); err != nil {
 			return nil, err
 		}
@@ -356,3 +393,4 @@ func (c *Client) User(ctx context.Context) (integrations.User, error) {
 }
 
 var _ integrations.Provider = (*Client)(nil)
+var _ integrations.IncrementalProvider = (*Client)(nil)

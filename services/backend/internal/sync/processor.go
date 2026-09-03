@@ -48,6 +48,8 @@ func (p Processor) ProcessJob(ctx context.Context, job *db.OutboxJob) error {
 	switch job.Kind {
 	case "git.webhook", "github.webhook":
 		return p.processGitHubWebhook(ctx, job)
+	case "git.poll", "github.poll", "gitlab.poll":
+		return p.processGitPoll(ctx, job)
 	case "git.import", "github.import":
 		return p.processGitHubImport(ctx, job)
 	case "git.issue.update", "github.issue.update":
@@ -655,9 +657,12 @@ func (p Processor) reconcileIssue(ctx context.Context, tenantID uuid.UUID, proje
 	if err := p.Store.DB.NewSelect().Model(&statuses).Where("project_id = ?", project.ID).Order("position ASC").Scan(ctx); err != nil {
 		return fmt.Errorf("load project statuses: %w", err)
 	}
-	statusID, ok := StatusForRemoteState(statuses, remote.State == "closed")
+	statusID, ok, statusFromLabel, err := StatusForRemoteIssue(project.Key, statuses, remote.State, remote.Labels)
+	if err != nil {
+		return err
+	}
 	if !ok {
-		return errors.New("project has no compatible status for github issue")
+		return errors.New("project has no compatible status for provider issue")
 	}
 	var milestoneID *uuid.UUID
 	if remote.Milestone != nil {
@@ -667,7 +672,9 @@ func (p Processor) reconcileIssue(ctx context.Context, tenantID uuid.UUID, proje
 		}
 		milestoneID = &resolved
 	}
-	labelIDs, err := p.ensureLabels(ctx, tenantID, project.ID, remote.Labels)
+	ordinaryLabels := ordinaryProviderLabels(remote.Labels)
+	remoteStatusLabels := WorkflowStatusLabels(project.Key, statuses, remote.Labels)
+	labelIDs, err := p.ensureLabels(ctx, tenantID, project.ID, ordinaryLabels)
 	if err != nil {
 		return err
 	}
@@ -686,7 +693,7 @@ func (p Processor) reconcileIssue(ctx context.Context, tenantID uuid.UUID, proje
 		if err = p.replaceTaskLabels(ctx, task.ID, labelIDs); err != nil {
 			return fmt.Errorf("save imported issue labels: %w", err)
 		}
-		link = db.ExternalLink{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: tenantID, RepositoryID: repository.ID, LocalType: "task", LocalID: task.ID, ExternalType: "issue", ExternalID: remote.ID, ExternalNumber: remote.Number, RemoteUpdatedAt: timePtr(remoteTime), FieldSnapshot: issueSnapshot(remote)}
+		link = db.ExternalLink{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: tenantID, RepositoryID: repository.ID, LocalType: "task", LocalID: task.ID, ExternalType: "issue", ExternalID: remote.ID, ExternalNumber: remote.Number, RemoteUpdatedAt: timePtr(remoteTime), FieldSnapshot: issueSnapshot(project.Key, statuses, remote)}
 		if _, err = p.Store.DB.NewInsert().Model(&link).Exec(ctx); err != nil {
 			return fmt.Errorf("link imported github issue: %w", err)
 		}
@@ -713,16 +720,27 @@ func (p Processor) reconcileIssue(ctx context.Context, tenantID uuid.UUID, proje
 		return err
 	}
 	localValues := map[string]any{
-		"title":     task.Title,
-		"body":      task.Description,
-		"state":     localTaskState(task, statuses),
-		"labels":    currentLabels,
-		"milestone": localMilestoneExternalID,
+		"title":          task.Title,
+		"body":           task.Description,
+		"state":          localTaskState(task, statuses),
+		"labels":         currentLabels,
+		"workflowStatus": []string{},
+		"milestone":      localMilestoneExternalID,
 	}
-	remoteValues := issueSnapshot(remote)
+	if localStatusLabel, found := ProviderStatusLabelForStatus(project.Key, statuses, task.StatusID); found {
+		localValues["workflowStatus"] = []string{localStatusLabel}
+	}
+	remoteValues := issueSnapshot(project.Key, statuses, remote)
 	base := link.FieldSnapshot
 	if base == nil {
 		base = map[string]any{}
+	}
+	baseWorkflowStatus, hadBaseWorkflowStatus := stringSlice(base["workflowStatus"])
+	workflowStatusRemoteChanged := !hadBaseWorkflowStatus || !valuesEqual(baseWorkflowStatus, remoteValues["workflowStatus"])
+	if baseState, ok := stringValue(base["state"]); ok {
+		// GitLab historically persisted "opened" while the normalized sync
+		// snapshot uses "open". Normalize old snapshots before conflict checks.
+		base["state"] = normalizedRemoteIssueState(baseState)
 	}
 	currentAssignees, err := p.taskAssigneeLogins(ctx, tenantID, provider, task.AssigneeID)
 	if err != nil {
@@ -743,9 +761,11 @@ func (p Processor) reconcileIssue(ctx context.Context, tenantID uuid.UUID, proje
 		lastRemote = *link.RemoteUpdatedAt
 	}
 	blocked := make(map[string]bool)
+	remoteChangedFields := make(map[string]bool)
 	for _, field := range SynchronizedFields {
 		baseValue, hasBase := base[field]
 		remoteChanged := !hasBase || !valuesEqual(baseValue, remoteValues[field])
+		remoteChangedFields[field] = remoteChanged
 		localChanged := hasBase && !valuesEqual(baseValue, localValues[field])
 		if hasBase && remoteChanged && localChanged && task.UpdatedAt.After(lastRemote) && remoteTime.After(lastRemote) {
 			blocked[field] = true
@@ -766,7 +786,21 @@ func (p Processor) reconcileIssue(ctx context.Context, tenantID uuid.UUID, proje
 	if !blocked["body"] && !valuesEqual(localValues["body"], remoteValues["body"]) {
 		updates["description"] = remote.Body
 	}
-	if !blocked["state"] && !valuesEqual(localValues["state"], remoteValues["state"]) {
+	remoteStatusChange := false
+	if remoteChangedFields["state"] && !valuesEqual(localValues["state"], remoteValues["state"]) {
+		remoteStatusChange = true
+	}
+	if workflowStatusRemoteChanged && !valuesEqual(localValues["workflowStatus"], remoteValues["workflowStatus"]) {
+		// A valid managed label selects the exact custom workflow status. If a
+		// previously managed label was removed upstream, the provider state
+		// fallback (normally Todo) becomes the local status. Legacy links with
+		// no workflow snapshot are left untouched and repaired to their current
+		// local status instead.
+		if statusFromLabel || (hadBaseWorkflowStatus && len(baseWorkflowStatus) > 0 && len(remoteStatusLabels) == 0) {
+			remoteStatusChange = true
+		}
+	}
+	if remoteStatusChange && !blocked["state"] && !blocked["workflowStatus"] {
 		updates["status_id"] = statusID
 	}
 	if !blocked["milestone"] && !valuesEqual(localValues["milestone"], remoteValues["milestone"]) {
@@ -974,12 +1008,26 @@ func (p Processor) updateExternalLink(ctx context.Context, link db.ExternalLink,
 	return err
 }
 
-func issueSnapshot(issue gh.Issue) map[string]any {
+func issueSnapshot(projectKey string, statuses []db.ProjectStatus, issue gh.Issue) map[string]any {
 	milestone := any(nil)
 	if issue.Milestone != nil {
 		milestone = issue.Milestone.ID
 	}
-	return map[string]any{"title": issue.Title, "body": issue.Body, "state": issue.State, "labels": canonicalStrings(issue.Labels), "assignees": canonicalStrings(issue.Assignees), "milestone": milestone}
+	ordinaryLabels := ordinaryProviderLabels(issue.Labels)
+	managedLabels := WorkflowStatusLabels(projectKey, statuses, issue.Labels)
+	return map[string]any{"title": issue.Title, "body": issue.Body, "state": normalizedRemoteIssueState(issue.State), "labels": canonicalStrings(ordinaryLabels), "workflowStatus": canonicalStrings(managedLabels), "assignees": canonicalStrings(issue.Assignees), "milestone": milestone}
+}
+
+func ordinaryProviderLabels(labels []string) []string {
+	ordinary, _ := SplitProviderStatusLabels(labels)
+	return ordinary
+}
+
+func normalizedRemoteIssueState(state string) string {
+	if strings.EqualFold(strings.TrimSpace(state), "closed") {
+		return "closed"
+	}
+	return "open"
 }
 
 func milestoneSnapshot(milestone gh.Milestone) map[string]any {
@@ -1096,9 +1144,85 @@ func (p Processor) taskLabelNames(ctx context.Context, taskID uuid.UUID) ([]stri
 	}
 	names := make([]string, 0, len(labels))
 	for _, label := range labels {
+		if IsProviderStatusLabel(label.Name) {
+			continue
+		}
 		names = append(names, label.Name)
 	}
 	return names, nil
+}
+
+// repairProviderStatusLabel makes the managed label bridge self-healing for
+// issues imported before workflow labels existed, and for issues whose label
+// was removed or changed directly at the provider. It is deliberately called
+// by authenticated import/poll flows; webhook reconciliation remains
+// credential-free and only applies the incoming projection locally.
+func (p Processor) repairProviderStatusLabel(ctx context.Context, client integrations.Provider, tenantID uuid.UUID, project db.Project, repository db.GitRepository, remote gh.Issue) (bool, error) {
+	var link db.ExternalLink
+	if err := p.Store.DB.NewSelect().Model(&link).
+		Where("tenant_id = ? AND repository_id = ? AND external_type = 'issue' AND external_id = ?", tenantID, repository.ID, remote.ID).
+		Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, fmt.Errorf("load provider issue link for status label repair: %w", err)
+	}
+	var task db.Task
+	if err := p.Store.DB.NewSelect().Model(&task).
+		Where("id = ? AND tenant_id = ? AND project_id = ?", link.LocalID, tenantID, project.ID).
+		Scan(ctx); err != nil {
+		return false, fmt.Errorf("load task for status label repair: %w", err)
+	}
+	var statuses []db.ProjectStatus
+	if err := p.Store.DB.NewSelect().Model(&statuses).Where("project_id = ?", project.ID).Scan(ctx); err != nil {
+		return false, fmt.Errorf("load project statuses for status label repair: %w", err)
+	}
+	desired, ok := ProviderStatusLabelForStatus(project.Key, statuses, task.StatusID)
+	if !ok {
+		return false, errors.New("task status is not part of the project workflow")
+	}
+	openConflicts, err := p.Store.DB.NewSelect().Model((*db.SyncConflict)(nil)).
+		Where("external_link_id = ? AND field = 'workflowStatus' AND status = 'open'", link.ID).
+		Count(ctx)
+	if err != nil {
+		return false, fmt.Errorf("check workflow status conflicts before repair: %w", err)
+	}
+	if openConflicts > 0 {
+		return false, nil
+	}
+	managedLabels := WorkflowStatusLabels(project.Key, statuses, remote.Labels)
+	if len(managedLabels) == 1 && strings.EqualFold(strings.TrimSpace(managedLabels[0]), desired) {
+		return false, nil
+	}
+
+	var milestoneNumber *int
+	if remote.Milestone != nil {
+		number := remote.Milestone.Number
+		milestoneNumber = &number
+	}
+	labels := WithProviderStatusLabel(project.Key, statuses, remote.Labels, desired)
+	updated, err := client.UpdateIssue(ctx, repository.Owner, repository.Name, remote.Number, gh.IssuePatch{
+		Title:     remote.Title,
+		Body:      remote.Body,
+		State:     normalizedRemoteIssueState(remote.State),
+		Labels:    labels,
+		Milestone: milestoneNumber,
+	})
+	if err != nil {
+		return false, fmt.Errorf("repair provider workflow status label on issue #%d: %w", remote.Number, err)
+	}
+	if updated.UpdatedAt.IsZero() {
+		updated.UpdatedAt = remote.UpdatedAt
+	}
+	if updated.UpdatedAt.IsZero() {
+		updated.UpdatedAt = time.Now().UTC()
+	}
+	if len(updated.Labels) == 0 {
+		// Some provider-compatible clients may omit labels in a mutation
+		// response. Keep the persisted snapshot truthful to the patch we sent.
+		updated.Labels = labels
+	}
+	return true, p.updateExternalLink(ctx, link, issueSnapshot(project.Key, statuses, updated), updated.UpdatedAt)
 }
 
 func (p Processor) assigneeID(ctx context.Context, tenantID uuid.UUID, provider string, logins []string) (*uuid.UUID, error) {
@@ -1165,6 +1289,7 @@ func (p Processor) processGitHubImport(ctx context.Context, job *db.OutboxJob) (
 	if err != nil {
 		return err
 	}
+	importStartedAt := time.Now().UTC()
 	var syncEventID uuid.UUID
 	if raw, ok := stringPayload(job.Payload, "syncEventId"); ok {
 		syncEventID, _ = uuid.Parse(raw)
@@ -1256,6 +1381,16 @@ func (p Processor) processGitHubImport(ctx context.Context, job *db.OutboxJob) (
 			}
 			continue
 		}
+		if repaired, repairErr := p.repairProviderStatusLabel(ctx, client, tenantID, project, repository, issue); repairErr != nil {
+			failure := fmt.Sprintf("issue #%d %q status label: %v", issue.Number, issue.Title, repairErr)
+			issueFailures = append(issueFailures, failure)
+			if syncEventID != uuid.Nil {
+				p.appendSyncLog(ctx, syncEventID, &tenantID, "error", "issue", "Could not repair "+failure, map[string]any{"number": issue.Number})
+			}
+			continue
+		} else if repaired && syncEventID != uuid.Nil {
+			p.appendSyncLog(ctx, syncEventID, &tenantID, "info", "issue", fmt.Sprintf("Applied workflow status label to issue #%d", issue.Number), map[string]any{"number": issue.Number})
+		}
 		issueCount++
 	}
 	if syncEventID != uuid.Nil {
@@ -1268,6 +1403,9 @@ func (p Processor) processGitHubImport(ctx context.Context, job *db.OutboxJob) (
 			preview = preview[:3]
 		}
 		return fmt.Errorf("import completed with %d reconciliation errors: %s", len(failures), strings.Join(preview, "; "))
+	}
+	if err := p.seedGitSyncCursor(ctx, tenantID, projectID, repositoryID, importStartedAt); err != nil {
+		return fmt.Errorf("save sync cursor after import: %w", err)
 	}
 	return nil
 }
@@ -1412,6 +1550,15 @@ func (p Processor) processIssueUpdate(ctx context.Context, job *db.OutboxJob) er
 	if err = p.Store.DB.NewSelect().Model(&statuses).Where("project_id = ?", task.ProjectID).Scan(ctx); err != nil {
 		return err
 	}
+	var project db.Project
+	if err = p.Store.DB.NewSelect().Model(&project).Where("id = ? AND tenant_id = ?", task.ProjectID, tenantID).Scan(ctx); err != nil {
+		return err
+	}
+	statusLabel, found := ProviderStatusLabelForStatus(project.Key, statuses, task.StatusID)
+	if !found {
+		return errors.New("task status is not part of the project workflow")
+	}
+	labels = WithProviderStatusLabel(project.Key, statuses, labels, statusLabel)
 	state := localTaskState(task, statuses)
 	var milestoneNumber *int
 	if task.MilestoneID != nil {
@@ -1428,7 +1575,7 @@ func (p Processor) processIssueUpdate(ctx context.Context, job *db.OutboxJob) er
 	if remote.UpdatedAt.IsZero() {
 		remote.UpdatedAt = time.Now().UTC()
 	}
-	return p.updateExternalLink(ctx, link, issueSnapshot(remote), remote.UpdatedAt)
+	return p.updateExternalLink(ctx, link, issueSnapshot(project.Key, statuses, remote), remote.UpdatedAt)
 }
 
 func (p Processor) processIssueCreate(ctx context.Context, job *db.OutboxJob) (returnErr error) {
@@ -1514,6 +1661,15 @@ func (p Processor) processIssueCreate(ctx context.Context, job *db.OutboxJob) (r
 	if err = p.Store.DB.NewSelect().Model(&statuses).Where("project_id = ?", task.ProjectID).Scan(ctx); err != nil {
 		return fmt.Errorf("load task statuses: %w", err)
 	}
+	var project db.Project
+	if err = p.Store.DB.NewSelect().Model(&project).Where("id = ? AND tenant_id = ?", task.ProjectID, tenantID).Scan(ctx); err != nil {
+		return fmt.Errorf("load task project: %w", err)
+	}
+	statusLabel, found := ProviderStatusLabelForStatus(project.Key, statuses, task.StatusID)
+	if !found {
+		return errors.New("task status is not part of the project workflow")
+	}
+	labels = WithProviderStatusLabel(project.Key, statuses, labels, statusLabel)
 	var assignees *[]string
 	if task.AssigneeID != nil {
 		mappedAssignees, assigneeErr := p.taskAssigneeLogins(ctx, tenantID, provider, task.AssigneeID)
@@ -1563,7 +1719,7 @@ func (p Processor) processIssueCreate(ctx context.Context, job *db.OutboxJob) (r
 		ExternalID:      remote.ID,
 		ExternalNumber:  remote.Number,
 		RemoteUpdatedAt: timePtr(remote.UpdatedAt),
-		FieldSnapshot:   issueSnapshot(remote),
+		FieldSnapshot:   issueSnapshot(project.Key, statuses, remote),
 	}
 	result, err := p.Store.DB.NewInsert().Model(&link).
 		On("CONFLICT (repository_id, local_type, local_id) DO NOTHING").Exec(ctx)
@@ -1805,7 +1961,28 @@ func (p Processor) applyRemoteConflict(ctx context.Context, conflict db.SyncConf
 				return err
 			}
 			state, _ := stringValue(conflict.RemoteValue)
-			if statusID, ok := StatusForRemoteState(statuses, state == "closed"); ok {
+			if statusID, ok := StatusForRemoteState(statuses, strings.EqualFold(state, "closed")); ok {
+				updates["status_id"] = statusID
+			}
+		case "workflowStatus":
+			var project db.Project
+			if err := p.Store.DB.NewSelect().Model(&project).Where("id = ? AND tenant_id = ?", task.ProjectID, conflict.TenantID).Scan(ctx); err != nil {
+				return err
+			}
+			var statuses []db.ProjectStatus
+			if err := p.Store.DB.NewSelect().Model(&statuses).Where("project_id = ?", task.ProjectID).Scan(ctx); err != nil {
+				return err
+			}
+			labels, ok := stringSlice(conflict.RemoteValue)
+			if !ok {
+				break
+			}
+			remoteState, _ := stringValue(link.FieldSnapshot["state"])
+			statusID, statusOK, _, statusErr := StatusForRemoteIssue(project.Key, statuses, remoteState, labels)
+			if statusErr != nil {
+				return statusErr
+			}
+			if statusOK {
 				updates["status_id"] = statusID
 			}
 		case "milestone":
@@ -1823,6 +2000,7 @@ func (p Processor) applyRemoteConflict(ctx context.Context, conflict db.SyncConf
 			if !ok {
 				break
 			}
+			labels, _ = SplitProviderStatusLabels(labels)
 			labelIDs, err := p.ensureLabels(ctx, conflict.TenantID, task.ProjectID, labels)
 			if err != nil {
 				return err

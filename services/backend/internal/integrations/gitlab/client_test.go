@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/JustLABv1/justprojects/services/backend/internal/integrations"
 )
@@ -150,6 +151,32 @@ func TestListIssuesPaginates(t *testing.T) {
 	}
 	if len(issues) != 101 || issues[len(issues)-1].Number != 101 {
 		t.Fatalf("got %d issues, want 101 including the second page", len(issues))
+	}
+}
+
+func TestListIssuesSinceSendsGitLabUpdatedAfterCursor(t *testing.T) {
+	wantSince := "2026-09-03T10:00:00Z"
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Query().Get("updated_after") != wantSince {
+			response.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(response, `[{"id":42,"iid":7,"title":"Changed","state":"opened","updated_at":"2026-09-03T10:01:00Z"}]`)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "token")
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	since, _ := time.Parse(time.RFC3339, wantSince)
+	issues, err := client.ListIssuesSince(context.Background(), "group", "app", since)
+	if err != nil {
+		t.Fatalf("ListIssuesSince() error = %v", err)
+	}
+	if len(issues) != 1 || issues[0].Number != 7 {
+		t.Fatalf("unexpected issues: %+v", issues)
 	}
 }
 

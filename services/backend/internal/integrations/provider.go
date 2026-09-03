@@ -18,6 +18,17 @@ type Provider interface {
 	UpdateMilestone(context.Context, string, string, int, MilestonePatch) (Milestone, error)
 }
 
+// IncrementalProvider is implemented by providers that can narrow issue
+// polling to records changed after a cursor. Milestones are included in the
+// optional surface because providers differ in whether their milestone API
+// supports a server-side updated-after filter. The worker can fall back to a
+// full milestone listing when it does not.
+type IncrementalProvider interface {
+	Provider
+	ListIssuesSince(context.Context, string, string, time.Time) ([]Issue, error)
+	ListMilestonesSince(context.Context, string, string, time.Time) ([]Milestone, error)
+}
+
 type Repository struct {
 	ID       int64  `json:"id"`
 	Owner    string `json:"owner"`

@@ -45,3 +45,29 @@ func TestLoadFallsBackForInvalidDiscreteValues(t *testing.T) {
 		t.Fatalf("invalid discrete values were not replaced with defaults: %+v", loaded.Database)
 	}
 }
+
+func TestLoadUsesScheduledSyncInterval(t *testing.T) {
+	t.Setenv("GIT_SYNC_INTERVAL", "17m")
+	t.Setenv("APP_ENCRYPTION_KEY", "stable-test-key")
+
+	loaded, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if loaded.SyncPollInterval != 17*time.Minute {
+		t.Fatalf("SyncPollInterval = %s, want 17m", loaded.SyncPollInterval)
+	}
+}
+
+func TestLoadFallsBackForNonPositiveScheduledSyncInterval(t *testing.T) {
+	t.Setenv("GIT_SYNC_INTERVAL", "0s")
+	t.Setenv("APP_ENCRYPTION_KEY", "stable-test-key")
+
+	loaded, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if loaded.SyncPollInterval != 5*time.Minute {
+		t.Fatalf("SyncPollInterval = %s, want default 5m", loaded.SyncPollInterval)
+	}
+}

@@ -310,13 +310,18 @@ function eventLabel(value: string, t: Translator) {
         ? t("sync.issue")
         : resource === "milestone"
           ? t("sync.milestone")
-          : resource
+          : resource === "poll"
+            ? t("sync.scheduledSync")
+            : resource
   return `${provider === "github" ? "GitHub" : provider === "gitlab" ? "GitLab" : provider} ${translatedResource}`
 }
 
 function eventAction(event: SyncEvent, t: Translator) {
   if (event.eventName === "import" || event.action === "manual") {
     return t("sync.manualImport")
+  }
+  if (event.action === "scheduled") {
+    return t("sync.scheduled")
   }
   return event.action
     ? t("sync.actionDelivery", { action: event.action })

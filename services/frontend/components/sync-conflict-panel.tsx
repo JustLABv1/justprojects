@@ -68,6 +68,10 @@ export function SyncConflictPanel({
                   conflict.localId ??
                   conflict.externalLinkId,
               })
+              const fieldLabel =
+                conflict.field === "workflowStatus"
+                  ? t("sync.workflowStatus")
+                  : conflict.field
               const busy = resolvingId === conflict.id
               return (
                 <article
@@ -79,7 +83,7 @@ export function SyncConflictPanel({
                       <p className="truncate text-sm font-medium">{target}</p>
                       <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                         <span>
-                          {t("sync.conflictField", { field: conflict.field })}
+                          {t("sync.conflictField", { field: fieldLabel })}
                         </span>
                         {conflict.provider && (
                           <>

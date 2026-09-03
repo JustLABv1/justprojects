@@ -514,6 +514,35 @@ export function ProjectWorkspace({
     [t]
   )
 
+  useEffect(() => {
+    if (
+      !isApiConfigured ||
+      activeView === "settings" ||
+      activeView === "integrations"
+    ) {
+      return
+    }
+    const interval = window.setInterval(() => {
+      // Provider polling runs in the backend. These lightweight local reads
+      // keep the visible task, roadmap, and overview projections current once
+      // that worker has reconciled a new item.
+      void refreshTasks(data.project.id, true)
+      if (activeView === "overview" || activeView === "roadmap") {
+        void refreshMilestones(data.project.id)
+      }
+      if (activeView === "overview") {
+        void refreshSyncRuns(true)
+      }
+    }, 5000)
+    return () => window.clearInterval(interval)
+  }, [
+    activeView,
+    data.project.id,
+    refreshMilestones,
+    refreshSyncRuns,
+    refreshTasks,
+  ])
+
   const onViewChange = (view: WorkspaceView) => {
     router.push(`/app/projects/${data.project.key.toLowerCase()}/${view}`)
   }
@@ -2768,6 +2797,13 @@ function ProjectSettings({
                 setError(nextError)
               }}
             />
+            <div className="mt-4 flex items-start gap-2 rounded-lg border bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
+              <RiInformationLine
+                className="mt-0.5 size-3.5 shrink-0"
+                aria-hidden="true"
+              />
+              <span>{t("settings.workflowProviderLabels")}</span>
+            </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
               <Input
                 value={statusName}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/JustLABv1/justprojects/services/backend/internal/db"
 	"github.com/google/uuid"
+	"github.com/uptrace/bun"
 )
 
 type Queue struct {
@@ -27,6 +28,18 @@ type RetryAtProvider interface {
 }
 
 func (q Queue) Enqueue(ctx context.Context, kind string, payload map[string]any) error {
+	return enqueue(ctx, q.Store.DB, kind, payload)
+}
+
+// EnqueueTx inserts an outbox job into an existing transaction. Schedulers use
+// this to commit the sync history row, cursor state, and durable job together.
+// That prevents a worker restart from leaving a scheduled run without work or
+// work without a corresponding history entry.
+func (q Queue) EnqueueTx(ctx context.Context, tx bun.IDB, kind string, payload map[string]any) error {
+	return enqueue(ctx, tx, kind, payload)
+}
+
+func enqueue(ctx context.Context, database bun.IDB, kind string, payload map[string]any) error {
 	now := time.Now().UTC()
 	job := &db.OutboxJob{
 		RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now},
@@ -35,7 +48,7 @@ func (q Queue) Enqueue(ctx context.Context, kind string, payload map[string]any)
 		Status:       "pending",
 		RunAt:        now,
 	}
-	_, err := q.Store.DB.NewInsert().Model(job).Exec(ctx)
+	_, err := database.NewInsert().Model(job).Exec(ctx)
 	return err
 }
 

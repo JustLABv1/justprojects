@@ -11,3 +11,4 @@ type Milestone = integrations.Milestone
 type IssuePatch = integrations.IssuePatch
 type MilestonePatch = integrations.MilestonePatch
 type Provider = integrations.Provider
+type IncrementalProvider = integrations.IncrementalProvider

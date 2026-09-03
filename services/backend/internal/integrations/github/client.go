@@ -280,36 +280,54 @@ func (c *Client) ListInstallationRepositories(ctx context.Context) ([]Repository
 	return items, nil
 }
 
+type rawIssue struct {
+	ID          int64          `json:"id"`
+	Number      int            `json:"number"`
+	Title       string         `json:"title"`
+	Body        string         `json:"body"`
+	State       string         `json:"state"`
+	HTMLURL     string         `json:"html_url"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	PullRequest map[string]any `json:"pull_request"`
+	Labels      []struct {
+		Name string `json:"name"`
+	} `json:"labels"`
+	Assignees []struct {
+		Login string `json:"login"`
+	} `json:"assignees"`
+	Milestone *struct {
+		ID        int64      `json:"id"`
+		Number    int        `json:"number"`
+		Title     string     `json:"title"`
+		State     string     `json:"state"`
+		DueOn     *time.Time `json:"due_on"`
+		UpdatedAt time.Time  `json:"updated_at"`
+	} `json:"milestone"`
+}
+
 func (c *Client) ListIssues(ctx context.Context, owner, repo string) ([]Issue, error) {
-	var response []struct {
-		ID          int64          `json:"id"`
-		Number      int            `json:"number"`
-		Title       string         `json:"title"`
-		Body        string         `json:"body"`
-		State       string         `json:"state"`
-		HTMLURL     string         `json:"html_url"`
-		UpdatedAt   time.Time      `json:"updated_at"`
-		PullRequest map[string]any `json:"pull_request"`
-		Labels      []struct {
-			Name string `json:"name"`
-		} `json:"labels"`
-		Assignees []struct {
-			Login string `json:"login"`
-		} `json:"assignees"`
-		Milestone *struct {
-			ID        int64      `json:"id"`
-			Number    int        `json:"number"`
-			Title     string     `json:"title"`
-			State     string     `json:"state"`
-			DueOn     *time.Time `json:"due_on"`
-			UpdatedAt time.Time  `json:"updated_at"`
-		} `json:"milestone"`
-	}
+	return c.listIssues(ctx, owner, repo, nil)
+}
+
+func (c *Client) ListIssuesSince(ctx context.Context, owner, repo string, since time.Time) ([]Issue, error) {
+	since = since.UTC()
+	return c.listIssues(ctx, owner, repo, &since)
+}
+
+func (c *Client) listIssues(ctx context.Context, owner, repo string, since *time.Time) ([]Issue, error) {
+	var response []rawIssue
 	const pageSize = 100
 	items := make([]Issue, 0, pageSize)
 	for page := 1; ; page++ {
 		response = nil
-		path := "/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(repo) + "/issues?state=all&per_page=" + strconv.Itoa(pageSize) + "&page=" + strconv.Itoa(page)
+		query := url.Values{}
+		query.Set("state", "all")
+		query.Set("per_page", strconv.Itoa(pageSize))
+		query.Set("page", strconv.Itoa(page))
+		if since != nil {
+			query.Set("since", since.UTC().Format(time.RFC3339))
+		}
+		path := "/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(repo) + "/issues?" + query.Encode()
 		if err := c.do(ctx, http.MethodGet, path, nil, &response); err != nil {
 			return nil, err
 		}
@@ -390,6 +408,29 @@ func (c *Client) issueMutation(ctx context.Context, method, owner, repo string, 
 }
 
 func (c *Client) ListMilestones(ctx context.Context, owner, repo string) ([]Milestone, error) {
+	return c.listMilestones(ctx, owner, repo)
+}
+
+// GitHub does not expose an updated-after parameter for repository milestones.
+// Fetching the paginated list and filtering locally keeps polling correct for
+// both GitHub.com and GitHub Enterprise while issues use the cheaper server
+// side `since` filter above.
+func (c *Client) ListMilestonesSince(ctx context.Context, owner, repo string, since time.Time) ([]Milestone, error) {
+	items, err := c.listMilestones(ctx, owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	since = since.UTC()
+	filtered := make([]Milestone, 0, len(items))
+	for _, item := range items {
+		if item.UpdatedAt.IsZero() || item.UpdatedAt.After(since) {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered, nil
+}
+
+func (c *Client) listMilestones(ctx context.Context, owner, repo string) ([]Milestone, error) {
 	var response []struct {
 		ID          int64      `json:"id"`
 		Number      int        `json:"number"`
@@ -454,3 +495,4 @@ func (c *Client) User(ctx context.Context) (User, error) {
 }
 
 var _ Provider = (*Client)(nil)
+var _ IncrementalProvider = (*Client)(nil)

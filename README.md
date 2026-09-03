@@ -98,6 +98,14 @@ as a Docker build argument when the frontend and backend use different public
 origins. The same release workflow can be started manually with a version input.
 For branch snapshots of both images, use `.github/workflows/build-image-manual.yml`.
 
+The worker also performs a durable scheduled poll for every attached repository.
+Set `GIT_SYNC_INTERVAL` (for example, `5m`) to control the interval. The first
+poll creates a baseline; later polls use provider change windows for issues,
+retain per-project cursors, reconcile milestones, and write a complete run and
+activity log to the existing synchronization history. Webhooks remain the
+fastest path when they are configured. A scheduled poll never overlaps an
+active import or provider mutation for the same project/repository pair.
+
 ## OpenShip
 
 The root `openship.json` points OpenShip at the production stack in

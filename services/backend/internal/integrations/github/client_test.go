@@ -218,6 +218,30 @@ func TestListIssuesPaginatesAndSkipsPullRequests(t *testing.T) {
 	}
 }
 
+func TestListIssuesSinceSendsGitHubSinceCursor(t *testing.T) {
+	wantSince := "2026-09-03T10:00:00Z"
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Query().Get("since") != wantSince {
+			response.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(response, `[{"id":42,"number":7,"title":"Changed","state":"open","updated_at":"2026-09-03T10:01:00Z"}]`)
+	}))
+	defer server.Close()
+
+	client := NewClient("token")
+	client.BaseURL = server.URL
+	since, _ := time.Parse(time.RFC3339, wantSince)
+	issues, err := client.ListIssuesSince(t.Context(), "acme", "app", since)
+	if err != nil {
+		t.Fatalf("ListIssuesSince() error = %v", err)
+	}
+	if len(issues) != 1 || issues[0].Number != 7 {
+		t.Fatalf("unexpected issues: %+v", issues)
+	}
+}
+
 func TestUserIncludesRequiredGitHubHeaders(t *testing.T) {
 	client := NewClient("test-token")
 	client.BaseURL = "https://api.github.test"
