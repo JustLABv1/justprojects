@@ -16,6 +16,7 @@ tags:
   - name: Public pages
   - name: Integrations
   - name: Sync
+  - name: Platform admin
 paths:
   /healthz:
     get:
@@ -53,6 +54,7 @@ paths:
       responses:
         '201': { $ref: '#/components/responses/Session' }
         '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
   /auth/login:
     post:
       tags: [Authentication]
@@ -66,6 +68,7 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Session' }
         '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
   /auth/logout:
     post:
       tags: [Authentication]
@@ -80,6 +83,18 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Session' }
         '401': { $ref: '#/components/responses/Error' }
+  /auth/config:
+    get:
+      tags: [Authentication]
+      operationId: getAuthConfig
+      security: []
+      responses:
+        '200':
+          description: Installation-wide authentication capabilities.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthConfig' }
+        '500': { $ref: '#/components/responses/Error' }
   /auth/oidc/status:
     get:
       tags: [Authentication]
@@ -118,6 +133,7 @@ paths:
         - { $ref: '#/components/parameters/OIDCCode' }
       responses:
         '302': { description: Redirect to the frontend after successful login. }
+        '403': { $ref: '#/components/responses/Error' }
   /auth/public/pages/{slug}/login:
     post:
       tags: [Authentication]
@@ -132,6 +148,7 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Session' }
         '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
   /me:
     get:
       tags: [Authentication]
@@ -139,6 +156,118 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Session' }
         '401': { $ref: '#/components/responses/Error' }
+  /platform/admin/overview:
+    get:
+      tags: [Platform admin]
+      operationId: getPlatformOverview
+      responses:
+        '200':
+          description: Installation-wide statistics and authentication settings.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlatformOverview' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /platform/admin/users:
+    get:
+      tags: [Platform admin]
+      operationId: listPlatformUsers
+      parameters:
+        - { $ref: '#/components/parameters/Query' }
+      responses:
+        '200':
+          description: Users across all workspaces.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlatformUserList' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /platform/admin/users/{userId}:
+    patch:
+      tags: [Platform admin]
+      operationId: updatePlatformUser
+      parameters: [{ $ref: '#/components/parameters/UserId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlatformUserPatch' }
+      responses:
+        '200':
+          description: Updated platform user.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /platform/admin/users/{userId}/revoke-sessions:
+    post:
+      tags: [Platform admin]
+      operationId: revokePlatformUserSessions
+      parameters: [{ $ref: '#/components/parameters/UserId' }]
+      responses:
+        '200':
+          description: Number of sessions revoked.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [revoked]
+                properties: { revoked: { type: integer } }
+        '403': { $ref: '#/components/responses/Error' }
+  /platform/admin/projects:
+    get:
+      tags: [Platform admin]
+      operationId: listPlatformProjects
+      parameters:
+        - { $ref: '#/components/parameters/Query' }
+      responses:
+        '200':
+          description: Projects across all workspaces.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlatformProjectList' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /platform/admin/projects/{projectId}:
+    patch:
+      tags: [Platform admin]
+      operationId: updatePlatformProject
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties: { status: { type: string, enum: [active, paused, archived] } }
+      responses:
+        '200':
+          description: Updated project.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /platform/admin/settings:
+    patch:
+      tags: [Platform admin]
+      operationId: updatePlatformSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlatformSettingsPatch' }
+      responses:
+        '200':
+          description: Updated platform authentication settings.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthConfig' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
   /tenant:
     get:
       tags: [Tenant]
@@ -1246,6 +1375,8 @@ components:
         email: { type: string, format: email }
         name: { type: string }
         emailVerified: { type: boolean }
+        platformAdmin: { type: boolean }
+        suspended: { type: boolean }
     Tenant:
       type: object
       required: [id, name, slug, requestSlug]
@@ -1269,6 +1400,91 @@ components:
         user: { $ref: '#/components/schemas/User' }
         tenant: { $ref: '#/components/schemas/Tenant' }
         membership: { $ref: '#/components/schemas/Membership' }
+        platformAdmin: { type: boolean }
+    AuthConfig:
+      type: object
+      required: [loginEnabled, signupEnabled, oidcEnabled]
+      properties:
+        loginEnabled: { type: boolean }
+        signupEnabled: { type: boolean }
+        oidcEnabled: { type: boolean }
+    PlatformStats:
+      type: object
+      required: [users, activeUsers, suspendedUsers, workspaces, projects, tasks, activeSessions, recentSignups, recentProjects]
+      properties:
+        users: { type: integer }
+        activeUsers: { type: integer }
+        suspendedUsers: { type: integer }
+        workspaces: { type: integer }
+        projects: { type: integer }
+        tasks: { type: integer }
+        activeSessions: { type: integer }
+        recentSignups: { type: integer }
+        recentProjects: { type: integer }
+    PlatformSettings:
+      type: object
+      required: [loginEnabled, signupEnabled, oidcEnabled]
+      properties:
+        loginEnabled: { type: boolean }
+        signupEnabled: { type: boolean }
+        oidcEnabled: { type: boolean }
+    PlatformOverview:
+      type: object
+      required: [stats, settings]
+      properties:
+        stats: { $ref: '#/components/schemas/PlatformStats' }
+        settings: { $ref: '#/components/schemas/PlatformSettings' }
+    PlatformUser:
+      type: object
+      required: [id, name, email, emailVerified, platformAdmin, suspended, createdAt, updatedAt, tenantCount, projectCount, activeSessions]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        emailVerified: { type: boolean }
+        platformAdmin: { type: boolean }
+        suspended: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        tenantCount: { type: integer }
+        projectCount: { type: integer }
+        activeSessions: { type: integer }
+        lastActiveAt: { type: string, format: date-time, nullable: true }
+    PlatformUserList:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/PlatformUser' } }
+        count: { type: integer }
+    PlatformUserPatch:
+      type: object
+      properties:
+        platformAdmin: { type: boolean }
+        suspended: { type: boolean }
+    PlatformProject:
+      type: object
+      required: [id, tenantId, tenantName, name, key, status, createdAt, updatedAt, createdByName, taskCount, completedTasks]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        tenantName: { type: string }
+        name: { type: string }
+        key: { type: string }
+        status: { type: string, enum: [active, paused, archived] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        createdByName: { type: string }
+        taskCount: { type: integer }
+        completedTasks: { type: integer }
+    PlatformProjectList:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/PlatformProject' } }
+        count: { type: integer }
+    PlatformSettingsPatch:
+      type: object
+      properties:
+        loginEnabled: { type: boolean }
+        signupEnabled: { type: boolean }
     TenantMember:
       type: object
       required: [membership, user]

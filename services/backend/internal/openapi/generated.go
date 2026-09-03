@@ -119,6 +119,13 @@ const (
 	PermissionGrantRequestEffectDeny  PermissionGrantRequestEffect = "deny"
 )
 
+// Defines values for PlatformProjectStatus.
+const (
+	PlatformProjectStatusActive   PlatformProjectStatus = "active"
+	PlatformProjectStatusArchived PlatformProjectStatus = "archived"
+	PlatformProjectStatusPaused   PlatformProjectStatus = "paused"
+)
+
 // Defines values for ProjectRequestPatchStatus.
 const (
 	ProjectRequestPatchStatusApproved  ProjectRequestPatchStatus = "approved"
@@ -264,6 +271,13 @@ const (
 	SyncStatusSucceeded  SyncStatus = "succeeded"
 )
 
+// Defines values for UpdatePlatformProjectJSONBodyStatus.
+const (
+	UpdatePlatformProjectJSONBodyStatusActive   UpdatePlatformProjectJSONBodyStatus = "active"
+	UpdatePlatformProjectJSONBodyStatusArchived UpdatePlatformProjectJSONBodyStatus = "archived"
+	UpdatePlatformProjectJSONBodyStatusPaused   UpdatePlatformProjectJSONBodyStatus = "paused"
+)
+
 // Defines values for ListProjectRequestsParamsStatus.
 const (
 	Approved  ListProjectRequestsParamsStatus = "approved"
@@ -320,6 +334,13 @@ type AuditEvent struct {
 type AuditEventList struct {
 	Count *int          `json:"count,omitempty"`
 	Items *[]AuditEvent `json:"items,omitempty"`
+}
+
+// AuthConfig defines model for AuthConfig.
+type AuthConfig struct {
+	LoginEnabled  bool `json:"loginEnabled"`
+	OidcEnabled   bool `json:"oidcEnabled"`
+	SignupEnabled bool `json:"signupEnabled"`
 }
 
 // ConflictList defines model for ConflictList.
@@ -624,6 +645,90 @@ type PermissionGrantRequest struct {
 // PermissionGrantRequestEffect defines model for PermissionGrantRequest.Effect.
 type PermissionGrantRequestEffect string
 
+// PlatformOverview defines model for PlatformOverview.
+type PlatformOverview struct {
+	Settings PlatformSettings `json:"settings"`
+	Stats    PlatformStats    `json:"stats"`
+}
+
+// PlatformProject defines model for PlatformProject.
+type PlatformProject struct {
+	CompletedTasks int                   `json:"completedTasks"`
+	CreatedAt      time.Time             `json:"createdAt"`
+	CreatedByName  string                `json:"createdByName"`
+	Id             openapi_types.UUID    `json:"id"`
+	Key            string                `json:"key"`
+	Name           string                `json:"name"`
+	Status         PlatformProjectStatus `json:"status"`
+	TaskCount      int                   `json:"taskCount"`
+	TenantId       openapi_types.UUID    `json:"tenantId"`
+	TenantName     string                `json:"tenantName"`
+	UpdatedAt      time.Time             `json:"updatedAt"`
+}
+
+// PlatformProjectStatus defines model for PlatformProject.Status.
+type PlatformProjectStatus string
+
+// PlatformProjectList defines model for PlatformProjectList.
+type PlatformProjectList struct {
+	Count *int               `json:"count,omitempty"`
+	Items *[]PlatformProject `json:"items,omitempty"`
+}
+
+// PlatformSettings defines model for PlatformSettings.
+type PlatformSettings struct {
+	LoginEnabled  bool `json:"loginEnabled"`
+	OidcEnabled   bool `json:"oidcEnabled"`
+	SignupEnabled bool `json:"signupEnabled"`
+}
+
+// PlatformSettingsPatch defines model for PlatformSettingsPatch.
+type PlatformSettingsPatch struct {
+	LoginEnabled  *bool `json:"loginEnabled,omitempty"`
+	SignupEnabled *bool `json:"signupEnabled,omitempty"`
+}
+
+// PlatformStats defines model for PlatformStats.
+type PlatformStats struct {
+	ActiveSessions int `json:"activeSessions"`
+	ActiveUsers    int `json:"activeUsers"`
+	Projects       int `json:"projects"`
+	RecentProjects int `json:"recentProjects"`
+	RecentSignups  int `json:"recentSignups"`
+	SuspendedUsers int `json:"suspendedUsers"`
+	Tasks          int `json:"tasks"`
+	Users          int `json:"users"`
+	Workspaces     int `json:"workspaces"`
+}
+
+// PlatformUser defines model for PlatformUser.
+type PlatformUser struct {
+	ActiveSessions int                 `json:"activeSessions"`
+	CreatedAt      time.Time           `json:"createdAt"`
+	Email          openapi_types.Email `json:"email"`
+	EmailVerified  bool                `json:"emailVerified"`
+	Id             openapi_types.UUID  `json:"id"`
+	LastActiveAt   *time.Time          `json:"lastActiveAt"`
+	Name           string              `json:"name"`
+	PlatformAdmin  bool                `json:"platformAdmin"`
+	ProjectCount   int                 `json:"projectCount"`
+	Suspended      bool                `json:"suspended"`
+	TenantCount    int                 `json:"tenantCount"`
+	UpdatedAt      time.Time           `json:"updatedAt"`
+}
+
+// PlatformUserList defines model for PlatformUserList.
+type PlatformUserList struct {
+	Count *int            `json:"count,omitempty"`
+	Items *[]PlatformUser `json:"items,omitempty"`
+}
+
+// PlatformUserPatch defines model for PlatformUserPatch.
+type PlatformUserPatch struct {
+	PlatformAdmin *bool `json:"platformAdmin,omitempty"`
+	Suspended     *bool `json:"suspended,omitempty"`
+}
+
 // PortfolioList defines model for PortfolioList.
 type PortfolioList struct {
 	Items *[]PortfolioProject `json:"items,omitempty"`
@@ -920,9 +1025,10 @@ type RemoteAssignee struct {
 
 // Session defines model for Session.
 type Session struct {
-	Membership Membership `json:"membership"`
-	Tenant     Tenant     `json:"tenant"`
-	User       User       `json:"user"`
+	Membership    Membership `json:"membership"`
+	PlatformAdmin *bool      `json:"platformAdmin,omitempty"`
+	Tenant        Tenant     `json:"tenant"`
+	User          User       `json:"user"`
 }
 
 // StatusCategory defines model for StatusCategory.
@@ -1117,6 +1223,8 @@ type User struct {
 	EmailVerified *bool               `json:"emailVerified,omitempty"`
 	Id            openapi_types.UUID  `json:"id"`
 	Name          string              `json:"name"`
+	PlatformAdmin *bool               `json:"platformAdmin,omitempty"`
+	Suspended     *bool               `json:"suspended,omitempty"`
 }
 
 // ConflictId defines model for ConflictId.
@@ -1235,6 +1343,24 @@ type CompleteGitHubOAuthParams struct {
 // ListGitRepositoriesParams defines parameters for ListGitRepositories.
 type ListGitRepositoriesParams struct {
 	ConnectionId *ConnectionQuery `form:"connectionId,omitempty" json:"connectionId,omitempty"`
+}
+
+// ListPlatformProjectsParams defines parameters for ListPlatformProjects.
+type ListPlatformProjectsParams struct {
+	Q *Query `form:"q,omitempty" json:"q,omitempty"`
+}
+
+// UpdatePlatformProjectJSONBody defines parameters for UpdatePlatformProject.
+type UpdatePlatformProjectJSONBody struct {
+	Status UpdatePlatformProjectJSONBodyStatus `json:"status"`
+}
+
+// UpdatePlatformProjectJSONBodyStatus defines parameters for UpdatePlatformProject.
+type UpdatePlatformProjectJSONBodyStatus string
+
+// ListPlatformUsersParams defines parameters for ListPlatformUsers.
+type ListPlatformUsersParams struct {
+	Q *Query `form:"q,omitempty" json:"q,omitempty"`
 }
 
 // ListProjectRequestsParams defines parameters for ListProjectRequests.
@@ -1361,6 +1487,15 @@ type CreateGitHubUserMappingJSONRequestBody = GitHubUserMappingRequest
 // CreateGitLabConnectionJSONRequestBody defines body for CreateGitLabConnection for application/json ContentType.
 type CreateGitLabConnectionJSONRequestBody = GitTokenConnectionRequest
 
+// UpdatePlatformProjectJSONRequestBody defines body for UpdatePlatformProject for application/json ContentType.
+type UpdatePlatformProjectJSONRequestBody UpdatePlatformProjectJSONBody
+
+// UpdatePlatformSettingsJSONRequestBody defines body for UpdatePlatformSettings for application/json ContentType.
+type UpdatePlatformSettingsJSONRequestBody = PlatformSettingsPatch
+
+// UpdatePlatformUserJSONRequestBody defines body for UpdatePlatformUser for application/json ContentType.
+type UpdatePlatformUserJSONRequestBody = PlatformUserPatch
+
 // UpdateProjectRequestJSONRequestBody defines body for UpdateProjectRequest for application/json ContentType.
 type UpdateProjectRequestJSONRequestBody = ProjectRequestPatch
 
@@ -1445,6 +1580,9 @@ type ServerInterface interface {
 	// (GET /audit/events)
 	ListAuditEvents(c *gin.Context, params ListAuditEventsParams)
 
+	// (GET /auth/config)
+	GetAuthConfig(c *gin.Context)
+
 	// (POST /auth/login)
 	Login(c *gin.Context)
 
@@ -1456,6 +1594,9 @@ type ServerInterface interface {
 
 	// (GET /auth/oidc/start)
 	StartOIDC(c *gin.Context)
+
+	// (GET /auth/oidc/status)
+	GetOIDCStatus(c *gin.Context)
 
 	// (POST /auth/public/pages/{slug}/login)
 	LoginCustomer(c *gin.Context, slug PageSlug)
@@ -1525,6 +1666,27 @@ type ServerInterface interface {
 
 	// (POST /notifications/{notificationId}/read)
 	MarkNotificationRead(c *gin.Context, notificationId NotificationId)
+
+	// (GET /platform/admin/overview)
+	GetPlatformOverview(c *gin.Context)
+
+	// (GET /platform/admin/projects)
+	ListPlatformProjects(c *gin.Context, params ListPlatformProjectsParams)
+
+	// (PATCH /platform/admin/projects/{projectId})
+	UpdatePlatformProject(c *gin.Context, projectId ProjectId)
+
+	// (PATCH /platform/admin/settings)
+	UpdatePlatformSettings(c *gin.Context)
+
+	// (GET /platform/admin/users)
+	ListPlatformUsers(c *gin.Context, params ListPlatformUsersParams)
+
+	// (PATCH /platform/admin/users/{userId})
+	UpdatePlatformUser(c *gin.Context, userId UserId)
+
+	// (POST /platform/admin/users/{userId}/revoke-sessions)
+	RevokePlatformUserSessions(c *gin.Context, userId UserId)
 
 	// (GET /portfolio)
 	GetPortfolio(c *gin.Context)
@@ -1726,6 +1888,19 @@ func (siw *ServerInterfaceWrapper) ListAuditEvents(c *gin.Context) {
 	siw.Handler.ListAuditEvents(c, params)
 }
 
+// GetAuthConfig operation middleware
+func (siw *ServerInterfaceWrapper) GetAuthConfig(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAuthConfig(c)
+}
+
 // Login operation middleware
 func (siw *ServerInterfaceWrapper) Login(c *gin.Context) {
 
@@ -1813,6 +1988,19 @@ func (siw *ServerInterfaceWrapper) StartOIDC(c *gin.Context) {
 	}
 
 	siw.Handler.StartOIDC(c)
+}
+
+// GetOIDCStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetOIDCStatus(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetOIDCStatus(c)
 }
 
 // LoginCustomer operation middleware
@@ -2288,6 +2476,170 @@ func (siw *ServerInterfaceWrapper) MarkNotificationRead(c *gin.Context) {
 	}
 
 	siw.Handler.MarkNotificationRead(c, notificationId)
+}
+
+// GetPlatformOverview operation middleware
+func (siw *ServerInterfaceWrapper) GetPlatformOverview(c *gin.Context) {
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetPlatformOverview(c)
+}
+
+// ListPlatformProjects operation middleware
+func (siw *ServerInterfaceWrapper) ListPlatformProjects(c *gin.Context) {
+
+	var err error
+
+	c.Set(CookieAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListPlatformProjectsParams
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "q", c.Request.URL.Query(), &params.Q)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter q: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListPlatformProjects(c, params)
+}
+
+// UpdatePlatformProject operation middleware
+func (siw *ServerInterfaceWrapper) UpdatePlatformProject(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "projectId" -------------
+	var projectId ProjectId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "projectId", c.Param("projectId"), &projectId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter projectId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdatePlatformProject(c, projectId)
+}
+
+// UpdatePlatformSettings operation middleware
+func (siw *ServerInterfaceWrapper) UpdatePlatformSettings(c *gin.Context) {
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdatePlatformSettings(c)
+}
+
+// ListPlatformUsers operation middleware
+func (siw *ServerInterfaceWrapper) ListPlatformUsers(c *gin.Context) {
+
+	var err error
+
+	c.Set(CookieAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListPlatformUsersParams
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "q", c.Request.URL.Query(), &params.Q)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter q: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListPlatformUsers(c, params)
+}
+
+// UpdatePlatformUser operation middleware
+func (siw *ServerInterfaceWrapper) UpdatePlatformUser(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "userId" -------------
+	var userId UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdatePlatformUser(c, userId)
+}
+
+// RevokePlatformUserSessions operation middleware
+func (siw *ServerInterfaceWrapper) RevokePlatformUserSessions(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "userId" -------------
+	var userId UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RevokePlatformUserSessions(c, userId)
 }
 
 // GetPortfolio operation middleware
@@ -3864,10 +4216,12 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	}
 
 	router.GET(options.BaseURL+"/audit/events", wrapper.ListAuditEvents)
+	router.GET(options.BaseURL+"/auth/config", wrapper.GetAuthConfig)
 	router.POST(options.BaseURL+"/auth/login", wrapper.Login)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.Logout)
 	router.GET(options.BaseURL+"/auth/oidc/callback", wrapper.CompleteOIDC)
 	router.GET(options.BaseURL+"/auth/oidc/start", wrapper.StartOIDC)
+	router.GET(options.BaseURL+"/auth/oidc/status", wrapper.GetOIDCStatus)
 	router.POST(options.BaseURL+"/auth/public/pages/:slug/login", wrapper.LoginCustomer)
 	router.POST(options.BaseURL+"/auth/register", wrapper.Register)
 	router.GET(options.BaseURL+"/auth/session", wrapper.GetSession)
@@ -3891,6 +4245,13 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/notifications", wrapper.ListNotifications)
 	router.DELETE(options.BaseURL+"/notifications/:notificationId", wrapper.DeleteNotification)
 	router.POST(options.BaseURL+"/notifications/:notificationId/read", wrapper.MarkNotificationRead)
+	router.GET(options.BaseURL+"/platform/admin/overview", wrapper.GetPlatformOverview)
+	router.GET(options.BaseURL+"/platform/admin/projects", wrapper.ListPlatformProjects)
+	router.PATCH(options.BaseURL+"/platform/admin/projects/:projectId", wrapper.UpdatePlatformProject)
+	router.PATCH(options.BaseURL+"/platform/admin/settings", wrapper.UpdatePlatformSettings)
+	router.GET(options.BaseURL+"/platform/admin/users", wrapper.ListPlatformUsers)
+	router.PATCH(options.BaseURL+"/platform/admin/users/:userId", wrapper.UpdatePlatformUser)
+	router.POST(options.BaseURL+"/platform/admin/users/:userId/revoke-sessions", wrapper.RevokePlatformUserSessions)
 	router.GET(options.BaseURL+"/portfolio", wrapper.GetPortfolio)
 	router.GET(options.BaseURL+"/project-requests", wrapper.ListProjectRequests)
 	router.PATCH(options.BaseURL+"/project-requests/:requestId", wrapper.UpdateProjectRequest)

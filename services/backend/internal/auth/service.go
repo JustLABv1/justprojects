@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -19,6 +20,8 @@ import (
 
 var ErrInvalidCredentials = errors.New("invalid credentials")
 var ErrSessionExpired = errors.New("session expired")
+var ErrLoginDisabled = errors.New("login is currently disabled")
+var ErrSignupDisabled = errors.New("signup is currently disabled")
 
 type Service struct {
 	Store  *db.Store
@@ -55,7 +58,38 @@ func NewService(store *db.Store, cfg config.Config) (*Service, error) {
 	return &Service{Store: store, Config: cfg, Cipher: cipher}, nil
 }
 
+// IsPlatformAdmin deliberately checks both the durable flag and the optional
+// email allow-list. The latter is useful for a self-hosted recovery account:
+// an operator can regain access even if the database flag was changed.
+func (s *Service) IsPlatformAdmin(user db.User) bool {
+	if user.PlatformAdmin {
+		return true
+	}
+	email := strings.ToLower(strings.TrimSpace(user.Email))
+	for _, configured := range s.Config.PlatformAdminEmails {
+		if email == strings.ToLower(strings.TrimSpace(configured)) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Service) PlatformSettings(ctx context.Context) (db.PlatformSettings, error) {
+	var settings db.PlatformSettings
+	if err := s.Store.DB.NewSelect().Model(&settings).Where("singleton_id = true").Limit(1).Scan(ctx); err != nil {
+		return db.PlatformSettings{}, err
+	}
+	return settings, nil
+}
+
 func (s *Service) Register(ctx context.Context, input RegisterInput) (*Principal, string, error) {
+	settings, err := s.PlatformSettings(ctx)
+	if err != nil {
+		return nil, "", fmt.Errorf("load platform settings: %w", err)
+	}
+	if !settings.SignupEnabled {
+		return nil, "", ErrSignupDisabled
+	}
 	email, err := normalizeEmail(input.Email)
 	if err != nil {
 		return nil, "", err
@@ -77,6 +111,14 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (*Principal
 		return nil, "", fmt.Errorf("begin registration: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext('justprojects:platform-admin-bootstrap'))`); err != nil {
+		return nil, "", fmt.Errorf("lock platform bootstrap: %w", err)
+	}
+	adminCount, err := s.platformAdminCount(ctx, tx)
+	if err != nil {
+		return nil, "", fmt.Errorf("count platform administrators: %w", err)
+	}
+	user.PlatformAdmin = adminCount == 0 || s.IsPlatformAdmin(user)
 	tenant.RequestSlug, err = uniqueRequestSlug(ctx, tx, tenant.Name)
 	if err != nil {
 		return nil, "", fmt.Errorf("generate tenant request slug: %w", err)
@@ -105,6 +147,16 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (*Principal, stri
 	var user db.User
 	if err = s.Store.DB.NewSelect().Model(&user).Where("lower(email) = lower(?)", email).Limit(1).Scan(ctx); err != nil || !VerifyPassword(input.Password, user.PasswordHash) {
 		return nil, "", ErrInvalidCredentials
+	}
+	if user.Suspended {
+		return nil, "", ErrInvalidCredentials
+	}
+	settings, err := s.PlatformSettings(ctx)
+	if err != nil {
+		return nil, "", fmt.Errorf("load platform settings: %w", err)
+	}
+	if !settings.LoginEnabled && !s.IsPlatformAdmin(user) {
+		return nil, "", ErrLoginDisabled
 	}
 	var membership db.Membership
 	query := s.Store.DB.NewSelect().Model(&membership).Where("user_id = ?", user.ID).Order("created_at ASC").Limit(1)
@@ -136,6 +188,16 @@ func (s *Service) LoginCustomer(ctx context.Context, slug, email, password strin
 	var user db.User
 	if err = s.Store.DB.NewSelect().Model(&user).Where("lower(email) = lower(?)", normalizedEmail).Limit(1).Scan(ctx); err != nil || !VerifyPassword(password, user.PasswordHash) {
 		return nil, "", ErrInvalidCredentials
+	}
+	if user.Suspended {
+		return nil, "", ErrInvalidCredentials
+	}
+	settings, err := s.PlatformSettings(ctx)
+	if err != nil {
+		return nil, "", ErrInvalidCredentials
+	}
+	if !settings.LoginEnabled && !s.IsPlatformAdmin(user) {
+		return nil, "", ErrLoginDisabled
 	}
 	viewerCount, err := s.Store.DB.NewSelect().Model((*db.PublicPageViewer)(nil)).Where("public_page_id = ? AND user_id = ?", page.ID, user.ID).Count(ctx)
 	if err != nil || viewerCount != 1 {
@@ -187,6 +249,9 @@ func (s *Service) PrincipalFromToken(ctx context.Context, token string) (*Princi
 	if err := s.Store.DB.NewSelect().Model(&user).Where("id = ?", session.UserID).Scan(ctx); err != nil {
 		return nil, ErrSessionExpired
 	}
+	if user.Suspended {
+		return nil, ErrSessionExpired
+	}
 	if err := s.Store.DB.NewSelect().Model(&tenant).Where("id = ?", session.TenantID).Scan(ctx); err != nil {
 		return nil, ErrSessionExpired
 	}
@@ -213,6 +278,10 @@ func (s *Service) DeleteSession(ctx context.Context, token string) error {
 }
 
 func (s *Service) LoginIdentity(ctx context.Context, provider, subject, email, name string) (*Principal, string, error) {
+	settings, err := s.PlatformSettings(ctx)
+	if err != nil {
+		return nil, "", fmt.Errorf("load platform settings: %w", err)
+	}
 	var identity db.Identity
 	identityErr := s.Store.DB.NewSelect().Model(&identity).Where("provider = ? AND subject = ?", provider, subject).Scan(ctx)
 	var user db.User
@@ -220,29 +289,61 @@ func (s *Service) LoginIdentity(ctx context.Context, provider, subject, email, n
 		if err := s.Store.DB.NewSelect().Model(&user).Where("id = ?", identity.UserID).Scan(ctx); err != nil {
 			return nil, "", err
 		}
-	} else {
+	} else if errors.Is(identityErr, sql.ErrNoRows) {
 		normalizedEmail, err := normalizeEmail(email)
 		if err != nil {
 			return nil, "", err
 		}
-		if err = s.Store.DB.NewSelect().Model(&user).Where("lower(email) = lower(?)", normalizedEmail).Limit(1).Scan(ctx); err != nil {
+		userErr := s.Store.DB.NewSelect().Model(&user).Where("lower(email) = lower(?)", normalizedEmail).Limit(1).Scan(ctx)
+		if userErr != nil {
+			if !errors.Is(userErr, sql.ErrNoRows) {
+				return nil, "", userErr
+			}
+			if !settings.LoginEnabled {
+				return nil, "", ErrLoginDisabled
+			}
+			if !settings.SignupEnabled {
+				return nil, "", ErrSignupDisabled
+			}
 			now := time.Now().UTC()
 			user = db.User{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, Email: normalizedEmail, Name: strings.TrimSpace(name), EmailVerified: true}
 			if user.Name == "" {
 				user.Name = normalizedEmail
 			}
+			adminCount, countErr := s.platformAdminCount(ctx, s.Store.DB)
+			if countErr != nil {
+				return nil, "", countErr
+			}
+			user.PlatformAdmin = adminCount == 0 || s.IsPlatformAdmin(user)
 			if _, err = s.Store.DB.NewInsert().Model(&user).Exec(ctx); err != nil {
 				return nil, "", err
 			}
+		}
+		if user.Suspended {
+			return nil, "", ErrInvalidCredentials
+		}
+		if !settings.LoginEnabled && !s.IsPlatformAdmin(user) {
+			return nil, "", ErrLoginDisabled
 		}
 		now := time.Now().UTC()
 		newIdentity := db.Identity{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, UserID: user.ID, Provider: provider, Subject: subject, Email: normalizedEmail}
 		if _, err := s.Store.DB.NewInsert().Model(&newIdentity).On("CONFLICT (provider, subject) DO NOTHING").Exec(ctx); err != nil {
 			return nil, "", err
 		}
+	} else {
+		return nil, "", identityErr
+	}
+	if user.Suspended {
+		return nil, "", ErrInvalidCredentials
+	}
+	if !settings.LoginEnabled && !s.IsPlatformAdmin(user) {
+		return nil, "", ErrLoginDisabled
 	}
 	var membership db.Membership
 	if err := s.Store.DB.NewSelect().Model(&membership).Where("user_id = ?", user.ID).Order("created_at ASC").Limit(1).Scan(ctx); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, "", err
+		}
 		now := time.Now().UTC()
 		tenant := db.Tenant{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, Name: user.Name + " Workspace", Slug: uniqueSlug(user.Name)}
 		membership = db.Membership{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: tenant.ID, UserID: user.ID, Role: "owner"}
@@ -314,6 +415,20 @@ func uniqueRequestSlug(ctx context.Context, database bun.IDB, name string) (stri
 			return candidate, nil
 		}
 	}
+}
+
+func (s *Service) platformAdminCount(ctx context.Context, database bun.IDB) (int, error) {
+	users := make([]db.User, 0)
+	if err := database.NewSelect().Model(&users).Column("email", "platform_admin", "suspended").Scan(ctx); err != nil {
+		return 0, err
+	}
+	count := 0
+	for _, user := range users {
+		if !user.Suspended && s.IsPlatformAdmin(user) {
+			count++
+		}
+	}
+	return count, nil
 }
 
 var _ bun.IDB = (*bun.DB)(nil)

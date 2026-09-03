@@ -276,6 +276,7 @@ export function RequestInbox() {
       onCreateProject={() => router.push("/app")}
       onLogout={() => void handleLogout()}
       showNewTask={false}
+      platformAdmin={session.platformAdmin}
     >
       {inbox}
     </AppShell>
