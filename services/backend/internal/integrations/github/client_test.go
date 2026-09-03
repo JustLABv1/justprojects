@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -91,12 +93,13 @@ func TestParsePrivateKeyAcceptsPKCS1PKCS8AndEscapedNewlines(t *testing.T) {
 }
 
 func TestIssueAndMilestonePatchesPreserveClearOperations(t *testing.T) {
-	issueJSON, err := json.Marshal(IssuePatch{Title: "Updated", Labels: nil, Assignees: nil, Milestone: nil})
+	assignees := []string{}
+	issueJSON, err := json.Marshal(IssuePatch{Title: "Updated", Labels: nil, Assignees: &assignees, Milestone: nil})
 	if err != nil {
 		t.Fatalf("marshal issue patch: %v", err)
 	}
 	issuePayload := string(issueJSON)
-	for _, field := range []string{`"labels":null`, `"assignees":null`, `"milestone":null`} {
+	for _, field := range []string{`"labels":null`, `"assignees":[]`, `"milestone":null`} {
 		if !strings.Contains(issuePayload, field) {
 			t.Fatalf("issue patch %s omitted clear field: %s", field, issuePayload)
 		}
@@ -107,6 +110,16 @@ func TestIssueAndMilestonePatchesPreserveClearOperations(t *testing.T) {
 	}
 	if !strings.Contains(string(milestoneJSON), `"due_on":null`) {
 		t.Fatalf("milestone patch omitted due date clear: %s", milestoneJSON)
+	}
+}
+
+func TestIssuePatchOmitsAssigneesWhenUnchanged(t *testing.T) {
+	issueJSON, err := json.Marshal(IssuePatch{Title: "Updated", Labels: nil, Assignees: nil, Milestone: nil})
+	if err != nil {
+		t.Fatalf("marshal issue patch: %v", err)
+	}
+	if strings.Contains(string(issueJSON), "assignees") {
+		t.Fatalf("unchanged assignees should be omitted: %s", issueJSON)
 	}
 }
 
@@ -133,6 +146,168 @@ func TestListInstallationRepositoriesUsesInstallationEndpoint(t *testing.T) {
 	}
 	if len(repositories) != 1 || repositories[0].FullName != "acme/app" || !repositories[0].Private {
 		t.Fatalf("unexpected repositories: %+v", repositories)
+	}
+}
+
+func TestListIssuesPaginatesAndSkipsPullRequests(t *testing.T) {
+	pages := make([]int, 0, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/repos/acme/app/issues" {
+			response.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if request.URL.Query().Get("state") != "all" || request.URL.Query().Get("per_page") != "100" {
+			response.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		page, err := strconv.Atoi(request.URL.Query().Get("page"))
+		if err != nil {
+			response.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		pages = append(pages, page)
+		response.Header().Set("Content-Type", "application/json")
+
+		items := make([]map[string]any, 0, 100)
+		switch page {
+		case 1:
+			for number := 1; number <= 99; number++ {
+				items = append(items, map[string]any{
+					"id":     number,
+					"number": number,
+					"title":  fmt.Sprintf("Issue %d", number),
+					"state":  "open",
+				})
+			}
+			items = append(items, map[string]any{
+				"id":           100,
+				"number":       100,
+				"title":        "Pull request",
+				"state":        "open",
+				"pull_request": map[string]any{"url": "https://github.com/acme/app/pull/100"},
+			})
+		case 2:
+			items = append(items, map[string]any{
+				"id":     101,
+				"number": 101,
+				"title":  "Issue 101",
+				"state":  "closed",
+			})
+		default:
+			response.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_ = json.NewEncoder(response).Encode(items)
+	}))
+	defer server.Close()
+
+	client := NewClient("token")
+	client.BaseURL = server.URL
+	issues, err := client.ListIssues(t.Context(), "acme", "app")
+	if err != nil {
+		t.Fatalf("ListIssues() error = %v", err)
+	}
+	if len(pages) != 2 || pages[0] != 1 || pages[1] != 2 {
+		t.Fatalf("requested pages = %v, want [1 2]", pages)
+	}
+	if len(issues) != 100 {
+		t.Fatalf("got %d issues, want 100 non-pull-request issues", len(issues))
+	}
+	if issues[0].Number != 1 || issues[len(issues)-1].Number != 101 {
+		t.Fatalf("unexpected issue boundaries: first=%+v last=%+v", issues[0], issues[len(issues)-1])
+	}
+}
+
+func TestListIssuesSinceSendsGitHubSinceCursor(t *testing.T) {
+	wantSince := "2026-09-03T10:00:00Z"
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Query().Get("since") != wantSince {
+			response.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(response, `[{"id":42,"number":7,"title":"Changed","state":"open","updated_at":"2026-09-03T10:01:00Z"}]`)
+	}))
+	defer server.Close()
+
+	client := NewClient("token")
+	client.BaseURL = server.URL
+	since, _ := time.Parse(time.RFC3339, wantSince)
+	issues, err := client.ListIssuesSince(t.Context(), "acme", "app", since)
+	if err != nil {
+		t.Fatalf("ListIssuesSince() error = %v", err)
+	}
+	if len(issues) != 1 || issues[0].Number != 7 {
+		t.Fatalf("unexpected issues: %+v", issues)
+	}
+}
+
+func TestUserIncludesRequiredGitHubHeaders(t *testing.T) {
+	client := NewClient("test-token")
+	client.BaseURL = "https://api.github.test"
+	client.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path != "/user" {
+			return nil, fmt.Errorf("path = %s, want /user", request.URL.Path)
+		}
+		if request.Header.Get("Authorization") != "Bearer test-token" {
+			return nil, fmt.Errorf("authorization header was not set")
+		}
+		if request.Header.Get("Accept") != "application/vnd.github+json" {
+			return nil, fmt.Errorf("accept header = %q", request.Header.Get("Accept"))
+		}
+		if request.Header.Get("X-GitHub-Api-Version") != apiVersion {
+			return nil, fmt.Errorf("api version header = %q", request.Header.Get("X-GitHub-Api-Version"))
+		}
+		if request.Header.Get("User-Agent") != userAgent {
+			return nil, fmt.Errorf("user agent header = %q", request.Header.Get("User-Agent"))
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"id":42,"login":"acme"}`)),
+			Request:    request,
+		}, nil
+	})}
+	user, err := client.User(t.Context())
+	if err != nil {
+		t.Fatalf("User() error = %v", err)
+	}
+	if user.ID != 42 || user.Login != "acme" {
+		t.Fatalf("unexpected user: %+v", user)
+	}
+}
+
+func TestAPIErrorDetectsRateLimitAndReset(t *testing.T) {
+	reset := time.Now().UTC().Add(time.Hour)
+	err := &APIError{
+		StatusCode:         http.StatusForbidden,
+		Message:            `{"message":"API rate limit exceeded"}`,
+		RateLimitRemaining: "0",
+		RateLimitReset:     &reset,
+	}
+	if !IsRateLimited(err) {
+		t.Fatal("IsRateLimited() = false, want true")
+	}
+	got, ok := RateLimitReset(err)
+	if !ok || !got.Equal(reset) {
+		t.Fatalf("RateLimitReset() = %v, %v; want %v, true", got, ok, reset)
+	}
+	retryAt, ok := err.RetryAt()
+	if !ok || !retryAt.Equal(reset) {
+		t.Fatalf("RetryAt() = %v, %v; want %v, true", retryAt, ok, reset)
+	}
+}
+
+func TestAPIErrorDetectsInvalidCredentials(t *testing.T) {
+	err := &APIError{
+		StatusCode: http.StatusUnauthorized,
+		Message:    `{"message":"Bad credentials"}`,
+	}
+	if !IsInvalidCredentials(err) {
+		t.Fatal("IsInvalidCredentials() = false, want true")
+	}
+	if IsRateLimited(err) {
+		t.Fatal("IsRateLimited() = true, want false")
 	}
 }
 

@@ -17,6 +17,25 @@ const (
 	CookieAuthScopes = "cookieAuth.Scopes"
 )
 
+// Defines values for CustomerProjectRequestPriority.
+const (
+	CustomerProjectRequestPriorityHigh   CustomerProjectRequestPriority = "high"
+	CustomerProjectRequestPriorityLow    CustomerProjectRequestPriority = "low"
+	CustomerProjectRequestPriorityMedium CustomerProjectRequestPriority = "medium"
+	CustomerProjectRequestPriorityUrgent CustomerProjectRequestPriority = "urgent"
+)
+
+// Defines values for CustomerProjectRequestStatus.
+const (
+	CustomerProjectRequestStatusApproved  CustomerProjectRequestStatus = "approved"
+	CustomerProjectRequestStatusCancelled CustomerProjectRequestStatus = "cancelled"
+	CustomerProjectRequestStatusConverted CustomerProjectRequestStatus = "converted"
+	CustomerProjectRequestStatusInReview  CustomerProjectRequestStatus = "in_review"
+	CustomerProjectRequestStatusNeedsInfo CustomerProjectRequestStatus = "needs_info"
+	CustomerProjectRequestStatusRejected  CustomerProjectRequestStatus = "rejected"
+	CustomerProjectRequestStatusSubmitted CustomerProjectRequestStatus = "submitted"
+)
+
 // Defines values for GitConnectionAuthMethod.
 const (
 	App   GitConnectionAuthMethod = "app"
@@ -100,6 +119,37 @@ const (
 	PermissionGrantRequestEffectDeny  PermissionGrantRequestEffect = "deny"
 )
 
+// Defines values for ProjectRequestPatchStatus.
+const (
+	ProjectRequestPatchStatusApproved  ProjectRequestPatchStatus = "approved"
+	ProjectRequestPatchStatusCancelled ProjectRequestPatchStatus = "cancelled"
+	ProjectRequestPatchStatusConverted ProjectRequestPatchStatus = "converted"
+	ProjectRequestPatchStatusInReview  ProjectRequestPatchStatus = "in_review"
+	ProjectRequestPatchStatusNeedsInfo ProjectRequestPatchStatus = "needs_info"
+	ProjectRequestPatchStatusRejected  ProjectRequestPatchStatus = "rejected"
+	ProjectRequestPatchStatusSubmitted ProjectRequestPatchStatus = "submitted"
+)
+
+// Defines values for ProjectRequestSubmissionPriority.
+const (
+	ProjectRequestSubmissionPriorityHigh   ProjectRequestSubmissionPriority = "high"
+	ProjectRequestSubmissionPriorityLow    ProjectRequestSubmissionPriority = "low"
+	ProjectRequestSubmissionPriorityMedium ProjectRequestSubmissionPriority = "medium"
+	ProjectRequestSubmissionPriorityUrgent ProjectRequestSubmissionPriority = "urgent"
+)
+
+// Defines values for ProjectUpdateVisibility.
+const (
+	ProjectUpdateVisibilityCustomer ProjectUpdateVisibility = "customer"
+	ProjectUpdateVisibilityInternal ProjectUpdateVisibility = "internal"
+)
+
+// Defines values for ProjectUpdateRequestVisibility.
+const (
+	ProjectUpdateRequestVisibilityCustomer ProjectUpdateRequestVisibility = "customer"
+	ProjectUpdateRequestVisibilityInternal ProjectUpdateRequestVisibility = "internal"
+)
+
 // Defines values for PublicMilestoneStatus.
 const (
 	PublicMilestoneStatusClosed PublicMilestoneStatus = "closed"
@@ -135,6 +185,12 @@ const (
 	Todo       StatusCategory = "todo"
 )
 
+// Defines values for SyncConflictLocalType.
+const (
+	SyncConflictLocalTypeMilestone SyncConflictLocalType = "milestone"
+	SyncConflictLocalTypeTask      SyncConflictLocalType = "task"
+)
+
 // Defines values for SyncConflictStatus.
 const (
 	SyncConflictStatusIgnored  SyncConflictStatus = "ignored"
@@ -148,6 +204,14 @@ const (
 	SyncEventStatusProcessing SyncEventStatus = "processing"
 	SyncEventStatusQueued     SyncEventStatus = "queued"
 	SyncEventStatusSucceeded  SyncEventStatus = "succeeded"
+)
+
+// Defines values for SyncEventLogLevel.
+const (
+	SyncEventLogLevelDebug SyncEventLogLevel = "debug"
+	SyncEventLogLevelError SyncEventLogLevel = "error"
+	SyncEventLogLevelInfo  SyncEventLogLevel = "info"
+	SyncEventLogLevelWarn  SyncEventLogLevel = "warn"
 )
 
 // Defines values for TaskPriority.
@@ -198,6 +262,17 @@ const (
 	SyncStatusProcessing SyncStatus = "processing"
 	SyncStatusQueued     SyncStatus = "queued"
 	SyncStatusSucceeded  SyncStatus = "succeeded"
+)
+
+// Defines values for ListProjectRequestsParamsStatus.
+const (
+	Approved  ListProjectRequestsParamsStatus = "approved"
+	Cancelled ListProjectRequestsParamsStatus = "cancelled"
+	Converted ListProjectRequestsParamsStatus = "converted"
+	InReview  ListProjectRequestsParamsStatus = "in_review"
+	NeedsInfo ListProjectRequestsParamsStatus = "needs_info"
+	Rejected  ListProjectRequestsParamsStatus = "rejected"
+	Submitted ListProjectRequestsParamsStatus = "submitted"
 )
 
 // Defines values for ListSyncConflictsParamsStatus.
@@ -253,6 +328,33 @@ type ConflictList struct {
 	Items *[]SyncConflict `json:"items,omitempty"`
 }
 
+// CustomerProjectRequest defines model for CustomerProjectRequest.
+type CustomerProjectRequest struct {
+	AssignedTo          *openapi_types.UUID            `json:"assignedTo"`
+	ConvertedProjectId  *openapi_types.UUID            `json:"convertedProjectId"`
+	CreatedAt           time.Time                      `json:"createdAt"`
+	Description         string                         `json:"description"`
+	Id                  openapi_types.UUID             `json:"id"`
+	InternalNotes       *string                        `json:"internalNotes,omitempty"`
+	Priority            CustomerProjectRequestPriority `json:"priority"`
+	RequestedStartDate  *openapi_types.Date            `json:"requestedStartDate"`
+	RequestedTargetDate *openapi_types.Date            `json:"requestedTargetDate"`
+	RequesterEmail      openapi_types.Email            `json:"requesterEmail"`
+	RequesterName       string                         `json:"requesterName"`
+	RequesterUserId     *openapi_types.UUID            `json:"requesterUserId"`
+	SourcePublicPageId  *openapi_types.UUID            `json:"sourcePublicPageId"`
+	Status              CustomerProjectRequestStatus   `json:"status"`
+	TenantId            openapi_types.UUID             `json:"tenantId"`
+	Title               string                         `json:"title"`
+	UpdatedAt           time.Time                      `json:"updatedAt"`
+}
+
+// CustomerProjectRequestPriority defines model for CustomerProjectRequest.Priority.
+type CustomerProjectRequestPriority string
+
+// CustomerProjectRequestStatus defines model for CustomerProjectRequest.Status.
+type CustomerProjectRequestStatus string
+
 // Error defines model for Error.
 type Error struct {
 	Error string `json:"error"`
@@ -291,8 +393,10 @@ type GitHubRepository = GitRepository
 
 // GitHubUserMapping defines model for GitHubUserMapping.
 type GitHubUserMapping struct {
-	GithubLogin string             `json:"githubLogin"`
 	Id          openapi_types.UUID `json:"id"`
+	Provider    GitProvider        `json:"provider"`
+	RemoteId    *int64             `json:"remoteId"`
+	RemoteLogin string             `json:"remoteLogin"`
 	TenantId    openapi_types.UUID `json:"tenantId"`
 	UserId      openapi_types.UUID `json:"userId"`
 }
@@ -474,6 +578,22 @@ type MilestoneRequestStatus string
 // MilestoneRequestVisibility defines model for MilestoneRequest.Visibility.
 type MilestoneRequestVisibility string
 
+// Notification defines model for Notification.
+type Notification struct {
+	Body      string             `json:"body"`
+	CreatedAt time.Time          `json:"createdAt"`
+	Id        openapi_types.UUID `json:"id"`
+	Link      *string            `json:"link,omitempty"`
+	ReadAt    *time.Time         `json:"readAt"`
+	Title     string             `json:"title"`
+	Type      string             `json:"type"`
+}
+
+// NotificationList defines model for NotificationList.
+type NotificationList struct {
+	Items *[]Notification `json:"items,omitempty"`
+}
+
 // PermissionGrant defines model for PermissionGrant.
 type PermissionGrant struct {
 	Effect     PermissionGrantEffect `json:"effect"`
@@ -503,6 +623,29 @@ type PermissionGrantRequest struct {
 
 // PermissionGrantRequestEffect defines model for PermissionGrantRequest.Effect.
 type PermissionGrantRequestEffect string
+
+// PortfolioList defines model for PortfolioList.
+type PortfolioList struct {
+	Items *[]PortfolioProject `json:"items,omitempty"`
+}
+
+// PortfolioNextMilestone defines model for PortfolioNextMilestone.
+type PortfolioNextMilestone struct {
+	DueDate *openapi_types.Date `json:"dueDate"`
+	Id      openapi_types.UUID  `json:"id"`
+	Name    string              `json:"name"`
+	Status  string              `json:"status"`
+}
+
+// PortfolioProject defines model for PortfolioProject.
+type PortfolioProject struct {
+	ActiveCustomerPages int                     `json:"activeCustomerPages"`
+	BlockedTasks        int                     `json:"blockedTasks"`
+	CompletedTasks      int                     `json:"completedTasks"`
+	NextMilestone       *PortfolioNextMilestone `json:"nextMilestone,omitempty"`
+	Project             Project                 `json:"project"`
+	TaskTotal           int                     `json:"taskTotal"`
+}
 
 // Project defines model for Project.
 type Project struct {
@@ -563,6 +706,57 @@ type ProjectRequest struct {
 	TargetDate   *openapi_types.Date `json:"targetDate,omitempty"`
 }
 
+// ProjectRequestConversion defines model for ProjectRequestConversion.
+type ProjectRequestConversion struct {
+	Description *string             `json:"description,omitempty"`
+	Key         *string             `json:"key,omitempty"`
+	Name        *string             `json:"name,omitempty"`
+	TargetDate  *openapi_types.Date `json:"targetDate,omitempty"`
+}
+
+// ProjectRequestConverted defines model for ProjectRequestConverted.
+type ProjectRequestConverted struct {
+	Project Project                `json:"project"`
+	Request CustomerProjectRequest `json:"request"`
+}
+
+// ProjectRequestCreated defines model for ProjectRequestCreated.
+type ProjectRequestCreated struct {
+	Request      CustomerProjectRequest `json:"request"`
+	RequestToken *string                `json:"requestToken,omitempty"`
+}
+
+// ProjectRequestList defines model for ProjectRequestList.
+type ProjectRequestList struct {
+	Count *int                      `json:"count,omitempty"`
+	Items *[]CustomerProjectRequest `json:"items,omitempty"`
+}
+
+// ProjectRequestPatch defines model for ProjectRequestPatch.
+type ProjectRequestPatch struct {
+	AssignedTo    *openapi_types.UUID        `json:"assignedTo"`
+	InternalNotes *string                    `json:"internalNotes"`
+	Status        *ProjectRequestPatchStatus `json:"status,omitempty"`
+}
+
+// ProjectRequestPatchStatus defines model for ProjectRequestPatch.Status.
+type ProjectRequestPatchStatus string
+
+// ProjectRequestSubmission defines model for ProjectRequestSubmission.
+type ProjectRequestSubmission struct {
+	Description         string                            `json:"description"`
+	Priority            *ProjectRequestSubmissionPriority `json:"priority,omitempty"`
+	RequestedStartDate  *openapi_types.Date               `json:"requestedStartDate,omitempty"`
+	RequestedTargetDate *openapi_types.Date               `json:"requestedTargetDate,omitempty"`
+	RequesterEmail      *openapi_types.Email              `json:"requesterEmail,omitempty"`
+	RequesterName       *string                           `json:"requesterName,omitempty"`
+	Title               string                            `json:"title"`
+	Token               *string                           `json:"token,omitempty"`
+}
+
+// ProjectRequestSubmissionPriority defines model for ProjectRequestSubmission.Priority.
+type ProjectRequestSubmissionPriority string
+
 // ProjectStatus defines model for ProjectStatus.
 type ProjectStatus struct {
 	Category  StatusCategory     `json:"category"`
@@ -572,6 +766,37 @@ type ProjectStatus struct {
 	Position  int                `json:"position"`
 	ProjectId openapi_types.UUID `json:"projectId"`
 }
+
+// ProjectUpdate defines model for ProjectUpdate.
+type ProjectUpdate struct {
+	AuthorId   *openapi_types.UUID     `json:"authorId"`
+	AuthorName *string                 `json:"authorName,omitempty"`
+	Body       string                  `json:"body"`
+	CreatedAt  time.Time               `json:"createdAt"`
+	Id         openapi_types.UUID      `json:"id"`
+	ProjectId  openapi_types.UUID      `json:"projectId"`
+	Title      string                  `json:"title"`
+	UpdatedAt  time.Time               `json:"updatedAt"`
+	Visibility ProjectUpdateVisibility `json:"visibility"`
+}
+
+// ProjectUpdateVisibility defines model for ProjectUpdate.Visibility.
+type ProjectUpdateVisibility string
+
+// ProjectUpdateList defines model for ProjectUpdateList.
+type ProjectUpdateList struct {
+	Items *[]ProjectUpdate `json:"items,omitempty"`
+}
+
+// ProjectUpdateRequest defines model for ProjectUpdateRequest.
+type ProjectUpdateRequest struct {
+	Body       string                          `json:"body"`
+	Title      string                          `json:"title"`
+	Visibility *ProjectUpdateRequestVisibility `json:"visibility,omitempty"`
+}
+
+// ProjectUpdateRequestVisibility defines model for ProjectUpdateRequest.Visibility.
+type ProjectUpdateRequestVisibility string
 
 // PublicMilestone defines model for PublicMilestone.
 type PublicMilestone struct {
@@ -588,19 +813,22 @@ type PublicMilestoneStatus string
 
 // PublicPage defines model for PublicPage.
 type PublicPage struct {
-	AccessMode          PublicPageAccessMode  `json:"accessMode"`
-	Id                  openapi_types.UUID    `json:"id"`
-	ProjectId           openapi_types.UUID    `json:"projectId"`
-	Revoked             bool                  `json:"revoked"`
-	Slug                string                `json:"slug"`
-	TenantId            openapi_types.UUID    `json:"tenantId"`
-	Title               *string               `json:"title,omitempty"`
-	VisibleMilestoneIds *[]openapi_types.UUID `json:"visibleMilestoneIds,omitempty"`
-	VisibleTaskIds      *[]openapi_types.UUID `json:"visibleTaskIds,omitempty"`
+	AccessMode PublicPageAccessMode `json:"accessMode"`
+	Id         openapi_types.UUID   `json:"id"`
+	ProjectId  openapi_types.UUID   `json:"projectId"`
+	Revoked    bool                 `json:"revoked"`
+	Slug       string               `json:"slug"`
+	TenantId   openapi_types.UUID   `json:"tenantId"`
+	Title      *string              `json:"title,omitempty"`
 }
 
 // PublicPageAccessMode defines model for PublicPage.AccessMode.
 type PublicPageAccessMode string
+
+// PublicPageAccessLink defines model for PublicPageAccessLink.
+type PublicPageAccessLink struct {
+	Url string `json:"url"`
+}
 
 // PublicPageCreated defines model for PublicPageCreated.
 type PublicPageCreated struct {
@@ -609,14 +837,15 @@ type PublicPageCreated struct {
 	Url   string     `json:"url"`
 }
 
-// PublicPageAccessLink defines model for PublicPageAccessLink.
-type PublicPageAccessLink struct {
-	Url string `json:"url"`
-}
-
 // PublicPageList defines model for PublicPageList.
 type PublicPageList struct {
 	Items *[]PublicPage `json:"items,omitempty"`
+}
+
+// PublicPagePatch defines model for PublicPagePatch.
+type PublicPagePatch struct {
+	Slug  *string `json:"slug,omitempty"`
+	Title *string `json:"title,omitempty"`
 }
 
 // PublicPagePayload defines model for PublicPagePayload.
@@ -632,17 +861,16 @@ type PublicPagePayload struct {
 		Name        *string             `json:"name,omitempty"`
 		TargetDate  *openapi_types.Date `json:"targetDate"`
 	} `json:"project"`
-	Tasks []PublicTask `json:"tasks"`
+	Tasks   []PublicTask    `json:"tasks"`
+	Updates []ProjectUpdate `json:"updates"`
 }
 
 // PublicPageRequest defines model for PublicPageRequest.
 type PublicPageRequest struct {
-	AccessMode          *PublicPageRequestAccessMode `json:"accessMode,omitempty"`
-	Slug                *string                      `json:"slug,omitempty"`
-	Title               *string                      `json:"title,omitempty"`
-	ViewerUserIds       *[]openapi_types.UUID        `json:"viewerUserIds,omitempty"`
-	VisibleMilestoneIds *[]openapi_types.UUID        `json:"visibleMilestoneIds,omitempty"`
-	VisibleTaskIds      *[]openapi_types.UUID        `json:"visibleTaskIds,omitempty"`
+	AccessMode    *PublicPageRequestAccessMode `json:"accessMode,omitempty"`
+	Slug          *string                      `json:"slug,omitempty"`
+	Title         *string                      `json:"title,omitempty"`
+	ViewerUserIds *[]openapi_types.UUID        `json:"viewerUserIds,omitempty"`
 }
 
 // PublicPageRequestAccessMode defines model for PublicPageRequest.AccessMode.
@@ -650,9 +878,11 @@ type PublicPageRequestAccessMode string
 
 // PublicPageViewer defines model for PublicPageViewer.
 type PublicPageViewer struct {
-	Id           openapi_types.UUID `json:"id"`
-	PublicPageId openapi_types.UUID `json:"publicPageId"`
-	UserId       openapi_types.UUID `json:"userId"`
+	Email        *openapi_types.Email `json:"email,omitempty"`
+	Id           *openapi_types.UUID  `json:"id,omitempty"`
+	Name         *string              `json:"name,omitempty"`
+	PublicPageId *openapi_types.UUID  `json:"publicPageId,omitempty"`
+	UserId       openapi_types.UUID   `json:"userId"`
 }
 
 // PublicTask defines model for PublicTask.
@@ -681,6 +911,13 @@ type RegisterRequest struct {
 	TenantName string              `json:"tenantName"`
 }
 
+// RemoteAssignee defines model for RemoteAssignee.
+type RemoteAssignee struct {
+	Login    string      `json:"login"`
+	Mapped   bool        `json:"mapped"`
+	Provider GitProvider `json:"provider"`
+}
+
 // Session defines model for Session.
 type Session struct {
 	Membership Membership `json:"membership"`
@@ -701,18 +938,28 @@ type StatusRequest struct {
 
 // SyncConflict defines model for SyncConflict.
 type SyncConflict struct {
-	DeliveryId      *string            `json:"deliveryId,omitempty"`
-	ExternalLinkId  openapi_types.UUID `json:"externalLinkId"`
-	Field           string             `json:"field"`
-	Id              openapi_types.UUID `json:"id"`
-	LocalChangedAt  time.Time          `json:"localChangedAt"`
-	LocalValue      interface{}        `json:"localValue"`
-	RemoteChangedAt time.Time          `json:"remoteChangedAt"`
-	RemoteValue     interface{}        `json:"remoteValue"`
-	Resolution      *string            `json:"resolution,omitempty"`
-	Status          SyncConflictStatus `json:"status"`
-	TenantId        openapi_types.UUID `json:"tenantId"`
+	DeliveryId      *string                `json:"deliveryId,omitempty"`
+	ExternalLinkId  openapi_types.UUID     `json:"externalLinkId"`
+	ExternalNumber  *int                   `json:"externalNumber,omitempty"`
+	Field           string                 `json:"field"`
+	Id              openapi_types.UUID     `json:"id"`
+	LocalChangedAt  time.Time              `json:"localChangedAt"`
+	LocalId         *openapi_types.UUID    `json:"localId,omitempty"`
+	LocalTitle      *string                `json:"localTitle,omitempty"`
+	LocalType       *SyncConflictLocalType `json:"localType,omitempty"`
+	LocalValue      interface{}            `json:"localValue"`
+	ProjectId       *openapi_types.UUID    `json:"projectId,omitempty"`
+	Provider        *GitProvider           `json:"provider,omitempty"`
+	RemoteChangedAt time.Time              `json:"remoteChangedAt"`
+	RemoteValue     interface{}            `json:"remoteValue"`
+	RepositoryName  *string                `json:"repositoryName,omitempty"`
+	Resolution      *string                `json:"resolution,omitempty"`
+	Status          SyncConflictStatus     `json:"status"`
+	TenantId        openapi_types.UUID     `json:"tenantId"`
 }
+
+// SyncConflictLocalType defines model for SyncConflict.LocalType.
+type SyncConflictLocalType string
 
 // SyncConflictStatus defines model for SyncConflict.Status.
 type SyncConflictStatus string
@@ -726,6 +973,7 @@ type SyncEvent struct {
 	ErrorMessage *string                `json:"errorMessage,omitempty"`
 	EventName    string                 `json:"eventName"`
 	Id           openapi_types.UUID     `json:"id"`
+	Logs         *[]SyncEventLog        `json:"logs,omitempty"`
 	Payload      map[string]interface{} `json:"payload"`
 	Provider     GitProvider            `json:"provider"`
 	Status       SyncEventStatus        `json:"status"`
@@ -740,6 +988,27 @@ type SyncEventStatus string
 type SyncEventList struct {
 	Count *int         `json:"count,omitempty"`
 	Items *[]SyncEvent `json:"items,omitempty"`
+}
+
+// SyncEventLog defines model for SyncEventLog.
+type SyncEventLog struct {
+	CreatedAt   time.Time              `json:"createdAt"`
+	Id          openapi_types.UUID     `json:"id"`
+	Level       SyncEventLogLevel      `json:"level"`
+	Message     string                 `json:"message"`
+	Metadata    map[string]interface{} `json:"metadata"`
+	Phase       *string                `json:"phase,omitempty"`
+	SyncEventId openapi_types.UUID     `json:"syncEventId"`
+	UpdatedAt   time.Time              `json:"updatedAt"`
+}
+
+// SyncEventLogLevel defines model for SyncEventLog.Level.
+type SyncEventLogLevel string
+
+// SyncEventLogList defines model for SyncEventLogList.
+type SyncEventLogList struct {
+	Count *int            `json:"count,omitempty"`
+	Items *[]SyncEventLog `json:"items,omitempty"`
 }
 
 // Task defines model for Task.
@@ -757,6 +1026,7 @@ type Task struct {
 	Position        *int                `json:"position,omitempty"`
 	Priority        TaskPriority        `json:"priority"`
 	ProjectId       openapi_types.UUID  `json:"projectId"`
+	RemoteAssignees *[]RemoteAssignee   `json:"remoteAssignees,omitempty"`
 	StartDate       *openapi_types.Date `json:"startDate"`
 	StatusCategory  *StatusCategory     `json:"statusCategory,omitempty"`
 	StatusId        openapi_types.UUID  `json:"statusId"`
@@ -829,9 +1099,10 @@ type TaskRequestVisibility string
 
 // Tenant defines model for Tenant.
 type Tenant struct {
-	Id   openapi_types.UUID `json:"id"`
-	Name string             `json:"name"`
-	Slug string             `json:"slug"`
+	Id          openapi_types.UUID `json:"id"`
+	Name        string             `json:"name"`
+	RequestSlug string             `json:"requestSlug"`
+	Slug        string             `json:"slug"`
 }
 
 // TenantMember defines model for TenantMember.
@@ -875,6 +1146,9 @@ type MilestoneId = openapi_types.UUID
 // MilestoneQuery defines model for MilestoneQuery.
 type MilestoneQuery = openapi_types.UUID
 
+// NotificationId defines model for NotificationId.
+type NotificationId = openapi_types.UUID
+
 // OIDCCode defines model for OIDCCode.
 type OIDCCode = string
 
@@ -902,11 +1176,17 @@ type Query = string
 // RepositoryId defines model for RepositoryId.
 type RepositoryId = openapi_types.UUID
 
+// RequestId defines model for RequestId.
+type RequestId = openapi_types.UUID
+
 // StatusId defines model for StatusId.
 type StatusId = openapi_types.UUID
 
 // StatusQuery defines model for StatusQuery.
 type StatusQuery = openapi_types.UUID
+
+// SyncRunId defines model for SyncRunId.
+type SyncRunId = openapi_types.UUID
 
 // SyncStatus defines model for SyncStatus.
 type SyncStatus string
@@ -919,6 +1199,9 @@ type UserId = openapi_types.UUID
 
 // UserQuery defines model for UserQuery.
 type UserQuery = openapi_types.UUID
+
+// WorkspaceSlug defines model for WorkspaceSlug.
+type WorkspaceSlug = string
 
 // TenantWithMembers defines model for TenantWithMembers.
 type TenantWithMembers struct {
@@ -953,6 +1236,15 @@ type CompleteGitHubOAuthParams struct {
 type ListGitRepositoriesParams struct {
 	ConnectionId *ConnectionQuery `form:"connectionId,omitempty" json:"connectionId,omitempty"`
 }
+
+// ListProjectRequestsParams defines parameters for ListProjectRequests.
+type ListProjectRequestsParams struct {
+	Status *ListProjectRequestsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Search *string                          `form:"search,omitempty" json:"search,omitempty"`
+}
+
+// ListProjectRequestsParamsStatus defines parameters for ListProjectRequests.
+type ListProjectRequestsParamsStatus string
 
 // ImportGitProjectJSONBody defines parameters for ImportGitProject.
 type ImportGitProjectJSONBody struct {
@@ -1012,6 +1304,11 @@ type ListSyncRunsParams struct {
 // ListSyncRunsParamsStatus defines parameters for ListSyncRuns.
 type ListSyncRunsParamsStatus string
 
+// ListSyncRunLogsParams defines parameters for ListSyncRunLogs.
+type ListSyncRunLogsParams struct {
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // UpdateTenantMemberJSONBody defines parameters for UpdateTenantMember.
 type UpdateTenantMemberJSONBody struct {
 	Role UpdateTenantMemberJSONBodyRole `json:"role"`
@@ -1064,6 +1361,12 @@ type CreateGitHubUserMappingJSONRequestBody = GitHubUserMappingRequest
 // CreateGitLabConnectionJSONRequestBody defines body for CreateGitLabConnection for application/json ContentType.
 type CreateGitLabConnectionJSONRequestBody = GitTokenConnectionRequest
 
+// UpdateProjectRequestJSONRequestBody defines body for UpdateProjectRequest for application/json ContentType.
+type UpdateProjectRequestJSONRequestBody = ProjectRequestPatch
+
+// ConvertProjectRequestJSONRequestBody defines body for ConvertProjectRequest for application/json ContentType.
+type ConvertProjectRequestJSONRequestBody = ProjectRequestConversion
+
 // CreateProjectJSONRequestBody defines body for CreateProject for application/json ContentType.
 type CreateProjectJSONRequestBody = ProjectRequest
 
@@ -1103,8 +1406,20 @@ type CreateTaskJSONRequestBody = TaskRequest
 // UpdateTaskJSONRequestBody defines body for UpdateTask for application/json ContentType.
 type UpdateTaskJSONRequestBody = TaskPatch
 
+// CreateProjectUpdateJSONRequestBody defines body for CreateProjectUpdate for application/json ContentType.
+type CreateProjectUpdateJSONRequestBody = ProjectUpdateRequest
+
+// UpdatePublicPageJSONRequestBody defines body for UpdatePublicPage for application/json ContentType.
+type UpdatePublicPageJSONRequestBody = PublicPagePatch
+
 // AddPublicPageViewerJSONRequestBody defines body for AddPublicPageViewer for application/json ContentType.
 type AddPublicPageViewerJSONRequestBody AddPublicPageViewerJSONBody
+
+// SubmitProjectRequestJSONRequestBody defines body for SubmitProjectRequest for application/json ContentType.
+type SubmitProjectRequestJSONRequestBody = ProjectRequestSubmission
+
+// SubmitWorkspaceProjectRequestJSONRequestBody defines body for SubmitWorkspaceProjectRequest for application/json ContentType.
+type SubmitWorkspaceProjectRequestJSONRequestBody = ProjectRequestSubmission
 
 // ResolveSyncConflictJSONRequestBody defines body for ResolveSyncConflict for application/json ContentType.
 type ResolveSyncConflictJSONRequestBody ResolveSyncConflictJSONBody
@@ -1199,6 +1514,30 @@ type ServerInterface interface {
 	// (GET /me)
 	GetCurrentPrincipal(c *gin.Context)
 
+	// (DELETE /notifications)
+	ClearNotifications(c *gin.Context)
+
+	// (GET /notifications)
+	ListNotifications(c *gin.Context)
+
+	// (DELETE /notifications/{notificationId})
+	DeleteNotification(c *gin.Context, notificationId NotificationId)
+
+	// (POST /notifications/{notificationId}/read)
+	MarkNotificationRead(c *gin.Context, notificationId NotificationId)
+
+	// (GET /portfolio)
+	GetPortfolio(c *gin.Context)
+
+	// (GET /project-requests)
+	ListProjectRequests(c *gin.Context, params ListProjectRequestsParams)
+
+	// (PATCH /project-requests/{requestId})
+	UpdateProjectRequest(c *gin.Context, requestId RequestId)
+
+	// (POST /project-requests/{requestId}/convert)
+	ConvertProjectRequest(c *gin.Context, requestId RequestId)
+
 	// (GET /projects)
 	ListProjects(c *gin.Context)
 
@@ -1265,11 +1604,20 @@ type ServerInterface interface {
 	// (PATCH /projects/{projectId}/tasks/{taskId})
 	UpdateTask(c *gin.Context, projectId ProjectId, taskId TaskId)
 
-	// (POST /public-pages/{pageId}/revoke)
-	RevokePublicPage(c *gin.Context, pageId PageId)
+	// (GET /projects/{projectId}/updates)
+	ListProjectUpdates(c *gin.Context, projectId ProjectId)
+
+	// (POST /projects/{projectId}/updates)
+	CreateProjectUpdate(c *gin.Context, projectId ProjectId)
+
+	// (PATCH /public-pages/{pageId})
+	UpdatePublicPage(c *gin.Context, pageId PageId)
 
 	// (POST /public-pages/{pageId}/access-link)
 	IssuePublicPageAccessLink(c *gin.Context, pageId PageId)
+
+	// (POST /public-pages/{pageId}/revoke)
+	RevokePublicPage(c *gin.Context, pageId PageId)
 
 	// (GET /public-pages/{pageId}/viewers)
 	ListPublicPageViewers(c *gin.Context, pageId PageId)
@@ -1283,6 +1631,15 @@ type ServerInterface interface {
 	// (GET /public/pages/{slug})
 	GetPublicPage(c *gin.Context, slug PageSlug, params GetPublicPageParams)
 
+	// (POST /public/pages/{slug}/requests)
+	SubmitProjectRequest(c *gin.Context, slug PageSlug)
+
+	// (GET /public/workspaces/{slug}/request)
+	GetPublicRequestWorkspace(c *gin.Context, slug WorkspaceSlug)
+
+	// (POST /public/workspaces/{slug}/requests)
+	SubmitWorkspaceProjectRequest(c *gin.Context, slug WorkspaceSlug)
+
 	// (GET /readyz)
 	Readiness(c *gin.Context)
 
@@ -1294,6 +1651,9 @@ type ServerInterface interface {
 
 	// (GET /sync/runs)
 	ListSyncRuns(c *gin.Context, params ListSyncRunsParams)
+
+	// (GET /sync/runs/{runId}/logs)
+	ListSyncRunLogs(c *gin.Context, runId SyncRunId, params ListSyncRunLogsParams)
 
 	// (GET /tenant)
 	GetTenant(c *gin.Context)
@@ -1846,6 +2206,191 @@ func (siw *ServerInterfaceWrapper) GetCurrentPrincipal(c *gin.Context) {
 	}
 
 	siw.Handler.GetCurrentPrincipal(c)
+}
+
+// ClearNotifications operation middleware
+func (siw *ServerInterfaceWrapper) ClearNotifications(c *gin.Context) {
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ClearNotifications(c)
+}
+
+// ListNotifications operation middleware
+func (siw *ServerInterfaceWrapper) ListNotifications(c *gin.Context) {
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListNotifications(c)
+}
+
+// DeleteNotification operation middleware
+func (siw *ServerInterfaceWrapper) DeleteNotification(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "notificationId" -------------
+	var notificationId NotificationId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "notificationId", c.Param("notificationId"), &notificationId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter notificationId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteNotification(c, notificationId)
+}
+
+// MarkNotificationRead operation middleware
+func (siw *ServerInterfaceWrapper) MarkNotificationRead(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "notificationId" -------------
+	var notificationId NotificationId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "notificationId", c.Param("notificationId"), &notificationId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter notificationId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.MarkNotificationRead(c, notificationId)
+}
+
+// GetPortfolio operation middleware
+func (siw *ServerInterfaceWrapper) GetPortfolio(c *gin.Context) {
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetPortfolio(c)
+}
+
+// ListProjectRequests operation middleware
+func (siw *ServerInterfaceWrapper) ListProjectRequests(c *gin.Context) {
+
+	var err error
+
+	c.Set(CookieAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListProjectRequestsParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "status", c.Request.URL.Query(), &params.Status)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "search", c.Request.URL.Query(), &params.Search)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter search: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListProjectRequests(c, params)
+}
+
+// UpdateProjectRequest operation middleware
+func (siw *ServerInterfaceWrapper) UpdateProjectRequest(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "requestId" -------------
+	var requestId RequestId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "requestId", c.Param("requestId"), &requestId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter requestId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateProjectRequest(c, requestId)
+}
+
+// ConvertProjectRequest operation middleware
+func (siw *ServerInterfaceWrapper) ConvertProjectRequest(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "requestId" -------------
+	var requestId RequestId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "requestId", c.Param("requestId"), &requestId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter requestId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ConvertProjectRequest(c, requestId)
 }
 
 // ListProjects operation middleware
@@ -2461,8 +3006,60 @@ func (siw *ServerInterfaceWrapper) UpdateTask(c *gin.Context) {
 	siw.Handler.UpdateTask(c, projectId, taskId)
 }
 
-// RevokePublicPage operation middleware
-func (siw *ServerInterfaceWrapper) RevokePublicPage(c *gin.Context) {
+// ListProjectUpdates operation middleware
+func (siw *ServerInterfaceWrapper) ListProjectUpdates(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "projectId" -------------
+	var projectId ProjectId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "projectId", c.Param("projectId"), &projectId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter projectId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListProjectUpdates(c, projectId)
+}
+
+// CreateProjectUpdate operation middleware
+func (siw *ServerInterfaceWrapper) CreateProjectUpdate(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "projectId" -------------
+	var projectId ProjectId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "projectId", c.Param("projectId"), &projectId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter projectId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateProjectUpdate(c, projectId)
+}
+
+// UpdatePublicPage operation middleware
+func (siw *ServerInterfaceWrapper) UpdatePublicPage(c *gin.Context) {
 
 	var err error
 
@@ -2484,7 +3081,7 @@ func (siw *ServerInterfaceWrapper) RevokePublicPage(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.RevokePublicPage(c, pageId)
+	siw.Handler.UpdatePublicPage(c, pageId)
 }
 
 // IssuePublicPageAccessLink operation middleware
@@ -2511,6 +3108,32 @@ func (siw *ServerInterfaceWrapper) IssuePublicPageAccessLink(c *gin.Context) {
 	}
 
 	siw.Handler.IssuePublicPageAccessLink(c, pageId)
+}
+
+// RevokePublicPage operation middleware
+func (siw *ServerInterfaceWrapper) RevokePublicPage(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "pageId" -------------
+	var pageId PageId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "pageId", c.Param("pageId"), &pageId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter pageId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RevokePublicPage(c, pageId)
 }
 
 // ListPublicPageViewers operation middleware
@@ -2635,6 +3258,78 @@ func (siw *ServerInterfaceWrapper) GetPublicPage(c *gin.Context) {
 	siw.Handler.GetPublicPage(c, slug, params)
 }
 
+// SubmitProjectRequest operation middleware
+func (siw *ServerInterfaceWrapper) SubmitProjectRequest(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "slug" -------------
+	var slug PageSlug
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", c.Param("slug"), &slug, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter slug: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SubmitProjectRequest(c, slug)
+}
+
+// GetPublicRequestWorkspace operation middleware
+func (siw *ServerInterfaceWrapper) GetPublicRequestWorkspace(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "slug" -------------
+	var slug WorkspaceSlug
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", c.Param("slug"), &slug, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter slug: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetPublicRequestWorkspace(c, slug)
+}
+
+// SubmitWorkspaceProjectRequest operation middleware
+func (siw *ServerInterfaceWrapper) SubmitWorkspaceProjectRequest(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "slug" -------------
+	var slug WorkspaceSlug
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slug", c.Param("slug"), &slug, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter slug: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SubmitWorkspaceProjectRequest(c, slug)
+}
+
 // Readiness operation middleware
 func (siw *ServerInterfaceWrapper) Readiness(c *gin.Context) {
 
@@ -2744,6 +3439,43 @@ func (siw *ServerInterfaceWrapper) ListSyncRuns(c *gin.Context) {
 	}
 
 	siw.Handler.ListSyncRuns(c, params)
+}
+
+// ListSyncRunLogs operation middleware
+func (siw *ServerInterfaceWrapper) ListSyncRunLogs(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "runId" -------------
+	var runId SyncRunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "runId", c.Param("runId"), &runId, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter runId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(CookieAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListSyncRunLogsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", c.Request.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListSyncRunLogs(c, runId, params)
 }
 
 // GetTenant operation middleware
@@ -3155,6 +3887,14 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/integrations/gitlab/connections", wrapper.CreateGitLabConnection)
 	router.GET(options.BaseURL+"/integrations/repositories", wrapper.ListGitRepositories)
 	router.GET(options.BaseURL+"/me", wrapper.GetCurrentPrincipal)
+	router.DELETE(options.BaseURL+"/notifications", wrapper.ClearNotifications)
+	router.GET(options.BaseURL+"/notifications", wrapper.ListNotifications)
+	router.DELETE(options.BaseURL+"/notifications/:notificationId", wrapper.DeleteNotification)
+	router.POST(options.BaseURL+"/notifications/:notificationId/read", wrapper.MarkNotificationRead)
+	router.GET(options.BaseURL+"/portfolio", wrapper.GetPortfolio)
+	router.GET(options.BaseURL+"/project-requests", wrapper.ListProjectRequests)
+	router.PATCH(options.BaseURL+"/project-requests/:requestId", wrapper.UpdateProjectRequest)
+	router.POST(options.BaseURL+"/project-requests/:requestId/convert", wrapper.ConvertProjectRequest)
 	router.GET(options.BaseURL+"/projects", wrapper.ListProjects)
 	router.POST(options.BaseURL+"/projects", wrapper.CreateProject)
 	router.GET(options.BaseURL+"/projects/:projectId", wrapper.GetProject)
@@ -3177,16 +3917,23 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/projects/:projectId/tasks", wrapper.ListTasks)
 	router.POST(options.BaseURL+"/projects/:projectId/tasks", wrapper.CreateTask)
 	router.PATCH(options.BaseURL+"/projects/:projectId/tasks/:taskId", wrapper.UpdateTask)
-	router.POST(options.BaseURL+"/public-pages/:pageId/revoke", wrapper.RevokePublicPage)
+	router.GET(options.BaseURL+"/projects/:projectId/updates", wrapper.ListProjectUpdates)
+	router.POST(options.BaseURL+"/projects/:projectId/updates", wrapper.CreateProjectUpdate)
+	router.PATCH(options.BaseURL+"/public-pages/:pageId", wrapper.UpdatePublicPage)
 	router.POST(options.BaseURL+"/public-pages/:pageId/access-link", wrapper.IssuePublicPageAccessLink)
+	router.POST(options.BaseURL+"/public-pages/:pageId/revoke", wrapper.RevokePublicPage)
 	router.GET(options.BaseURL+"/public-pages/:pageId/viewers", wrapper.ListPublicPageViewers)
 	router.POST(options.BaseURL+"/public-pages/:pageId/viewers", wrapper.AddPublicPageViewer)
 	router.DELETE(options.BaseURL+"/public-pages/:pageId/viewers/:userId", wrapper.RemovePublicPageViewer)
 	router.GET(options.BaseURL+"/public/pages/:slug", wrapper.GetPublicPage)
+	router.POST(options.BaseURL+"/public/pages/:slug/requests", wrapper.SubmitProjectRequest)
+	router.GET(options.BaseURL+"/public/workspaces/:slug/request", wrapper.GetPublicRequestWorkspace)
+	router.POST(options.BaseURL+"/public/workspaces/:slug/requests", wrapper.SubmitWorkspaceProjectRequest)
 	router.GET(options.BaseURL+"/readyz", wrapper.Readiness)
 	router.GET(options.BaseURL+"/sync/conflicts", wrapper.ListSyncConflicts)
 	router.POST(options.BaseURL+"/sync/conflicts/:conflictId/resolve", wrapper.ResolveSyncConflict)
 	router.GET(options.BaseURL+"/sync/runs", wrapper.ListSyncRuns)
+	router.GET(options.BaseURL+"/sync/runs/:runId/logs", wrapper.ListSyncRunLogs)
 	router.GET(options.BaseURL+"/tenant", wrapper.GetTenant)
 	router.GET(options.BaseURL+"/tenant/invitations", wrapper.ListInvitations)
 	router.POST(options.BaseURL+"/tenant/invitations", wrapper.CreateInvitation)

@@ -5,19 +5,21 @@ import Link from "next/link"
 import {
   RiAddLine,
   RiArrowDownSLine,
+  RiBriefcaseLine,
+  RiCheckboxMultipleLine,
   RiCloseLine,
   RiComputerLine,
-  RiGitRepositoryLine,
-  RiInboxArchiveLine,
+  RiDashboardLine,
+  RiInboxLine,
   RiLayoutGridLine,
   RiMoonLine,
   RiMenuLine,
+  RiPlugLine,
   RiQuestionLine,
   RiRoadMapLine,
   RiSearchLine,
   RiSettings3Line,
   RiSunLine,
-  RiTaskLine,
   RiLogoutBoxRLine,
 } from "@remixicon/react"
 
@@ -62,10 +64,10 @@ const navigation: Array<{
   label: TranslationKey
   icon: ComponentType<{ className?: string }>
 }> = [
-  { id: "overview", label: "nav.overview", icon: RiLayoutGridLine },
-  { id: "tasks", label: "nav.tasks", icon: RiTaskLine },
+  { id: "overview", label: "nav.overview", icon: RiDashboardLine },
+  { id: "tasks", label: "nav.tasks", icon: RiCheckboxMultipleLine },
   { id: "roadmap", label: "nav.roadmap", icon: RiRoadMapLine },
-  { id: "integrations", label: "nav.integrations", icon: RiGitRepositoryLine },
+  { id: "integrations", label: "nav.integrations", icon: RiPlugLine },
   { id: "settings", label: "nav.settings", icon: RiSettings3Line },
 ]
 
@@ -214,7 +216,7 @@ export function AppShell({
                 "bg-sidebar-primary/10 font-medium text-sidebar-primary"
             )}
           >
-            <RiLayoutGridLine className="size-4" aria-hidden="true" />
+            <RiBriefcaseLine className="size-4" aria-hidden="true" />
             {t("nav.portfolio")}
           </Link>
           <Link
@@ -226,7 +228,7 @@ export function AppShell({
                 "bg-sidebar-primary/10 font-medium text-sidebar-primary"
             )}
           >
-            <RiInboxArchiveLine className="size-4" aria-hidden="true" />
+            <RiInboxLine className="size-4" aria-hidden="true" />
             {t("nav.requests")}
           </Link>
           <p className="mb-2 px-2 text-[10px] font-semibold tracking-[0.16em] text-sidebar-foreground/45 uppercase">

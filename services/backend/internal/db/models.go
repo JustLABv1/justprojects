@@ -97,11 +97,12 @@ type Project struct {
 type ProjectStatus struct {
 	bun.BaseModel `bun:"table:project_statuses,alias:ps"`
 	RecordFields
-	ProjectID uuid.UUID `bun:",type:uuid,notnull" json:"projectId"`
-	Name      string    `bun:",notnull" json:"name"`
-	Category  string    `bun:",notnull" json:"category"`
-	Position  int       `bun:",notnull,default:0" json:"position"`
-	Color     string    `bun:",nullzero" json:"color"`
+	ProjectID     uuid.UUID `bun:",type:uuid,notnull" json:"projectId"`
+	Name          string    `bun:",notnull" json:"name"`
+	Category      string    `bun:",notnull" json:"category"`
+	Position      int       `bun:",notnull,default:0" json:"position"`
+	Color         string    `bun:",nullzero" json:"color"`
+	ProviderLabel string    `bun:"provider_label,notnull" json:"-"`
 }
 
 type Label struct {
@@ -202,6 +203,30 @@ type ProjectRepository struct {
 	RepositoryID uuid.UUID `bun:",type:uuid,notnull" json:"repositoryId"`
 }
 
+// GitSyncState is the durable polling checkpoint for one project/repository
+// attachment. Keeping the cursor at this scope means one repository can be
+// attached to multiple projects without one project's successful poll moving
+// another project's checkpoint forward.
+type GitSyncState struct {
+	bun.BaseModel `bun:"table:git_sync_states,alias:gss"`
+	RecordFields
+	TenantID          uuid.UUID  `bun:",type:uuid,notnull" json:"tenantId"`
+	ProjectID         uuid.UUID  `bun:",type:uuid,notnull" json:"projectId"`
+	RepositoryID      uuid.UUID  `bun:",type:uuid,notnull" json:"repositoryId"`
+	IssueCursorAt     *time.Time `bun:",nullzero" json:"issueCursorAt,omitempty"`
+	MilestoneCursorAt *time.Time `bun:",nullzero" json:"milestoneCursorAt,omitempty"`
+	// WorkflowLabelBackfilledAt records the one-time full provider issue scan
+	// that adds managed workflow labels to existing linked issues. It is kept
+	// separate from the incremental cursors because an issue can be unchanged
+	// since the cursor while still missing its JustProjects status label.
+	WorkflowLabelBackfilledAt *time.Time `bun:",nullzero" json:"workflowLabelBackfilledAt,omitempty"`
+	LastStartedAt             *time.Time `bun:",nullzero" json:"lastStartedAt,omitempty"`
+	LastCompletedAt           *time.Time `bun:",nullzero" json:"lastCompletedAt,omitempty"`
+	NextRunAt                 time.Time  `bun:",notnull" json:"nextRunAt"`
+	Status                    string     `bun:",notnull" json:"status"`
+	LastError                 string     `bun:",nullzero" json:"lastError,omitempty"`
+}
+
 type ExternalLink struct {
 	bun.BaseModel `bun:"table:external_links,alias:el"`
 	RecordFields
@@ -234,6 +259,21 @@ type SyncEvent struct {
 	Payload      map[string]any `bun:",type:jsonb,notnull" json:"payload"`
 	Status       string         `bun:",notnull,default:'queued'" json:"status"`
 	ErrorMessage string         `bun:",nullzero" json:"errorMessage"`
+}
+
+// SyncEventLog stores a safe, user-facing activity trail for an asynchronous
+// sync run. Provider payloads and credentials must never be written here;
+// metadata is reserved for small identifiers and counters that help explain
+// what the worker did.
+type SyncEventLog struct {
+	bun.BaseModel `bun:"table:sync_event_logs,alias:sel"`
+	RecordFields
+	TenantID    uuid.UUID      `bun:",type:uuid,notnull" json:"-"`
+	SyncEventID uuid.UUID      `bun:",type:uuid,notnull" json:"syncEventId"`
+	Level       string         `bun:",notnull" json:"level"`
+	Phase       string         `bun:",nullzero" json:"phase,omitempty"`
+	Message     string         `bun:",notnull" json:"message"`
+	Metadata    map[string]any `bun:",type:jsonb,notnull,default:'{}'" json:"metadata"`
 }
 
 type SyncConflict struct {

@@ -1,7 +1,12 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { RiDraggable, RiEditLine, RiTimeLine } from "@remixicon/react"
+import {
+  RiDraggable,
+  RiEditLine,
+  RiFlagLine,
+  RiTimeLine,
+} from "@remixicon/react"
 
 import { useI18n } from "@/components/language-provider"
 
@@ -18,12 +23,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
-import type { ProjectStatus, Task } from "@/lib/types"
+import type { Milestone, ProjectStatus, Task } from "@/lib/types"
 import { PriorityPill, UserAvatar } from "@/components/status-pill"
 
 export function KanbanBoardView({
   tasks,
   statuses,
+  milestones,
   onTaskStatusChange,
   onSelectTask,
   onEditTask,
@@ -31,12 +37,17 @@ export function KanbanBoardView({
 }: {
   tasks: Task[]
   statuses: ProjectStatus[]
+  milestones: Milestone[]
   onTaskStatusChange: (taskId: string, statusId: string) => void
   onSelectTask?: (task: Task) => void
   onEditTask?: (task: Task) => void
   compact?: boolean
 }) {
   const { t } = useI18n()
+  const milestoneMap = useMemo(
+    () => new Map(milestones.map((milestone) => [milestone.id, milestone])),
+    [milestones]
+  )
   const columnsFromTasks = useMemo(() => {
     const columns: Record<string, Task[]> = Object.fromEntries(
       statuses.map((status) => [status.id, []])
@@ -146,6 +157,11 @@ export function KanbanBoardView({
                   <KanbanTaskCard
                     key={task.id}
                     task={task}
+                    milestone={
+                      task.milestoneId
+                        ? milestoneMap.get(task.milestoneId)
+                        : undefined
+                    }
                     onSelect={onSelectTask}
                     onEdit={onEditTask}
                     compact={compact}
@@ -165,7 +181,16 @@ export function KanbanBoardView({
         {({ value }) => {
           const task = activeTask(String(value))
           return task ? (
-            <KanbanTaskCard task={task} overlay compact={compact} />
+            <KanbanTaskCard
+              task={task}
+              milestone={
+                task.milestoneId
+                  ? milestoneMap.get(task.milestoneId)
+                  : undefined
+              }
+              overlay
+              compact={compact}
+            />
           ) : null
         }}
       </KanbanOverlay>
@@ -175,12 +200,14 @@ export function KanbanBoardView({
 
 function KanbanTaskCard({
   task,
+  milestone,
   overlay = false,
   onSelect,
   onEdit,
   compact = false,
 }: {
   task: Task
+  milestone?: Milestone
   overlay?: boolean
   onSelect?: (task: Task) => void
   onEdit?: (task: Task) => void
@@ -236,6 +263,16 @@ function KanbanTaskCard({
         )}
         <div className="flex flex-wrap items-center gap-2">
           <PriorityPill priority={task.priority} />
+          {milestone && (
+            <Badge
+              variant="outline"
+              className="h-5 max-w-full gap-1 px-1.5 text-[10px] text-primary"
+              title={`${t("tasks.milestone")}: ${milestone.name}`}
+            >
+              <RiFlagLine className="size-3 shrink-0" aria-hidden="true" />
+              <span className="truncate">{milestone.name}</span>
+            </Badge>
+          )}
           {task.labels?.slice(0, 1).map((label) => (
             <Badge
               key={label.id}
@@ -267,15 +304,29 @@ function KanbanTaskCard({
                 : t("kanban.noDueDate")}
             </span>
           </span>
-          <span
-            className="flex max-w-full min-w-0 items-center gap-1.5"
-            title={task.assigneeName || t("details.unassigned")}
-          >
-            <UserAvatar name={task.assigneeName} size="sm" />
-            <span className="min-w-0 break-words whitespace-normal">
-              {task.assigneeName || t("details.unassigned")}
+          <div className="flex max-w-full min-w-0 flex-wrap items-center gap-1.5">
+            <span
+              className="flex min-w-0 items-center gap-1.5"
+              title={task.assigneeName || t("details.unassigned")}
+            >
+              <UserAvatar name={task.assigneeName} size="sm" />
+              <span className="min-w-0 break-words whitespace-normal">
+                {task.assigneeName || t("details.unassigned")}
+              </span>
             </span>
-          </span>
+            {task.remoteAssignees
+              ?.filter((assignee) => !assignee.mapped)
+              .map((assignee) => (
+                <Badge
+                  key={`${assignee.provider}-${assignee.login}`}
+                  variant="outline"
+                  className="h-5 max-w-full truncate px-1.5 text-[10px] font-normal"
+                  title={`${t("tasks.remoteAssignee")}: @${assignee.login}`}
+                >
+                  {assignee.provider} · @{assignee.login}
+                </Badge>
+              ))}
+          </div>
         </div>
       </Card>
     </KanbanItem>

@@ -19,8 +19,12 @@ import type {
   Invitation,
   PermissionGrant,
   Session,
+  SyncEvent,
+  SyncEventLog,
+  SyncConflict,
   Task,
   TenantMember,
+  GitUserMapping,
 } from "@/lib/types"
 
 const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL
@@ -137,10 +141,13 @@ export function updateProjectRequest(
     internalNotes: string
   }>
 ) {
-  return request<{ request: ProjectRequest }>(`/project-requests/${requestId}`, {
-    method: "PATCH",
-    body: JSON.stringify(input),
-  })
+  return request<{ request: ProjectRequest }>(
+    `/project-requests/${requestId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }
+  )
 }
 
 export function convertProjectRequest(
@@ -423,6 +430,28 @@ export function listGitHubRepositories() {
   )
 }
 
+export function listGitHubUserMappings() {
+  return request<{ items: GitUserMapping[]; count?: number }>(
+    "/integrations/github/user-mappings"
+  )
+}
+
+export function createGitHubUserMapping(input: {
+  githubLogin: string
+  userId: string
+}) {
+  return request<GitUserMapping>("/integrations/github/user-mappings", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+export function deleteGitHubUserMapping(mappingId: string) {
+  return request<void>(`/integrations/github/user-mappings/${mappingId}`, {
+    method: "DELETE",
+  })
+}
+
 export function listGitRepositories(connectionId?: string) {
   const suffix = connectionId
     ? `?connectionId=${encodeURIComponent(connectionId)}`
@@ -448,6 +477,15 @@ export function attachProjectRepository(
   }>(`/projects/${projectId}/repositories`, {
     method: "POST",
     body: JSON.stringify({ repositoryId }),
+  })
+}
+
+export function detachProjectRepository(
+  projectId: string,
+  repositoryId: string
+) {
+  return request<void>(`/projects/${projectId}/repositories/${repositoryId}`, {
+    method: "DELETE",
   })
 }
 
@@ -516,26 +554,20 @@ export function listPublicPageViewers(pageId: string) {
 }
 
 export function addPublicPageViewer(pageId: string, userId: string) {
-  return request<PublicPageViewer>(
-    `/public-pages/${pageId}/viewers`,
-    {
-      method: "POST",
-      body: JSON.stringify({ userId }),
-    }
-  )
+  return request<PublicPageViewer>(`/public-pages/${pageId}/viewers`, {
+    method: "POST",
+    body: JSON.stringify({ userId }),
+  })
 }
 
 export function removePublicPageViewer(pageId: string, userId: string) {
-  return request<void>(
-    `/public-pages/${pageId}/viewers/${userId}`,
-    { method: "DELETE" }
-  )
+  return request<void>(`/public-pages/${pageId}/viewers/${userId}`, {
+    method: "DELETE",
+  })
 }
 
 export function listProjectUpdates(projectId: string) {
-  return request<{ items: ProjectUpdate[] }>(
-    `/projects/${projectId}/updates`
-  )
+  return request<{ items: ProjectUpdate[] }>(`/projects/${projectId}/updates`)
 }
 
 export function createProjectUpdate(
@@ -550,6 +582,16 @@ export function createProjectUpdate(
 
 export function listNotifications() {
   return request<{ items: Notification[] }>("/notifications")
+}
+
+export function deleteNotification(notificationId: string) {
+  return request<void>(`/notifications/${notificationId}`, {
+    method: "DELETE",
+  })
+}
+
+export function clearNotifications() {
+  return request<void>("/notifications", { method: "DELETE" })
 }
 
 export function markNotificationRead(notificationId: string) {
@@ -620,16 +662,38 @@ export function issuePublicPageAccessLink(pageId: string) {
 
 export function listSyncRuns() {
   return request<{
-    items: Array<{
-      id: string
-      provider?: string
-      eventName: string
-      action?: string
-      status: string
-      createdAt: string
-      errorMessage?: string
-    }>
+    items: SyncEvent[]
+    count?: number
   }>("/sync/runs")
+}
+
+export function listSyncConflicts(query?: {
+  projectId?: string
+  status?: "open" | "resolved" | "ignored"
+}) {
+  const params = new URLSearchParams()
+  if (query?.projectId) params.set("projectId", query.projectId)
+  if (query?.status) params.set("status", query.status)
+  const suffix = params.size ? `?${params.toString()}` : ""
+  return request<{ items: SyncConflict[]; count?: number }>(
+    `/sync/conflicts${suffix}`
+  )
+}
+
+export function resolveSyncConflict(
+  conflictId: string,
+  resolution: "local" | "remote" | "ignore"
+) {
+  return request<void>(`/sync/conflicts/${conflictId}/resolve`, {
+    method: "POST",
+    body: JSON.stringify({ resolution }),
+  })
+}
+
+export function listSyncRunLogs(runId: string) {
+  return request<{ items: SyncEventLog[]; count?: number }>(
+    `/sync/runs/${runId}/logs`
+  )
 }
 
 export function getPublicPage(slug: string, token?: string) {

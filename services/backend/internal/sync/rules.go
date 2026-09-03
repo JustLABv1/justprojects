@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-var SynchronizedFields = []string{"title", "body", "state", "labels", "assignees", "milestone"}
+var SynchronizedFields = []string{"title", "body", "state", "workflowStatus", "labels", "assignees", "milestone"}
 
 type FieldChange struct {
 	Value     any
@@ -23,7 +23,7 @@ func IsConflict(local, remote FieldChange) bool {
 }
 
 func StatusForRemoteState(statuses []db.ProjectStatus, closed bool) (uuid.UUID, bool) {
-	wanted := "in_progress"
+	wanted := "todo"
 	if closed {
 		wanted = "done"
 	}

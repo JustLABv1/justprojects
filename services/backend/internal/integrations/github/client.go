@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,7 +21,74 @@ import (
 	"time"
 )
 
-const apiVersion = "2022-11-28"
+const (
+	apiVersion = "2022-11-28"
+	userAgent  = "JustProjects"
+)
+
+// APIError preserves the provider response metadata needed to distinguish a
+// rate limit from an invalid token or an unavailable provider.
+type APIError struct {
+	Method             string
+	Path               string
+	StatusCode         int
+	Message            string
+	RateLimitRemaining string
+	RateLimitReset     *time.Time
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("github api %s %s: %s", e.Method, e.Path, e.Message)
+}
+
+func (e *APIError) IsRateLimited() bool {
+	if e == nil {
+		return false
+	}
+	message := strings.ToLower(e.Message)
+	return e.StatusCode == http.StatusTooManyRequests ||
+		(e.StatusCode == http.StatusForbidden &&
+			(e.RateLimitRemaining == "0" || strings.Contains(message, "rate limit")))
+}
+
+// RetryAt exposes a provider-aware retry time to the outbox worker without
+// coupling the queue package to GitHub-specific error types.
+func (e *APIError) RetryAt() (time.Time, bool) {
+	if e == nil || !e.IsRateLimited() {
+		return time.Time{}, false
+	}
+	if e.RateLimitReset != nil {
+		reset := e.RateLimitReset.UTC()
+		if reset.After(time.Now().UTC()) {
+			return reset, true
+		}
+	}
+	// GitHub recommends waiting at least one minute when a rate-limit response
+	// does not provide a usable reset or retry-after value.
+	return time.Now().UTC().Add(time.Minute), true
+}
+
+func (e *APIError) IsInvalidCredentials() bool {
+	return e != nil && e.StatusCode == http.StatusUnauthorized
+}
+
+func IsRateLimited(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.IsRateLimited()
+}
+
+func IsInvalidCredentials(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.IsInvalidCredentials()
+}
+
+func RateLimitReset(err error) (time.Time, bool) {
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.RateLimitReset == nil {
+		return time.Time{}, false
+	}
+	return apiErr.RateLimitReset.UTC(), true
+}
 
 type Client struct {
 	HTTPClient   *http.Client
@@ -121,6 +189,7 @@ func (c *Client) do(ctx context.Context, method, path string, input any, output 
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", apiVersion)
+	req.Header.Set("User-Agent", userAgent)
 	if c.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}
@@ -138,12 +207,28 @@ func (c *Client) do(ctx context.Context, method, path string, input any, output 
 	defer res.Body.Close()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		message, _ := io.ReadAll(io.LimitReader(res.Body, 4<<10))
-		return fmt.Errorf("github api %s %s: %s", method, path, strings.TrimSpace(string(message)))
+		return &APIError{
+			Method:             method,
+			Path:               path,
+			StatusCode:         res.StatusCode,
+			Message:            strings.TrimSpace(string(message)),
+			RateLimitRemaining: res.Header.Get("X-RateLimit-Remaining"),
+			RateLimitReset:     parseRateLimitReset(res.Header.Get("X-RateLimit-Reset")),
+		}
 	}
 	if output == nil || res.StatusCode == http.StatusNoContent {
 		return nil
 	}
 	return json.NewDecoder(res.Body).Decode(output)
+}
+
+func parseRateLimitReset(value string) *time.Time {
+	seconds, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+	if err != nil || seconds <= 0 {
+		return nil
+	}
+	reset := time.Unix(seconds, 0).UTC()
+	return &reset
 }
 
 func (c *Client) ListRepositories(ctx context.Context) ([]Repository, error) {
@@ -195,51 +280,76 @@ func (c *Client) ListInstallationRepositories(ctx context.Context) ([]Repository
 	return items, nil
 }
 
+type rawIssue struct {
+	ID          int64          `json:"id"`
+	Number      int            `json:"number"`
+	Title       string         `json:"title"`
+	Body        string         `json:"body"`
+	State       string         `json:"state"`
+	HTMLURL     string         `json:"html_url"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	PullRequest map[string]any `json:"pull_request"`
+	Labels      []struct {
+		Name string `json:"name"`
+	} `json:"labels"`
+	Assignees []struct {
+		Login string `json:"login"`
+	} `json:"assignees"`
+	Milestone *struct {
+		ID        int64      `json:"id"`
+		Number    int        `json:"number"`
+		Title     string     `json:"title"`
+		State     string     `json:"state"`
+		DueOn     *time.Time `json:"due_on"`
+		UpdatedAt time.Time  `json:"updated_at"`
+	} `json:"milestone"`
+}
+
 func (c *Client) ListIssues(ctx context.Context, owner, repo string) ([]Issue, error) {
-	var response []struct {
-		ID          int64          `json:"id"`
-		Number      int            `json:"number"`
-		Title       string         `json:"title"`
-		Body        string         `json:"body"`
-		State       string         `json:"state"`
-		HTMLURL     string         `json:"html_url"`
-		UpdatedAt   time.Time      `json:"updated_at"`
-		PullRequest map[string]any `json:"pull_request"`
-		Labels      []struct {
-			Name string `json:"name"`
-		} `json:"labels"`
-		Assignees []struct {
-			Login string `json:"login"`
-		} `json:"assignees"`
-		Milestone *struct {
-			ID        int64      `json:"id"`
-			Number    int        `json:"number"`
-			Title     string     `json:"title"`
-			State     string     `json:"state"`
-			DueOn     *time.Time `json:"due_on"`
-			UpdatedAt time.Time  `json:"updated_at"`
-		} `json:"milestone"`
-	}
-	path := "/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(repo) + "/issues?state=all&per_page=100"
-	if err := c.do(ctx, http.MethodGet, path, nil, &response); err != nil {
-		return nil, err
-	}
-	items := make([]Issue, 0, len(response))
-	for _, remote := range response {
-		if remote.PullRequest != nil {
-			continue
+	return c.listIssues(ctx, owner, repo, nil)
+}
+
+func (c *Client) ListIssuesSince(ctx context.Context, owner, repo string, since time.Time) ([]Issue, error) {
+	since = since.UTC()
+	return c.listIssues(ctx, owner, repo, &since)
+}
+
+func (c *Client) listIssues(ctx context.Context, owner, repo string, since *time.Time) ([]Issue, error) {
+	var response []rawIssue
+	const pageSize = 100
+	items := make([]Issue, 0, pageSize)
+	for page := 1; ; page++ {
+		response = nil
+		query := url.Values{}
+		query.Set("state", "all")
+		query.Set("per_page", strconv.Itoa(pageSize))
+		query.Set("page", strconv.Itoa(page))
+		if since != nil {
+			query.Set("since", since.UTC().Format(time.RFC3339))
 		}
-		item := Issue{ID: remote.ID, Number: remote.Number, Title: remote.Title, Body: remote.Body, State: remote.State, HTMLURL: remote.HTMLURL, UpdatedAt: remote.UpdatedAt}
-		for _, label := range remote.Labels {
-			item.Labels = append(item.Labels, label.Name)
+		path := "/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(repo) + "/issues?" + query.Encode()
+		if err := c.do(ctx, http.MethodGet, path, nil, &response); err != nil {
+			return nil, err
 		}
-		for _, assignee := range remote.Assignees {
-			item.Assignees = append(item.Assignees, assignee.Login)
+		for _, remote := range response {
+			if remote.PullRequest != nil {
+				continue
+			}
+			item := Issue{ID: remote.ID, Number: remote.Number, Title: remote.Title, Body: remote.Body, State: remote.State, HTMLURL: remote.HTMLURL, UpdatedAt: remote.UpdatedAt}
+			for _, label := range remote.Labels {
+				item.Labels = append(item.Labels, label.Name)
+			}
+			for _, assignee := range remote.Assignees {
+				item.Assignees = append(item.Assignees, assignee.Login)
+			}
+			if remote.Milestone != nil {
+				item.Milestone = &Milestone{ID: remote.Milestone.ID, Number: remote.Milestone.Number, Title: remote.Milestone.Title, State: remote.Milestone.State, DueOn: remote.Milestone.DueOn, UpdatedAt: remote.Milestone.UpdatedAt}
+			}
+			items = append(items, item)
 		}
-		if remote.Milestone != nil {
-			item.Milestone = &Milestone{ID: remote.Milestone.ID, Number: remote.Milestone.Number, Title: remote.Milestone.Title, State: remote.Milestone.State, DueOn: remote.Milestone.DueOn, UpdatedAt: remote.Milestone.UpdatedAt}
+		if len(response) < pageSize {
+			break
 		}
-		items = append(items, item)
 	}
 	return items, nil
 }
@@ -298,6 +408,29 @@ func (c *Client) issueMutation(ctx context.Context, method, owner, repo string, 
 }
 
 func (c *Client) ListMilestones(ctx context.Context, owner, repo string) ([]Milestone, error) {
+	return c.listMilestones(ctx, owner, repo)
+}
+
+// GitHub does not expose an updated-after parameter for repository milestones.
+// Fetching the paginated list and filtering locally keeps polling correct for
+// both GitHub.com and GitHub Enterprise while issues use the cheaper server
+// side `since` filter above.
+func (c *Client) ListMilestonesSince(ctx context.Context, owner, repo string, since time.Time) ([]Milestone, error) {
+	items, err := c.listMilestones(ctx, owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	since = since.UTC()
+	filtered := make([]Milestone, 0, len(items))
+	for _, item := range items {
+		if item.UpdatedAt.IsZero() || item.UpdatedAt.After(since) {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered, nil
+}
+
+func (c *Client) listMilestones(ctx context.Context, owner, repo string) ([]Milestone, error) {
 	var response []struct {
 		ID          int64      `json:"id"`
 		Number      int        `json:"number"`
@@ -307,13 +440,20 @@ func (c *Client) ListMilestones(ctx context.Context, owner, repo string) ([]Mile
 		DueOn       *time.Time `json:"due_on"`
 		UpdatedAt   time.Time  `json:"updated_at"`
 	}
-	path := "/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(repo) + "/milestones?state=all&per_page=100"
-	if err := c.do(ctx, http.MethodGet, path, nil, &response); err != nil {
-		return nil, err
-	}
-	items := make([]Milestone, 0, len(response))
-	for _, remote := range response {
-		items = append(items, Milestone{ID: remote.ID, Number: remote.Number, Title: remote.Title, Description: remote.Description, State: remote.State, DueOn: remote.DueOn, UpdatedAt: remote.UpdatedAt})
+	const pageSize = 100
+	items := make([]Milestone, 0, pageSize)
+	for page := 1; ; page++ {
+		response = nil
+		path := "/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(repo) + "/milestones?state=all&per_page=" + strconv.Itoa(pageSize) + "&page=" + strconv.Itoa(page)
+		if err := c.do(ctx, http.MethodGet, path, nil, &response); err != nil {
+			return nil, err
+		}
+		for _, remote := range response {
+			items = append(items, Milestone{ID: remote.ID, Number: remote.Number, Title: remote.Title, Description: remote.Description, State: remote.State, DueOn: remote.DueOn, UpdatedAt: remote.UpdatedAt})
+		}
+		if len(response) < pageSize {
+			break
+		}
 	}
 	return items, nil
 }
@@ -355,3 +495,4 @@ func (c *Client) User(ctx context.Context) (User, error) {
 }
 
 var _ Provider = (*Client)(nil)
+var _ IncrementalProvider = (*Client)(nil)

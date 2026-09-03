@@ -13,6 +13,7 @@ import (
 type Config struct {
 	HTTPAddr            string
 	WorkerPollInterval  time.Duration
+	SyncPollInterval    time.Duration
 	Database            DatabaseConfig
 	FrontendURL         string
 	APIURL              string
@@ -52,6 +53,7 @@ func Load() (Config, error) {
 	c := Config{
 		HTTPAddr:           getenv("HTTP_ADDR", ":8080"),
 		WorkerPollInterval: getenvDuration("WORKER_POLL_INTERVAL", 5*time.Second),
+		SyncPollInterval:   getenvDuration("GIT_SYNC_INTERVAL", 5*time.Minute),
 		Database: DatabaseConfig{
 			Server:         getenv("DATABASE_SERVER", "localhost"),
 			Port:           getenvInt("DATABASE_PORT", 5432),
@@ -106,7 +108,7 @@ func getenvDuration(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	parsed, err := time.ParseDuration(value)
-	if err != nil {
+	if err != nil || parsed <= 0 {
 		return fallback
 	}
 	return parsed

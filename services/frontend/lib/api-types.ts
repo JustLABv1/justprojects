@@ -702,7 +702,23 @@ export interface paths {
         get: operations["listNotifications"];
         put?: never;
         post?: never;
-        delete?: never;
+        delete: operations["clearNotifications"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/{notificationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteNotification"];
         options?: never;
         head?: never;
         patch?: never;
@@ -764,6 +780,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["listSyncRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sync/runs/{runId}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listSyncRunLogs"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1359,6 +1391,7 @@ export interface components {
             /** Format: uuid */
             assigneeId?: string | null;
             assigneeName?: string;
+            remoteAssignees?: components["schemas"]["RemoteAssignee"][];
             labels?: components["schemas"]["Label"][];
             /** @enum {string} */
             visibility: "internal" | "customer";
@@ -1644,6 +1677,16 @@ export interface components {
             /** @enum {string} */
             status: "open" | "resolved" | "ignored";
             resolution?: string;
+            /** Format: uuid */
+            projectId?: string;
+            /** @enum {string} */
+            localType?: "task" | "milestone";
+            /** Format: uuid */
+            localId?: string;
+            localTitle?: string;
+            repositoryName?: string;
+            provider?: components["schemas"]["GitProvider"];
+            externalNumber?: number;
         };
         ConflictList: {
             items?: components["schemas"]["SyncConflict"][];
@@ -1670,6 +1713,28 @@ export interface components {
             createdAt?: string;
             /** Format: date-time */
             updatedAt?: string;
+            logs?: components["schemas"]["SyncEventLog"][];
+        };
+        SyncEventLog: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            syncEventId: string;
+            /** @enum {string} */
+            level: "debug" | "info" | "warn" | "error";
+            phase?: string;
+            message: string;
+            metadata: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        SyncEventLogList: {
+            items?: components["schemas"]["SyncEventLog"][];
+            count?: number;
         };
         SyncEventList: {
             items?: components["schemas"]["SyncEvent"][];
@@ -1725,12 +1790,20 @@ export interface components {
             items?: components["schemas"]["PermissionGrant"][];
             count?: number;
         };
+        RemoteAssignee: {
+            provider: components["schemas"]["GitProvider"];
+            login: string;
+            mapped: boolean;
+        };
         GitHubUserMapping: {
             /** Format: uuid */
             id: string;
             /** Format: uuid */
             tenantId: string;
-            githubLogin: string;
+            provider: components["schemas"]["GitProvider"];
+            remoteLogin: string;
+            /** Format: int64 */
+            remoteId?: number | null;
             /** Format: uuid */
             userId: string;
         };
@@ -1790,6 +1863,7 @@ export interface components {
         GrantId: string;
         MappingId: string;
         ConflictId: string;
+        SyncRunId: string;
         PageSlug: string;
         WorkspaceSlug: string;
         InvitationToken: string;
@@ -3118,6 +3192,44 @@ export interface operations {
             };
         };
     };
+    clearNotifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notifications cleared. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteNotification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notificationId: components["parameters"]["NotificationId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notification deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     markNotificationRead: {
         parameters: {
             query?: never;
@@ -3211,6 +3323,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SyncEventList"];
+                };
+            };
+        };
+    };
+    listSyncRunLogs: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                runId: components["parameters"]["SyncRunId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenant-scoped activity logs for one synchronization run. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncEventLogList"];
                 };
             };
         };

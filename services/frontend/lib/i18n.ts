@@ -88,13 +88,47 @@ const english = {
   "workspace.viewSyncHistory": "View sync history",
   "sync.background": "Background sync",
   "sync.actionDelivery": "{action} delivery",
+  "sync.import": "Repository import",
+  "sync.manualImport": "Manual import",
+  "sync.scheduledSync": "Scheduled sync",
+  "sync.scheduled": "Scheduled",
   "sync.issues": "Issues",
+  "sync.issue": "Issue",
   "sync.milestone": "Milestone",
   "sync.unknownEvent": "Sync event",
   "sync.queued": "Queued",
   "sync.processing": "Processing",
   "sync.succeeded": "Succeeded",
   "sync.failed": "Failed",
+  "sync.activityLog": "Activity log",
+  "sync.activitySummary": "Synchronization summary",
+  "sync.lastSync": "Last sync",
+  "sync.successful": "Successful",
+  "sync.failedCount": "Failed",
+  "sync.moreEvents": "+{count} more in Integrations",
+  "sync.live": "Live",
+  "sync.liveDescription": "Automatically refreshed every few seconds",
+  "sync.refresh": "Refresh",
+  "sync.refreshing": "Refreshing",
+  "sync.noRuns": "No synchronization runs yet.",
+  "sync.noLogs": "No activity was recorded for this run.",
+  "sync.waitingForLogs": "Waiting for the worker to report activity...",
+  "sync.conflicts": "Sync conflicts",
+  "sync.conflictsDescription":
+    "Resolve fields that changed in JustProjects and the provider at the same time.",
+  "sync.noConflicts": "No unresolved sync conflicts.",
+  "sync.conflictTarget": "{type} · {title}",
+  "sync.conflictField": "Field: {field}",
+  "sync.workflowStatus": "Workflow status",
+  "sync.conflictLocal": "JustProjects value",
+  "sync.conflictRemote": "Provider value",
+  "sync.conflictKeepLocal": "Keep JustProjects",
+  "sync.conflictUseRemote": "Use provider",
+  "sync.conflictIgnore": "Ignore",
+  "sync.conflictResolveQueued": "Conflict resolution queued.",
+  "sync.conflictResolveError": "Could not resolve this sync conflict.",
+  "sync.conflictLoadError": "Could not load sync conflicts.",
+  "sync.unmappedAssignee": "Unmapped provider assignee",
   "workspace.overviewDescription":
     "A shared view of delivery, ownership, and the next decision.",
   "workspace.tasksDescription":
@@ -117,6 +151,8 @@ const english = {
   "tasks.priority": "Priority",
   "tasks.due": "Due",
   "tasks.assignee": "Assignee",
+  "tasks.milestone": "Milestone",
+  "tasks.remoteAssignee": "Provider assignee",
   "tasks.visibility": "Visibility",
   "tasks.edit": "Edit {title}",
   "tasks.markComplete": "Mark {title} complete",
@@ -205,6 +241,9 @@ const english = {
     "Keep issue titles, state, labels, assignees, milestones, and links moving in both directions.",
   "integrations.connectedAs": "Connected as {account}",
   "integrations.noConnection": "No {provider} connection yet",
+  "integrations.noConnectionsTitle": "Connect your first provider",
+  "integrations.noConnectionsDescription":
+    "Connect GitHub or GitLab to choose repositories, start imports, and keep project work in sync.",
   "integrations.appLeastPrivilege": "GitHub App · least-privilege issue access",
   "integrations.oauthScopes": "OAuth · access depends on the scopes granted",
   "integrations.patToken": "Personal access token",
@@ -234,8 +273,15 @@ const english = {
   "integrations.privateRepository": "Private repository",
   "integrations.publicRepository": "Public repository",
   "integrations.attached": "Attached to this project",
+  "integrations.detachRepository": "Detach repository",
+  "integrations.detachingRepository": "Detaching...",
+  "integrations.repositoryDetached": "Detached {repository} from this project.",
+  "integrations.repositoryDetachError": "Could not detach the repository.",
   "integrations.runImport": "Run import",
   "integrations.attachImport": "Attach & import",
+  "integrations.importRunning": "Import running",
+  "integrations.importAlreadyRunning":
+    "An import for this repository is already queued or running.",
   "integrations.latestDeliveries": "Latest deliveries",
   "integrations.webhookDescription":
     "Webhook receipts are persisted before background processing.",
@@ -245,12 +291,57 @@ const english = {
   "integrations.conflictSafe": "Conflict safe",
   "integrations.conflictDescription":
     "Conflicting fields pause until an authorized person resolves them.",
+  "integrations.assigneeMappings": "Provider assignee mappings",
+  "integrations.assigneeMappingsDescription":
+    "Map provider logins to workspace members so assignments stay visible and safe to sync.",
+  "integrations.unmappedAssignees": "Unmapped provider assignees",
+  "integrations.noUnmappedAssignees":
+    "No unmapped provider assignees found in this project.",
+  "integrations.remoteLogin": "GitHub username",
+  "integrations.selectWorkspaceUser": "Select a workspace member",
+  "integrations.saveMapping": "Save mapping",
+  "integrations.removeMapping": "Remove mapping",
+  "integrations.mappingSaved": "Provider assignee mapping saved.",
+  "integrations.mappingDeleted": "Provider assignee mapping removed.",
+  "integrations.mappingError": "Could not update provider assignee mappings.",
+  "integrations.loadingMappings": "Loading mappings...",
+  "integrations.mappingHint":
+    "Unmapped assignments remain on the provider until you explicitly map or change them.",
   "integrations.tokenDialogTitle": "Add a {provider} connection",
   "integrations.tokenDialogDescription":
-    "Credentials are encrypted by the backend and scoped to your tenant.",
+    "Connect a provider in three steps. Credentials are encrypted by the backend and scoped to your tenant.",
+  "integrations.connectionStepLabel": "Connection setup",
+  "integrations.connectionStepProvider": "Provider",
+  "integrations.connectionStepInstructions": "Token guide",
+  "integrations.connectionStepCredentials": "Credentials",
+  "integrations.chooseProvider": "Choose a provider",
+  "integrations.chooseProviderDescription":
+    "Select where the repositories you want to sync are hosted.",
+  "integrations.tokenGuideTitle": "Create a {provider} access token",
+  "integrations.tokenGuideDescription":
+    "Follow the provider's steps, then return here with the token ready to paste.",
+  "integrations.githubTokenGuideStep1":
+    "Open GitHub Settings → Developer settings → Fine-grained tokens and create a token.",
+  "integrations.githubTokenGuideStep2":
+    "Limit access to the repositories you want to sync and grant Issues: Read and write plus Metadata: Read.",
+  "integrations.githubTokenGuideStep3":
+    "Set an expiration date, generate the token, and copy it immediately.",
+  "integrations.gitlabTokenGuideStep1":
+    "Open User settings → Access tokens and create a token with an expiration date.",
+  "integrations.gitlabTokenGuideStep2":
+    "Grant the api scope so JustProjects can read and update issues and milestones.",
+  "integrations.gitlabTokenGuideStep3":
+    "Create the token and copy it immediately; it will not be shown again.",
+  "integrations.openTokenSettings": "Open {provider} token settings",
+  "integrations.readProviderGuide": "Read provider guide",
+  "integrations.tokenGuideCopy":
+    "Copy the token before leaving the provider. JustProjects never displays it again after submission.",
+  "integrations.connectionDetails": "Connection details",
+  "integrations.connectionDetailsDescription":
+    "Enter the token here. JustProjects validates it with {provider} before encrypting and saving it.",
   "integrations.provider": "Provider",
   "integrations.connectionName": "Connection name",
-  "integrations.connectionNamePlaceholder": "e.g. Production GitLab",
+  "integrations.connectionNamePlaceholder": "e.g. Main connection",
   "integrations.baseUrl": "GitLab base URL",
   "integrations.baseUrlHint":
     "Use GitLab.com or the URL of your self-hosted instance.",
@@ -261,8 +352,14 @@ const english = {
   "integrations.webhookSecretHint":
     "Use the same secret when configuring the provider webhook.",
   "integrations.cancel": "Cancel",
+  "integrations.back": "Back",
+  "integrations.continue": "Continue",
   "integrations.saveConnection": "Save connection",
+  "integrations.validateAndSave": "Validate & save connection",
+  "integrations.tokenValidationHint":
+    "The token is validated against {provider} before the connection is saved.",
   "integrations.saving": "Saving...",
+  "integrations.validating": "Validating...",
   "integrations.importQueued":
     "Import queued for {repository}. Run {runId} is processing in the background.",
   "integrations.repositoryLoadError": "Repositories could not be loaded.",
@@ -332,7 +429,9 @@ const english = {
     "Connect the backend API to create a real customer link.",
   "settings.workflow": "Workflow",
   "settings.workflowDescription":
-    "Arrange the project states used by the list, board, and Git provider mapping.",
+    "Arrange the project states used by the list, board, and Git provider status labels.",
+  "settings.workflowProviderLabels":
+    "Each status gets one managed GitHub/GitLab label. Custom statuses stay distinct, while ordinary provider labels are preserved.",
   "settings.statusName": "Status name",
   "settings.statusCategory": "Semantic category",
   "settings.addStatus": "Add status",
@@ -460,6 +559,8 @@ const english = {
     "Roadmap bars are read-only in this view. Task and milestone edits stay in their respective detail panels.",
   "roadmap.milestones": "Milestones",
   "roadmap.tasks": "Tasks",
+  "roadmap.assignedTasks": "{count} tasks assigned",
+  "roadmap.noAssignedTasks": "No tasks assigned yet.",
   "roadmap.today": "Today",
   "roadmap.previous": "Previous",
   "roadmap.next": "Next",
@@ -646,6 +747,9 @@ const english = {
   "notifications.title": "Notifications",
   "notifications.empty": "You are all caught up.",
   "notifications.markRead": "Mark as read",
+  "notifications.remove": "Remove notification",
+  "notifications.clearAll": "Clear all",
+  "notifications.clearing": "Clearing...",
   "notifications.newCount": "{count} new notification(s)",
   "notifications.unread": "Unread",
   "notifications.loadError": "Could not load notifications.",
@@ -670,12 +774,14 @@ const english = {
   "settings.viewerError": "Could not update customer viewers.",
   "settings.loginViewersHint":
     "Viewer management applies to authenticated customer pages.",
-  "settings.noEligibleViewers": "No additional workspace members are available.",
+  "settings.noEligibleViewers":
+    "No additional workspace members are available.",
   "public.requestProject": "Request a new project",
   "public.requestProjectDescription":
     "Tell the team what you would like to build next.",
   "public.requestProjectTitle": "Project request",
-  "public.requestProjectDetails": "Describe the outcome, context, and key deliverables.",
+  "public.requestProjectDetails":
+    "Describe the outcome, context, and key deliverables.",
   "public.requesterName": "Your name",
   "public.requesterEmail": "Your email",
   "public.requestedStartDate": "Preferred start date",
@@ -684,7 +790,8 @@ const english = {
   "public.requestPriorityDescription": "How urgent is this request?",
   "public.requestSubmit": "Submit request",
   "public.requestSending": "Sending request...",
-  "public.requestProjectSubmitted": "Your project request was sent to the team.",
+  "public.requestProjectSubmitted":
+    "Your project request was sent to the team.",
   "public.requestProjectError": "Could not submit the project request.",
   "public.requestWorkspaceEyebrow": "New project request",
   "public.requestWorkspaceTitle": "Tell us what you want to build next",
@@ -698,7 +805,8 @@ const english = {
   "public.requestWorkspaceSubmitAnother": "Submit another request",
   "public.backToHome": "Back to home",
   "public.requestStatus": "Request status",
-  "public.requestTokenNotice": "Save this page if you want to refer back to the request.",
+  "public.requestTokenNotice":
+    "Save this page if you want to refer back to the request.",
   "public.updates": "Latest updates",
   "public.noUpdates": "The team has not published an update yet.",
   "public.notifications": "Notifications",
@@ -800,13 +908,49 @@ const german: Record<keyof typeof english, string> = {
   "workspace.viewSyncHistory": "Synchronisierungsverlauf anzeigen",
   "sync.background": "Hintergrundsynchronisierung",
   "sync.actionDelivery": "{action}-Übertragung",
+  "sync.import": "Repository-Import",
+  "sync.manualImport": "Manueller Import",
+  "sync.scheduledSync": "Geplante Synchronisierung",
+  "sync.scheduled": "Geplant",
   "sync.issues": "Issues",
+  "sync.issue": "Issue",
   "sync.milestone": "Meilenstein",
   "sync.unknownEvent": "Synchronisierungsereignis",
   "sync.queued": "Warteschlange",
   "sync.processing": "Wird verarbeitet",
   "sync.succeeded": "Erfolgreich",
   "sync.failed": "Fehlgeschlagen",
+  "sync.activityLog": "Aktivitätsprotokoll",
+  "sync.activitySummary": "Synchronisierungsübersicht",
+  "sync.lastSync": "Letzte Übertragung",
+  "sync.successful": "Erfolgreich",
+  "sync.failedCount": "Fehlgeschlagen",
+  "sync.moreEvents": "+{count} weitere in Integrationen",
+  "sync.live": "Live",
+  "sync.liveDescription": "Wird automatisch alle paar Sekunden aktualisiert",
+  "sync.refresh": "Aktualisieren",
+  "sync.refreshing": "Wird aktualisiert",
+  "sync.noRuns": "Noch keine Synchronisierungsläufe.",
+  "sync.noLogs": "Für diesen Lauf wurde keine Aktivität aufgezeichnet.",
+  "sync.waitingForLogs": "Warte auf Aktivität des Workers ...",
+  "sync.conflicts": "Synchronisierungskonflikte",
+  "sync.conflictsDescription":
+    "Löse Felder auf, die gleichzeitig in JustProjects und beim Provider geändert wurden.",
+  "sync.noConflicts": "Keine offenen Synchronisierungskonflikte.",
+  "sync.conflictTarget": "{type} · {title}",
+  "sync.conflictField": "Feld: {field}",
+  "sync.workflowStatus": "Workflow-Status",
+  "sync.conflictLocal": "Wert in JustProjects",
+  "sync.conflictRemote": "Wert beim Provider",
+  "sync.conflictKeepLocal": "JustProjects behalten",
+  "sync.conflictUseRemote": "Provider verwenden",
+  "sync.conflictIgnore": "Ignorieren",
+  "sync.conflictResolveQueued": "Konfliktauflösung eingereiht.",
+  "sync.conflictResolveError":
+    "Der Synchronisierungskonflikt konnte nicht aufgelöst werden.",
+  "sync.conflictLoadError":
+    "Synchronisierungskonflikte konnten nicht geladen werden.",
+  "sync.unmappedAssignee": "Nicht zugeordnete Provider-Zuweisung",
   "workspace.overviewDescription":
     "Eine gemeinsame Sicht auf Lieferung, Verantwortung und die nächste Entscheidung.",
   "workspace.tasksDescription":
@@ -829,6 +973,8 @@ const german: Record<keyof typeof english, string> = {
   "tasks.priority": "Priorität",
   "tasks.due": "Fällig",
   "tasks.assignee": "Zuständig",
+  "tasks.milestone": "Meilenstein",
+  "tasks.remoteAssignee": "Provider-Zuweisung",
   "tasks.visibility": "Sichtbarkeit",
   "tasks.edit": "{title} bearbeiten",
   "tasks.markComplete": "{title} als erledigt markieren",
@@ -917,6 +1063,9 @@ const german: Record<keyof typeof english, string> = {
     "Titel, Status, Labels, Zuständige, Meilensteine und Links in beide Richtungen synchronisieren.",
   "integrations.connectedAs": "Verbunden als {account}",
   "integrations.noConnection": "Noch keine {provider}-Verbindung",
+  "integrations.noConnectionsTitle": "Ersten Provider verbinden",
+  "integrations.noConnectionsDescription":
+    "Verbinde GitHub oder GitLab, um Repositories auszuwählen, Importe zu starten und deine Projektarbeit synchron zu halten.",
   "integrations.appLeastPrivilege":
     "GitHub App · Zugriff nach dem Prinzip der geringsten Rechte",
   "integrations.oauthScopes":
@@ -948,8 +1097,17 @@ const german: Record<keyof typeof english, string> = {
   "integrations.privateRepository": "Privates Repository",
   "integrations.publicRepository": "Öffentliches Repository",
   "integrations.attached": "Mit diesem Projekt verbunden",
+  "integrations.detachRepository": "Repository trennen",
+  "integrations.detachingRepository": "Wird getrennt...",
+  "integrations.repositoryDetached":
+    "{repository} wurde von diesem Projekt getrennt.",
+  "integrations.repositoryDetachError":
+    "Das Repository konnte nicht getrennt werden.",
   "integrations.runImport": "Import starten",
   "integrations.attachImport": "Verbinden & importieren",
+  "integrations.importRunning": "Import läuft",
+  "integrations.importAlreadyRunning":
+    "Für dieses Repository ist bereits ein Import vorgemerkt oder läuft.",
   "integrations.latestDeliveries": "Letzte Übertragungen",
   "integrations.webhookDescription":
     "Webhook-Eingänge werden vor der Hintergrundverarbeitung gespeichert.",
@@ -959,12 +1117,58 @@ const german: Record<keyof typeof english, string> = {
   "integrations.conflictSafe": "Konfliktsicher",
   "integrations.conflictDescription":
     "Konfliktfelder pausieren, bis eine berechtigte Person sie auflöst.",
+  "integrations.assigneeMappings": "Provider-Zuweisungen",
+  "integrations.assigneeMappingsDescription":
+    "Ordne Provider-Logins Arbeitsbereichsmitgliedern zu, damit Zuweisungen sichtbar bleiben und sicher synchronisiert werden.",
+  "integrations.unmappedAssignees": "Nicht zugeordnete Provider-Zuweisungen",
+  "integrations.noUnmappedAssignees":
+    "In diesem Projekt wurden keine nicht zugeordneten Provider-Zuweisungen gefunden.",
+  "integrations.remoteLogin": "GitHub-Benutzername",
+  "integrations.selectWorkspaceUser": "Arbeitsbereichsmitglied auswählen",
+  "integrations.saveMapping": "Zuordnung speichern",
+  "integrations.removeMapping": "Zuordnung entfernen",
+  "integrations.mappingSaved": "Provider-Zuweisung gespeichert.",
+  "integrations.mappingDeleted": "Provider-Zuweisung entfernt.",
+  "integrations.mappingError":
+    "Provider-Zuweisungen konnten nicht aktualisiert werden.",
+  "integrations.loadingMappings": "Zuordnungen werden geladen...",
+  "integrations.mappingHint":
+    "Nicht zugeordnete Zuweisungen bleiben beim Provider, bis du sie ausdrücklich zuordnest oder änderst.",
   "integrations.tokenDialogTitle": "{provider}-Verbindung hinzufügen",
   "integrations.tokenDialogDescription":
-    "Zugangsdaten werden vom Backend verschlüsselt und auf deinen Mandanten begrenzt.",
+    "Verbinde einen Provider in drei Schritten. Zugangsdaten werden vom Backend verschlüsselt und auf deinen Mandanten begrenzt.",
+  "integrations.connectionStepLabel": "Verbindung einrichten",
+  "integrations.connectionStepProvider": "Provider",
+  "integrations.connectionStepInstructions": "Token-Anleitung",
+  "integrations.connectionStepCredentials": "Zugangsdaten",
+  "integrations.chooseProvider": "Provider auswählen",
+  "integrations.chooseProviderDescription":
+    "Wähle, wo die zu synchronisierenden Repositories gehostet werden.",
+  "integrations.tokenGuideTitle": "{provider}-Zugriffstoken erstellen",
+  "integrations.tokenGuideDescription":
+    "Folge den Schritten des Providers und komme anschließend mit dem fertigen Token hierher zurück.",
+  "integrations.githubTokenGuideStep1":
+    "Öffne in den GitHub-Einstellungen Developer settings → Fine-grained tokens und erstelle einen Token.",
+  "integrations.githubTokenGuideStep2":
+    "Beschränke den Zugriff auf die benötigten Repositories und erteile Issues: Lesen und Schreiben sowie Metadata: Lesen.",
+  "integrations.githubTokenGuideStep3":
+    "Lege ein Ablaufdatum fest, erstelle den Token und kopiere ihn sofort.",
+  "integrations.gitlabTokenGuideStep1":
+    "Öffne User settings → Access tokens und erstelle einen Token mit Ablaufdatum.",
+  "integrations.gitlabTokenGuideStep2":
+    "Erteile den Scope api, damit JustProjects Issues und Meilensteine lesen und aktualisieren kann.",
+  "integrations.gitlabTokenGuideStep3":
+    "Erstelle den Token und kopiere ihn sofort; danach wird er nicht erneut angezeigt.",
+  "integrations.openTokenSettings": "{provider}-Token-Einstellungen öffnen",
+  "integrations.readProviderGuide": "Provider-Anleitung lesen",
+  "integrations.tokenGuideCopy":
+    "Kopiere den Token, bevor du den Provider verlässt. JustProjects zeigt ihn nach dem Absenden nicht erneut an.",
+  "integrations.connectionDetails": "Verbindungsdetails",
+  "integrations.connectionDetailsDescription":
+    "Gib den Token hier ein. JustProjects validiert ihn bei {provider}, bevor er verschlüsselt und gespeichert wird.",
   "integrations.provider": "Provider",
   "integrations.connectionName": "Name der Verbindung",
-  "integrations.connectionNamePlaceholder": "z. B. Produktions-GitLab",
+  "integrations.connectionNamePlaceholder": "z. B. Hauptverbindung",
   "integrations.baseUrl": "GitLab-Basis-URL",
   "integrations.baseUrlHint":
     "Nutze GitLab.com oder die URL deiner selbst gehosteten Instanz.",
@@ -975,8 +1179,14 @@ const german: Record<keyof typeof english, string> = {
   "integrations.webhookSecretHint":
     "Beim Provider-Webhook dasselbe Geheimnis verwenden.",
   "integrations.cancel": "Abbrechen",
+  "integrations.back": "Zurück",
+  "integrations.continue": "Weiter",
   "integrations.saveConnection": "Verbindung speichern",
+  "integrations.validateAndSave": "Verbindung prüfen & speichern",
+  "integrations.tokenValidationHint":
+    "Der Token wird bei {provider} geprüft, bevor die Verbindung gespeichert wird.",
   "integrations.saving": "Wird gespeichert...",
+  "integrations.validating": "Wird geprüft...",
   "integrations.importQueued":
     "Import für {repository} eingereiht. Lauf {runId} wird im Hintergrund verarbeitet.",
   "integrations.repositoryLoadError":
@@ -1052,7 +1262,9 @@ const german: Record<keyof typeof english, string> = {
     "Verbinde die Backend-API, um einen echten Kundenlink zu erstellen.",
   "settings.workflow": "Workflow",
   "settings.workflowDescription":
-    "Ordne die Projektstatus für Liste, Board und die Zuordnung zum Git-Provider.",
+    "Ordne die Projektstatus für Liste, Board und die Statuslabels beim Git-Provider.",
+  "settings.workflowProviderLabels":
+    "Jeder Status erhält ein verwaltetes GitHub-/GitLab-Label. Eigene Status bleiben unterscheidbar, normale Provider-Labels bleiben erhalten.",
   "settings.statusName": "Statusname",
   "settings.statusCategory": "Semantische Kategorie",
   "settings.addStatus": "Status hinzufügen",
@@ -1185,6 +1397,8 @@ const german: Record<keyof typeof english, string> = {
     "Roadmap-Balken sind in dieser Ansicht schreibgeschützt. Aufgaben- und Meilensteinänderungen bleiben in den jeweiligen Detailpanels.",
   "roadmap.milestones": "Meilensteine",
   "roadmap.tasks": "Aufgaben",
+  "roadmap.assignedTasks": "{count} zugeordnete Aufgaben",
+  "roadmap.noAssignedTasks": "Noch keine Aufgaben zugeordnet.",
   "roadmap.today": "Heute",
   "roadmap.previous": "Zurück",
   "roadmap.next": "Weiter",
@@ -1373,6 +1587,9 @@ const german: Record<keyof typeof english, string> = {
   "notifications.title": "Benachrichtigungen",
   "notifications.empty": "Alles gelesen.",
   "notifications.markRead": "Als gelesen markieren",
+  "notifications.remove": "Benachrichtigung entfernen",
+  "notifications.clearAll": "Alle entfernen",
+  "notifications.clearing": "Wird entfernt...",
   "notifications.newCount": "{count} neue Benachrichtigung(en)",
   "notifications.unread": "Ungelesen",
   "notifications.loadError": "Benachrichtigungen konnten nicht geladen werden.",
@@ -1384,7 +1601,8 @@ const german: Record<keyof typeof english, string> = {
   "settings.allCustomerVisible": "Alle für Kunden sichtbaren Elemente",
   "settings.saveVisibility": "Sichtbarkeit speichern",
   "settings.visibilitySaved": "Kundensichtbarkeit gespeichert.",
-  "settings.visibilityError": "Die Kundensichtbarkeit konnte nicht gespeichert werden.",
+  "settings.visibilityError":
+    "Die Kundensichtbarkeit konnte nicht gespeichert werden.",
   "settings.viewerManagement": "Freigegebene Betrachter",
   "settings.viewerManagementDescription":
     "Lege fest, welche Arbeitsbereichsmitglieder sich auf dieser Kundenseite anmelden können.",
@@ -1394,10 +1612,12 @@ const german: Record<keyof typeof english, string> = {
   "settings.noViewers": "Noch keine Betrachter freigegeben.",
   "settings.viewerAdded": "Kundenbetrachter hinzugefügt.",
   "settings.viewerRemoved": "Kundenbetrachter entfernt.",
-  "settings.viewerError": "Die Kundenbetrachter konnten nicht aktualisiert werden.",
+  "settings.viewerError":
+    "Die Kundenbetrachter konnten nicht aktualisiert werden.",
   "settings.loginViewersHint":
     "Die Betrachterverwaltung gilt für authentifizierte Kundenseiten.",
-  "settings.noEligibleViewers": "Keine weiteren Arbeitsbereichsmitglieder verfügbar.",
+  "settings.noEligibleViewers":
+    "Keine weiteren Arbeitsbereichsmitglieder verfügbar.",
   "public.requestProject": "Neues Projekt anfragen",
   "public.requestProjectDescription":
     "Beschreibe, was du als Nächstes bauen möchtest.",
@@ -1412,14 +1632,17 @@ const german: Record<keyof typeof english, string> = {
   "public.requestPriorityDescription": "Wie dringend ist die Anfrage?",
   "public.requestSubmit": "Anfrage senden",
   "public.requestSending": "Anfrage wird gesendet...",
-  "public.requestProjectSubmitted": "Deine Projektanfrage wurde an das Team gesendet.",
-  "public.requestProjectError": "Die Projektanfrage konnte nicht gesendet werden.",
+  "public.requestProjectSubmitted":
+    "Deine Projektanfrage wurde an das Team gesendet.",
+  "public.requestProjectError":
+    "Die Projektanfrage konnte nicht gesendet werden.",
   "public.requestWorkspaceEyebrow": "Neues Projekt anfragen",
   "public.requestWorkspaceTitle": "Was möchtest du als Nächstes bauen?",
   "public.requestWorkspaceDescription":
     "Sende dem Team eine Beschreibung. Ein bestehendes Projekt ist nicht erforderlich.",
   "public.requestWorkspaceLoading": "Anfrage-Seite wird geladen",
-  "public.requestWorkspaceNotAvailable": "Diese Anfrage-Seite ist nicht verfügbar.",
+  "public.requestWorkspaceNotAvailable":
+    "Diese Anfrage-Seite ist nicht verfügbar.",
   "public.requestWorkspaceSuccessTitle": "Anfrage gesendet",
   "public.requestWorkspaceSuccessDescription":
     "Deine Anfrage wurde an das Team gesendet.",

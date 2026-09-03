@@ -14,6 +14,7 @@ import (
 
 	"github.com/JustLABv1/justprojects/services/backend/internal/auth"
 	"github.com/JustLABv1/justprojects/services/backend/internal/db"
+	syncservice "github.com/JustLABv1/justprojects/services/backend/internal/sync"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
@@ -512,7 +513,8 @@ func insertProjectWithStatuses(ctx context.Context, tx bun.Tx, project db.Projec
 		return err
 	}
 	for position, status := range []struct{ name, category, color string }{{"Backlog", "backlog", "#94a3b8"}, {"Todo", "todo", "#60a5fa"}, {"In Progress", "in_progress", "#a78bfa"}, {"Blocked", "blocked", "#f59e0b"}, {"Done", "done", "#34d399"}} {
-		item := &db.ProjectStatus{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: project.CreatedAt, UpdatedAt: project.CreatedAt}, ProjectID: project.ID, Name: status.name, Category: status.category, Position: position, Color: status.color}
+		statusID := uuid.New()
+		item := &db.ProjectStatus{RecordFields: db.RecordFields{ID: statusID, CreatedAt: project.CreatedAt, UpdatedAt: project.CreatedAt}, ProjectID: project.ID, Name: status.name, Category: status.category, Position: position, Color: status.color, ProviderLabel: syncservice.ProviderStatusLabel(project.Key, statusID, status.name)}
 		if _, err := tx.NewInsert().Model(item).Exec(ctx); err != nil {
 			return err
 		}
@@ -636,6 +638,41 @@ func (s *Server) markNotificationRead(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"notification": notificationResponseFromModel(notification)})
+}
+
+func (s *Server) deleteNotification(c *gin.Context) {
+	if !s.customerOrAuthorized(c, "notification.manage") {
+		return
+	}
+	notificationID, ok := pathUUID(c, "notificationId")
+	if !ok {
+		return
+	}
+	result, err := s.Store.DB.NewDelete().Model((*db.Notification)(nil)).
+		Where("id = ? AND tenant_id = ? AND user_id = ?", notificationID, s.principal(c).Tenant.ID, s.principal(c).User.ID).
+		Exec(c.Request.Context())
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not delete notification"))
+		return
+	}
+	if count, _ := result.RowsAffected(); count == 0 {
+		notFound(c)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) clearNotifications(c *gin.Context) {
+	if !s.customerOrAuthorized(c, "notification.manage") {
+		return
+	}
+	if _, err := s.Store.DB.NewDelete().Model((*db.Notification)(nil)).
+		Where("tenant_id = ? AND user_id = ?", s.principal(c).Tenant.ID, s.principal(c).User.ID).
+		Exec(c.Request.Context()); err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not clear notifications"))
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func (s *Server) portfolio(c *gin.Context) {

@@ -787,6 +787,18 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/NotificationList' }
+    delete:
+      tags: [Tenant]
+      operationId: clearNotifications
+      responses:
+        '204': { description: Notifications cleared. }
+  /notifications/{notificationId}:
+    delete:
+      tags: [Tenant]
+      operationId: deleteNotification
+      parameters: [{ $ref: '#/components/parameters/NotificationId' }]
+      responses:
+        '204': { description: Notification deleted. }
   /notifications/{notificationId}/read:
     post:
       tags: [Tenant]
@@ -844,6 +856,19 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SyncEventList' }
+  /sync/runs/{runId}/logs:
+    get:
+      tags: [Sync]
+      operationId: listSyncRunLogs
+      parameters:
+        - { $ref: '#/components/parameters/SyncRunId' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200':
+          description: Tenant-scoped activity logs for one synchronization run.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncEventLogList' }
   /audit/events:
     get:
       tags: [Tenant]
@@ -1137,6 +1162,7 @@ components:
     GrantId: { name: grantId, in: path, required: true, schema: { type: string, format: uuid } }
     MappingId: { name: mappingId, in: path, required: true, schema: { type: string, format: uuid } }
     ConflictId: { name: conflictId, in: path, required: true, schema: { type: string, format: uuid } }
+    SyncRunId: { name: runId, in: path, required: true, schema: { type: string, format: uuid } }
     PageSlug: { name: slug, in: path, required: true, schema: { type: string, minLength: 3, maxLength: 64, pattern: '^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])?$' } }
     WorkspaceSlug: { name: slug, in: path, required: true, schema: { type: string, minLength: 3, maxLength: 64, pattern: '^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])?$' } }
     InvitationToken: { name: token, in: path, required: true, schema: { type: string, minLength: 20 } }
@@ -1460,6 +1486,7 @@ components:
         estimateMinutes: { type: integer, nullable: true }
         assigneeId: { type: string, format: uuid, nullable: true }
         assigneeName: { type: string }
+        remoteAssignees: { type: array, items: { $ref: '#/components/schemas/RemoteAssignee' } }
         labels: { type: array, items: { $ref: '#/components/schemas/Label' } }
         visibility: { type: string, enum: [internal, customer] }
         position: { type: integer }
@@ -1713,6 +1740,13 @@ components:
         deliveryId: { type: string }
         status: { type: string, enum: [open, resolved, ignored] }
         resolution: { type: string }
+        projectId: { type: string, format: uuid }
+        localType: { type: string, enum: [task, milestone] }
+        localId: { type: string, format: uuid }
+        localTitle: { type: string }
+        repositoryName: { type: string }
+        provider: { $ref: '#/components/schemas/GitProvider' }
+        externalNumber: { type: integer }
     ConflictList:
       type: object
       properties: { items: { type: array, items: { $ref: '#/components/schemas/SyncConflict' } }, count: { type: integer } }
@@ -1732,6 +1766,24 @@ components:
         errorMessage: { type: string }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+        logs:
+          type: array
+          items: { $ref: '#/components/schemas/SyncEventLog' }
+    SyncEventLog:
+      type: object
+      required: [id, syncEventId, level, message, metadata, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        syncEventId: { type: string, format: uuid }
+        level: { type: string, enum: [debug, info, warn, error] }
+        phase: { type: string }
+        message: { type: string }
+        metadata: { type: object, additionalProperties: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    SyncEventLogList:
+      type: object
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/SyncEventLog' } }, count: { type: integer } }
     SyncEventList:
       type: object
       properties: { items: { type: array, items: { $ref: '#/components/schemas/SyncEvent' } }, count: { type: integer } }
@@ -1771,13 +1823,22 @@ components:
     PermissionGrantList:
       type: object
       properties: { items: { type: array, items: { $ref: '#/components/schemas/PermissionGrant' } }, count: { type: integer } }
+    RemoteAssignee:
+      type: object
+      required: [provider, login, mapped]
+      properties:
+        provider: { $ref: '#/components/schemas/GitProvider' }
+        login: { type: string }
+        mapped: { type: boolean }
     GitHubUserMapping:
       type: object
-      required: [id, tenantId, githubLogin, userId]
+      required: [id, tenantId, provider, remoteLogin, userId]
       properties:
         id: { type: string, format: uuid }
         tenantId: { type: string, format: uuid }
-        githubLogin: { type: string }
+        provider: { $ref: '#/components/schemas/GitProvider' }
+        remoteLogin: { type: string }
+        remoteId: { type: integer, format: int64, nullable: true }
         userId: { type: string, format: uuid }
     GitHubUserMappingRequest:
       type: object

@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/JustLABv1/justprojects/services/backend/internal/integrations"
 )
@@ -44,6 +46,28 @@ func TestNewClientRejectsURLsWithQueryOrFragment(t *testing.T) {
 	}
 }
 
+func TestIssueValuesOnlySendsAssigneeWhenRequested(t *testing.T) {
+	client, err := NewClient("https://gitlab.com", "token")
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	unchanged, err := client.issueValues(context.Background(), integrations.IssuePatch{Labels: []string{}})
+	if err != nil {
+		t.Fatalf("issueValues() unchanged error = %v", err)
+	}
+	if _, ok := unchanged["assignee_ids[]"]; ok {
+		t.Fatalf("unchanged assignees should not be sent: %v", unchanged)
+	}
+	empty := []string{}
+	cleared, err := client.issueValues(context.Background(), integrations.IssuePatch{Labels: []string{}, Assignees: &empty})
+	if err != nil {
+		t.Fatalf("issueValues() clear error = %v", err)
+	}
+	if cleared.Get("assignee_ids[]") != "" {
+		t.Fatalf("explicit assignee clear should be sent: %v", cleared)
+	}
+}
+
 func TestClientUsesSelfHostedAPIAndMapsIssues(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("PRIVATE-TOKEN") != "glpat-test" {
@@ -76,6 +100,83 @@ func TestClientUsesSelfHostedAPIAndMapsIssues(t *testing.T) {
 	}
 	if issues[0].Milestone.Title != "Beta" || issues[0].Assignees[0] != "ava" {
 		t.Fatalf("unexpected issue metadata: %+v", issues[0])
+	}
+}
+
+func TestListIssuesPaginates(t *testing.T) {
+	pages := make([]int, 0, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/api/v4/projects/group/app/issues" {
+			response.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if request.URL.Query().Get("state") != "all" || request.URL.Query().Get("per_page") != "100" {
+			response.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		page, err := strconv.Atoi(request.URL.Query().Get("page"))
+		if err != nil {
+			response.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		pages = append(pages, page)
+		response.Header().Set("Content-Type", "application/json")
+
+		items := make([]rawIssue, 0, 100)
+		switch page {
+		case 1:
+			for number := 1; number <= 100; number++ {
+				items = append(items, rawIssue{ID: int64(number), IID: number, Title: "Issue " + strconv.Itoa(number), State: "opened"})
+			}
+		case 2:
+			items = append(items, rawIssue{ID: 101, IID: 101, Title: "Issue 101", State: "closed"})
+		default:
+			response.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_ = json.NewEncoder(response).Encode(items)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "token")
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	issues, err := client.ListIssues(context.Background(), "group", "app")
+	if err != nil {
+		t.Fatalf("ListIssues() error = %v", err)
+	}
+	if len(pages) != 2 || pages[0] != 1 || pages[1] != 2 {
+		t.Fatalf("requested pages = %v, want [1 2]", pages)
+	}
+	if len(issues) != 101 || issues[len(issues)-1].Number != 101 {
+		t.Fatalf("got %d issues, want 101 including the second page", len(issues))
+	}
+}
+
+func TestListIssuesSinceSendsGitLabUpdatedAfterCursor(t *testing.T) {
+	wantSince := "2026-09-03T10:00:00Z"
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Query().Get("updated_after") != wantSince {
+			response.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(response, `[{"id":42,"iid":7,"title":"Changed","state":"opened","updated_at":"2026-09-03T10:01:00Z"}]`)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "token")
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	since, _ := time.Parse(time.RFC3339, wantSince)
+	issues, err := client.ListIssuesSince(context.Background(), "group", "app", since)
+	if err != nil {
+		t.Fatalf("ListIssuesSince() error = %v", err)
+	}
+	if len(issues) != 1 || issues[0].Number != 7 {
+		t.Fatalf("unexpected issues: %+v", issues)
 	}
 }
 
