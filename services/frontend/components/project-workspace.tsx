@@ -873,6 +873,7 @@ export function ProjectWorkspace({
       onCreateTask={() => setTaskDialogOpen(true)}
       onCreateProject={() => setProjectDialogOpen(true)}
       onLogout={() => void handleLogout()}
+      platformAdmin={data.session?.platformAdmin}
     >
       <div className="mx-auto max-w-[1500px] space-y-6">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">

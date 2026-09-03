@@ -35,6 +35,14 @@ frontend. The app redirects unauthenticated visitors to `/login`; create an
 account through the app or `POST /api/v1/auth/register`. Backend migrations run
 automatically on API and worker startup.
 
+The first account on a new installation becomes the platform administrator.
+On an existing installation, migration `014_platform_admin` promotes the
+oldest account when no administrator exists. Set `PLATFORM_ADMIN_EMAILS` to a
+comma-separated list of recovery/admin email addresses when you need an
+environment-managed administrator. Platform administrators can open
+`/app/admin` to manage users, sessions, project lifecycle, and global login and
+signup switches.
+
 ## Contract generation
 
 `make generate` refreshes the Go transport output and frontend TypeScript
@@ -120,6 +128,7 @@ Before deploying, configure these OpenShip environment variables:
 - `FRONTEND_URL`
 - `API_URL`
 - `ALLOWED_ORIGINS`
+- `PLATFORM_ADMIN_EMAILS` (optional comma-separated recovery/admin emails)
 
 `JUSTPROJECTS_VERSION` defaults to `latest` and selects the matching
 `backend-*` and `frontend-*` image tags. Validate the configuration with

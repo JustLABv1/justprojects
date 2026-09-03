@@ -18,6 +18,7 @@ import {
   RiQuestionLine,
   RiRoadMapLine,
   RiSearchLine,
+  RiShieldKeyholeLine,
   RiSettings3Line,
   RiSunLine,
   RiLogoutBoxRLine,
@@ -73,11 +74,11 @@ const navigation: Array<{
 ]
 
 const createProjectValue = "__create_project__"
-type ShellView = WorkspaceView | "portfolio" | "requests"
+type ShellView = WorkspaceView | "portfolio" | "requests" | "admin"
 
 export function AppShell({
   project,
-  projects,
+  projects = [],
   user,
   tenant,
   activeView,
@@ -87,10 +88,11 @@ export function AppShell({
   onCreateProject,
   onLogout,
   showNewTask = true,
+  platformAdmin = false,
   children,
 }: {
-  project: Project
-  projects: Project[]
+  project?: Project
+  projects?: Project[]
   user?: User
   tenant?: Tenant
   activeView: ShellView
@@ -100,11 +102,13 @@ export function AppShell({
   onCreateProject: () => void
   onLogout: () => void
   showNewTask?: boolean
+  platformAdmin?: boolean
   children: ReactNode
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const { t } = useI18n()
+  const activeProject = project ?? projects[0]
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -162,54 +166,57 @@ export function AppShell({
           </Button>
         </div>
 
-        <div className="border-b p-3">
-          <label className="sr-only" htmlFor="workspace-project">
-            {tenant?.name ?? t("nav.workspace")}
-          </label>
-          <p className="mb-2 px-1 text-[10px] font-semibold tracking-[0.14em] text-sidebar-foreground/50 uppercase">
-            {tenant?.name ?? t("nav.workspace")}
-          </p>
-          <Select
-            value={project.id}
-            onValueChange={(projectId) => {
-              if (projectId === createProjectValue) {
-                onCreateProject()
-                return
-              }
-              if (projectId) onProjectChange(projectId)
-            }}
-          >
-            <SelectTrigger
-              id="workspace-project"
-              aria-label={t("nav.workspace")}
-              className="h-10 w-full rounded-xl border-sidebar-border bg-sidebar-accent px-3 text-sm font-medium focus-visible:ring-sidebar-ring"
+        {activeProject && (
+          <div className="border-b p-3">
+            <label className="sr-only" htmlFor="workspace-project">
+              {tenant?.name ?? t("nav.workspace")}
+            </label>
+            <p className="mb-2 px-1 text-[10px] font-semibold tracking-[0.14em] text-sidebar-foreground/50 uppercase">
+              {tenant?.name ?? t("nav.workspace")}
+            </p>
+            <Select
+              value={activeProject.id}
+              onValueChange={(projectId) => {
+                if (projectId === createProjectValue) {
+                  onCreateProject()
+                  return
+                }
+                if (projectId) onProjectChange(projectId)
+              }}
             >
-              <SelectValue>
-                {project.key} · {project.name}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel>{t("nav.project")}</SelectLabel>
-                {projects.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.key} · {item.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-              <SelectSeparator />
-              <SelectItem value={createProjectValue}>
-                <RiAddLine aria-hidden="true" />
-                {t("nav.createProject")}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+              <SelectTrigger
+                id="workspace-project"
+                aria-label={t("nav.workspace")}
+                className="h-10 w-full rounded-xl border-sidebar-border bg-sidebar-accent px-3 text-sm font-medium focus-visible:ring-sidebar-ring"
+              >
+                <SelectValue>
+                  {activeProject.key} · {activeProject.name}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>{t("nav.project")}</SelectLabel>
+                  {projects.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.key} · {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+                <SelectSeparator />
+                <SelectItem value={createProjectValue}>
+                  <RiAddLine aria-hidden="true" />
+                  {t("nav.createProject")}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <nav className="flex-1 space-y-1 p-3" aria-label={t("nav.project")}>
           <Link
             href="/app"
             onClick={closeSidebar}
+            aria-current={activeView === "portfolio" ? "page" : undefined}
             className={cn(
               "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 transition hover:bg-sidebar-accent hover:text-sidebar-foreground",
               activeView === "portfolio" &&
@@ -222,6 +229,7 @@ export function AppShell({
           <Link
             href="/app/requests"
             onClick={closeSidebar}
+            aria-current={activeView === "requests" ? "page" : undefined}
             className={cn(
               "mb-3 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 transition hover:bg-sidebar-accent hover:text-sidebar-foreground",
               activeView === "requests" &&
@@ -231,37 +239,61 @@ export function AppShell({
             <RiInboxLine className="size-4" aria-hidden="true" />
             {t("nav.requests")}
           </Link>
-          <p className="mb-2 px-2 text-[10px] font-semibold tracking-[0.16em] text-sidebar-foreground/45 uppercase">
-            {t("nav.project")}
-          </p>
-          {navigation.map((item) => {
-            const Icon = item.icon
-            const active = item.id === activeView
-            return (
+          {activeProject && (
+            <>
+              <p className="mb-2 px-2 text-[10px] font-semibold tracking-[0.16em] text-sidebar-foreground/45 uppercase">
+                {t("nav.project")}
+              </p>
+              {navigation.map((item) => {
+                const Icon = item.icon
+                const active = item.id === activeView
+                return (
+                  <Link
+                    key={item.id}
+                    aria-current={active ? "page" : undefined}
+                    href={`/app/projects/${activeProject.key.toLowerCase()}/${item.id}`}
+                    onClick={() => {
+                      closeSidebar()
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 transition hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                      active &&
+                        "bg-sidebar-primary/10 font-medium text-sidebar-primary"
+                    )}
+                  >
+                    <Icon className="size-4" aria-hidden="true" />
+                    {t(item.label)}
+                    {item.id === "integrations" && (
+                      <span
+                        className="ms-auto size-1.5 rounded-full bg-emerald-500"
+                        aria-label={t("status.connected")}
+                      />
+                    )}
+                  </Link>
+                )
+              })}
+            </>
+          )}
+          {platformAdmin && (
+            <div className="mt-5 border-t border-sidebar-border/70 pt-4">
+              <p className="mb-2 px-2 text-[10px] font-semibold tracking-[0.16em] text-sidebar-foreground/45 uppercase">
+                {t("nav.platform")}
+              </p>
               <Link
-                key={item.id}
-                aria-current={active ? "page" : undefined}
-                href={`/app/projects/${project.key.toLowerCase()}/${item.id}`}
-                onClick={() => {
-                  closeSidebar()
-                }}
+                href="/app/admin"
+                onClick={closeSidebar}
+                aria-current={activeView === "admin" ? "page" : undefined}
                 className={cn(
                   "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 transition hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                  active &&
+                  activeView === "admin" &&
                     "bg-sidebar-primary/10 font-medium text-sidebar-primary"
                 )}
               >
-                <Icon className="size-4" aria-hidden="true" />
-                {t(item.label)}
-                {item.id === "integrations" && (
-                  <span
-                    className="ms-auto size-1.5 rounded-full bg-emerald-500"
-                    aria-label={t("status.connected")}
-                  />
-                )}
+                <RiShieldKeyholeLine className="size-4" aria-hidden="true" />
+                {t("nav.platformAdmin")}
               </Link>
-            )
-          })}
+            </div>
+          )}
         </nav>
 
         <div className="border-t p-3">
@@ -354,7 +386,9 @@ export function AppShell({
                   ? t("nav.portfolio")
                   : activeView === "requests"
                     ? t("nav.requests")
-                    : project.key}
+                    : activeView === "admin"
+                      ? t("nav.platformAdmin")
+                      : (activeProject?.key ?? t("nav.workspace"))}
               </span>
               {apiConnected && (
                 <span className="ms-2 inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
@@ -372,7 +406,9 @@ export function AppShell({
                   ? t("nav.portfolio")
                   : activeView === "requests"
                     ? t("nav.requests")
-                    : project.name}
+                    : activeView === "admin"
+                      ? t("nav.platformAdmin")
+                      : (activeProject?.name ?? t("nav.workspace"))}
               </p>
             </div>
           </div>
@@ -424,7 +460,7 @@ export function AppShell({
       <WorkspaceSearchDialog
         open={searchOpen}
         onOpenChange={setSearchOpen}
-        project={project}
+        project={activeProject}
         projects={projects}
         onCreateTask={onCreateTask}
         onCreateProject={onCreateProject}
@@ -503,7 +539,7 @@ function WorkspaceSearchDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  project: Project
+  project?: Project
   projects: Project[]
   onCreateTask: () => void
   onCreateProject: () => void
@@ -512,10 +548,12 @@ function WorkspaceSearchDialog({
   const { t } = useI18n()
   const [query, setQuery] = useState("")
   const normalizedQuery = query.trim().toLowerCase()
-  const matchingViews = navigation.filter((item) => {
-    const label = t(item.label).toLowerCase()
-    return !normalizedQuery || label.includes(normalizedQuery)
-  })
+  const matchingViews = project
+    ? navigation.filter((item) => {
+        const label = t(item.label).toLowerCase()
+        return !normalizedQuery || label.includes(normalizedQuery)
+      })
+    : []
   const matchingProjects = projects.filter((item) => {
     const label = `${item.key} ${item.name}`.toLowerCase()
     return !normalizedQuery || label.includes(normalizedQuery)
@@ -564,7 +602,7 @@ function WorkspaceSearchDialog({
                 return (
                   <Link
                     key={item.id}
-                    href={`/app/projects/${project.key.toLowerCase()}/${item.id}`}
+                    href={`/app/projects/${project?.key.toLowerCase()}/${item.id}`}
                     onClick={() => onOpenChange(false)}
                     className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
                   >
@@ -594,7 +632,7 @@ function WorkspaceSearchDialog({
                       <span className="min-w-0 flex-1 truncate">
                         {item.key} · {item.name}
                       </span>
-                      {item.id === project.id && (
+                      {item.id === project?.id && (
                         <span className="text-xs text-muted-foreground">
                           {t("search.current")}
                         </span>

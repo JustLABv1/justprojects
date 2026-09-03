@@ -28,6 +28,21 @@ type User struct {
 	Name          string `bun:",notnull" json:"name"`
 	PasswordHash  string `bun:",nullzero" json:"-"`
 	EmailVerified bool   `bun:",notnull,default:false" json:"emailVerified"`
+	PlatformAdmin bool   `bun:",notnull,default:false" json:"platformAdmin"`
+	Suspended     bool   `bun:",notnull,default:false" json:"suspended"`
+}
+
+// PlatformSettings is a singleton row containing installation-wide controls.
+// Keeping these values in the database makes them durable across restarts and
+// lets a platform administrator change access without editing environment
+// variables or redeploying the server.
+type PlatformSettings struct {
+	bun.BaseModel `bun:"table:platform_settings,alias:ps"`
+	SingletonID   bool      `bun:"singleton_id,pk,notnull" json:"-"`
+	LoginEnabled  bool      `bun:",notnull" json:"loginEnabled"`
+	SignupEnabled bool      `bun:",notnull" json:"signupEnabled"`
+	CreatedAt     time.Time `bun:",notnull,default:current_timestamp" json:"createdAt"`
+	UpdatedAt     time.Time `bun:",notnull,default:current_timestamp" json:"updatedAt"`
 }
 
 type Identity struct {

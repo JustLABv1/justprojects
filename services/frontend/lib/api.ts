@@ -25,6 +25,12 @@ import type {
   Task,
   TenantMember,
   GitUserMapping,
+  AuthConfig,
+  PlatformProjectSummary,
+  PlatformSettings,
+  PlatformStats,
+  PlatformUserSummary,
+  User,
 } from "@/lib/types"
 
 const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL
@@ -116,6 +122,70 @@ export function getOidcStartUrl() {
 
 export function getOidcStatus() {
   return request<{ enabled: boolean }>("/auth/oidc/status")
+}
+
+export function getAuthConfig() {
+  return request<AuthConfig>("/auth/config")
+}
+
+export function getPlatformOverview() {
+  return request<{ stats: PlatformStats; settings: PlatformSettings }>(
+    "/platform/admin/overview"
+  )
+}
+
+export function listPlatformUsers(query?: string) {
+  const suffix = query?.trim()
+    ? `?q=${encodeURIComponent(query.trim())}`
+    : ""
+  return request<{ items: PlatformUserSummary[]; count: number }>(
+    `/platform/admin/users${suffix}`
+  )
+}
+
+export function updatePlatformUser(
+  userId: string,
+  input: Partial<{ platformAdmin: boolean; suspended: boolean }>
+) {
+  return request<User>(`/platform/admin/users/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  })
+}
+
+export function revokePlatformUserSessions(userId: string) {
+  return request<{ revoked: number }>(
+    `/platform/admin/users/${userId}/revoke-sessions`,
+    { method: "POST" }
+  )
+}
+
+export function listPlatformProjects(query?: string) {
+  const suffix = query?.trim()
+    ? `?q=${encodeURIComponent(query.trim())}`
+    : ""
+  return request<{ items: PlatformProjectSummary[]; count: number }>(
+    `/platform/admin/projects${suffix}`
+  )
+}
+
+export function updatePlatformProject(
+  projectId: string,
+  status: "active" | "paused" | "archived"
+) {
+  return request<Pick<PlatformProjectSummary, "id" | "status">>(
+    `/platform/admin/projects/${projectId}`,
+    { method: "PATCH", body: JSON.stringify({ status }) }
+  )
+}
+
+export function updatePlatformSettings(
+  input: Partial<{ loginEnabled: boolean; signupEnabled: boolean }>
+) {
+  return request<PlatformSettings>("/platform/admin/settings", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  })
 }
 
 export function listProjects() {

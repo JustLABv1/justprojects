@@ -77,6 +77,7 @@ func (s *Server) Router() *gin.Engine {
 	authRoutes.POST("/login", s.login)
 	authRoutes.POST("/logout", s.logout)
 	authRoutes.GET("/session", s.session)
+	authRoutes.GET("/config", s.authConfig)
 	authRoutes.GET("/oidc/status", s.oidcStatus)
 	authRoutes.GET("/oidc/start", s.oidcStart)
 	authRoutes.GET("/oidc/callback", s.oidcCallback)
@@ -158,6 +159,16 @@ func (s *Server) Router() *gin.Engine {
 	protected.DELETE("/projects/:projectId/repositories/:repositoryId", s.detachProjectRepository)
 	protected.POST("/projects/:projectId/github/import", s.importGitHubProject)
 	protected.POST("/projects/:projectId/git/import", s.importGitProject)
+
+	platformAdmin := protected.Group("/platform/admin")
+	platformAdmin.Use(s.requirePlatformAdmin)
+	platformAdmin.GET("/overview", s.platformOverview)
+	platformAdmin.GET("/users", s.listPlatformUsers)
+	platformAdmin.PATCH("/users/:userId", s.updatePlatformUser)
+	platformAdmin.POST("/users/:userId/revoke-sessions", s.revokePlatformUserSessions)
+	platformAdmin.GET("/projects", s.listPlatformProjects)
+	platformAdmin.PATCH("/projects/:projectId", s.updatePlatformProject)
+	platformAdmin.PATCH("/settings", s.updatePlatformSettings)
 
 	return router
 }
@@ -273,11 +284,15 @@ func (s *Server) register(c *gin.Context) {
 	}
 	principal, token, err := s.Auth.Register(c.Request.Context(), auth.RegisterInput{Email: input.Email, Name: input.Name, Password: input.Password, TenantName: input.TenantName})
 	if err != nil {
+		if errors.Is(err, auth.ErrSignupDisabled) {
+			writeError(c, http.StatusForbidden, err)
+			return
+		}
 		badRequest(c, err)
 		return
 	}
 	s.setSessionCookie(c, token)
-	c.JSON(http.StatusCreated, gin.H{"user": principal.User, "tenant": principal.Tenant, "membership": principal.Membership})
+	c.JSON(http.StatusCreated, gin.H{"user": principal.User, "tenant": principal.Tenant, "membership": principal.Membership, "platformAdmin": s.Auth.IsPlatformAdmin(principal.User)})
 }
 
 func (s *Server) login(c *gin.Context) {
@@ -297,11 +312,15 @@ func (s *Server) login(c *gin.Context) {
 	}
 	principal, token, err := s.Auth.Login(c.Request.Context(), auth.LoginInput{Email: input.Email, Password: input.Password, TenantID: tenantID})
 	if err != nil {
+		if errors.Is(err, auth.ErrLoginDisabled) {
+			writeError(c, http.StatusForbidden, err)
+			return
+		}
 		writeError(c, http.StatusUnauthorized, auth.ErrInvalidCredentials)
 		return
 	}
 	s.setSessionCookie(c, token)
-	c.JSON(http.StatusOK, gin.H{"user": principal.User, "tenant": principal.Tenant, "membership": principal.Membership})
+	c.JSON(http.StatusOK, gin.H{"user": principal.User, "tenant": principal.Tenant, "membership": principal.Membership, "platformAdmin": s.Auth.IsPlatformAdmin(principal.User)})
 }
 
 func (s *Server) customerLogin(c *gin.Context) {
@@ -312,11 +331,15 @@ func (s *Server) customerLogin(c *gin.Context) {
 	}
 	principal, token, err := s.Auth.LoginCustomer(c.Request.Context(), c.Param("slug"), input.Email, input.Password)
 	if err != nil {
+		if errors.Is(err, auth.ErrLoginDisabled) {
+			writeError(c, http.StatusForbidden, err)
+			return
+		}
 		writeError(c, http.StatusUnauthorized, auth.ErrInvalidCredentials)
 		return
 	}
 	s.setSessionCookie(c, token)
-	c.JSON(http.StatusOK, gin.H{"user": principal.User, "tenant": principal.Tenant, "membership": principal.Membership, "customerPageId": principal.CustomerPageID})
+	c.JSON(http.StatusOK, gin.H{"user": principal.User, "tenant": principal.Tenant, "membership": principal.Membership, "customerPageId": principal.CustomerPageID, "platformAdmin": s.Auth.IsPlatformAdmin(principal.User)})
 }
 
 func (s *Server) logout(c *gin.Context) {
@@ -338,7 +361,20 @@ func (s *Server) session(c *gin.Context) {
 		unauthorized(c)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"user": principal.User, "tenant": principal.Tenant, "membership": principal.Membership})
+	c.JSON(http.StatusOK, gin.H{"user": principal.User, "tenant": principal.Tenant, "membership": principal.Membership, "platformAdmin": s.Auth.IsPlatformAdmin(principal.User)})
+}
+
+func (s *Server) authConfig(c *gin.Context) {
+	settings, err := s.Auth.PlatformSettings(c.Request.Context())
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not load authentication configuration"))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"loginEnabled":  settings.LoginEnabled,
+		"signupEnabled": settings.SignupEnabled,
+		"oidcEnabled":   (auth.OIDCService{Config: s.Config, Auth: s.Auth}).Configured(),
+	})
 }
 
 func (s *Server) oidcStatus(c *gin.Context) {
@@ -375,6 +411,10 @@ func (s *Server) oidcCallback(c *gin.Context) {
 	}
 	_, token, err := (auth.OIDCService{Config: s.Config, Auth: s.Auth}).Callback(c.Request.Context(), c.Query("code"))
 	if err != nil {
+		if errors.Is(err, auth.ErrLoginDisabled) || errors.Is(err, auth.ErrSignupDisabled) {
+			writeError(c, http.StatusForbidden, err)
+			return
+		}
 		writeError(c, http.StatusBadGateway, errors.New("oidc authentication failed"))
 		return
 	}
@@ -385,7 +425,7 @@ func (s *Server) oidcCallback(c *gin.Context) {
 
 func (s *Server) me(c *gin.Context) {
 	principal := s.principal(c)
-	c.JSON(http.StatusOK, gin.H{"user": principal.User, "tenant": principal.Tenant, "membership": principal.Membership})
+	c.JSON(http.StatusOK, gin.H{"user": principal.User, "tenant": principal.Tenant, "membership": principal.Membership, "platformAdmin": s.Auth.IsPlatformAdmin(principal.User)})
 }
 
 type tenantMemberResponse struct {

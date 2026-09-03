@@ -32,6 +32,7 @@ type Config struct {
 	OIDCClientID        string
 	OIDCClientSecret    string
 	OIDCRedirectURL     string
+	PlatformAdminEmails []string
 }
 
 // DatabaseConfig deliberately keeps connection settings as separate values so
@@ -82,6 +83,7 @@ func Load() (Config, error) {
 		OIDCClientID:        os.Getenv("OIDC_CLIENT_ID"),
 		OIDCClientSecret:    os.Getenv("OIDC_CLIENT_SECRET"),
 		OIDCRedirectURL:     os.Getenv("OIDC_REDIRECT_URL"),
+		PlatformAdminEmails: normalizeEmails(splitList(os.Getenv("PLATFORM_ADMIN_EMAILS"))),
 	}
 
 	if c.AppEncryptionKey == "" {
@@ -145,6 +147,23 @@ func splitList(value string) []string {
 		if item = strings.TrimSpace(item); item != "" {
 			result = append(result, item)
 		}
+	}
+	return result
+}
+
+func normalizeEmails(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		normalized := strings.ToLower(strings.TrimSpace(value))
+		if normalized == "" {
+			continue
+		}
+		if _, exists := seen[normalized]; exists {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		result = append(result, normalized)
 	}
 	return result
 }

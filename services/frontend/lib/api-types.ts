@@ -100,6 +100,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAuthConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/oidc/status": {
         parameters: {
             query?: never;
@@ -178,6 +194,118 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/platform/admin/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPlatformOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/platform/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPlatformUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/platform/admin/users/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updatePlatformUser"];
+        trace?: never;
+    };
+    "/platform/admin/users/{userId}/revoke-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["revokePlatformUserSessions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/platform/admin/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPlatformProjects"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/platform/admin/projects/{projectId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updatePlatformProject"];
+        trace?: never;
+    };
+    "/platform/admin/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updatePlatformSettings"];
         trace?: never;
     };
     "/tenant": {
@@ -1123,6 +1251,8 @@ export interface components {
             email: string;
             name: string;
             emailVerified?: boolean;
+            platformAdmin?: boolean;
+            suspended?: boolean;
         };
         Tenant: {
             /** Format: uuid */
@@ -1145,6 +1275,85 @@ export interface components {
             user: components["schemas"]["User"];
             tenant: components["schemas"]["Tenant"];
             membership: components["schemas"]["Membership"];
+            platformAdmin?: boolean;
+        };
+        AuthConfig: {
+            loginEnabled: boolean;
+            signupEnabled: boolean;
+            oidcEnabled: boolean;
+        };
+        PlatformStats: {
+            users: number;
+            activeUsers: number;
+            suspendedUsers: number;
+            workspaces: number;
+            projects: number;
+            tasks: number;
+            activeSessions: number;
+            recentSignups: number;
+            recentProjects: number;
+        };
+        PlatformSettings: {
+            loginEnabled: boolean;
+            signupEnabled: boolean;
+            oidcEnabled: boolean;
+        };
+        PlatformOverview: {
+            stats: components["schemas"]["PlatformStats"];
+            settings: components["schemas"]["PlatformSettings"];
+        };
+        PlatformUser: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: email */
+            email: string;
+            emailVerified: boolean;
+            platformAdmin: boolean;
+            suspended: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            tenantCount: number;
+            projectCount: number;
+            activeSessions: number;
+            /** Format: date-time */
+            lastActiveAt?: string | null;
+        };
+        PlatformUserList: {
+            items?: components["schemas"]["PlatformUser"][];
+            count?: number;
+        };
+        PlatformUserPatch: {
+            platformAdmin?: boolean;
+            suspended?: boolean;
+        };
+        PlatformProject: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            tenantId: string;
+            tenantName: string;
+            name: string;
+            key: string;
+            /** @enum {string} */
+            status: "active" | "paused" | "archived";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            createdByName: string;
+            taskCount: number;
+            completedTasks: number;
+        };
+        PlatformProjectList: {
+            items?: components["schemas"]["PlatformProject"][];
+            count?: number;
+        };
+        PlatformSettingsPatch: {
+            loginEnabled?: boolean;
+            signupEnabled?: boolean;
         };
         TenantMember: {
             membership: components["schemas"]["Membership"];
@@ -1957,6 +2166,7 @@ export interface operations {
         responses: {
             201: components["responses"]["Session"];
             400: components["responses"]["Error"];
+            403: components["responses"]["Error"];
         };
     };
     login: {
@@ -1974,6 +2184,7 @@ export interface operations {
         responses: {
             200: components["responses"]["Session"];
             401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
         };
     };
     logout: {
@@ -2005,6 +2216,27 @@ export interface operations {
         responses: {
             200: components["responses"]["Session"];
             401: components["responses"]["Error"];
+        };
+    };
+    getAuthConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Installation-wide authentication capabilities. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthConfig"];
+                };
+            };
+            500: components["responses"]["Error"];
         };
     };
     getOIDCStatus: {
@@ -2071,6 +2303,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            403: components["responses"]["Error"];
         };
     };
     loginCustomer: {
@@ -2090,6 +2323,7 @@ export interface operations {
         responses: {
             200: components["responses"]["Session"];
             401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
         };
     };
     getCurrentPrincipal: {
@@ -2103,6 +2337,187 @@ export interface operations {
         responses: {
             200: components["responses"]["Session"];
             401: components["responses"]["Error"];
+        };
+    };
+    getPlatformOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Installation-wide statistics and authentication settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformOverview"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    listPlatformUsers: {
+        parameters: {
+            query?: {
+                q?: components["parameters"]["Query"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Users across all workspaces. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformUserList"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    updatePlatformUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlatformUserPatch"];
+            };
+        };
+        responses: {
+            /** @description Updated platform user. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            400: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    revokePlatformUserSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Number of sessions revoked. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        revoked: number;
+                    };
+                };
+            };
+            403: components["responses"]["Error"];
+        };
+    };
+    listPlatformProjects: {
+        parameters: {
+            query?: {
+                q?: components["parameters"]["Query"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Projects across all workspaces. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformProjectList"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    updatePlatformProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    status: "active" | "paused" | "archived";
+                };
+            };
+        };
+        responses: {
+            /** @description Updated project. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            400: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    updatePlatformSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlatformSettingsPatch"];
+            };
+        };
+        responses: {
+            /** @description Updated platform authentication settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthConfig"];
+                };
+            };
+            400: components["responses"]["Error"];
+            403: components["responses"]["Error"];
         };
     };
     getTenant: {

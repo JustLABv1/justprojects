@@ -1,8 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { RiArrowRightUpLine, RiCheckboxMultipleLine, RiErrorWarningLine, RiInboxArchiveLine, RiLayoutGridLine, RiLoader4Line, RiRefreshLine, RiShareBoxLine } from "@remixicon/react"
+import { RiArrowRightUpLine, RiCheckboxMultipleLine, RiErrorWarningLine, RiInboxArchiveLine, RiLayoutGridLine, RiLoader4Line, RiRefreshLine, RiShareBoxLine, RiShieldKeyholeLine } from "@remixicon/react"
 
 import { AppShell } from "@/components/app-shell"
 import { FeedbackNotice } from "@/components/feedback-notice"
@@ -112,7 +113,7 @@ export function PortfolioDashboard() {
             </div>
           </>
         ) : (
-          <Card className="rounded-3xl p-10 text-center shadow-none"><RiLayoutGridLine className="mx-auto size-8 text-primary" /><h2 className="mt-4 text-xl font-semibold">{t("portfolio.noProjects")}</h2><p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">{t("portfolio.noProjectsDescription")}</p><Button className="mt-6" onClick={() => setCreating(true)}>{t("portfolio.newProject")}</Button></Card>
+          <Card className="rounded-3xl p-10 text-center shadow-none"><RiLayoutGridLine className="mx-auto size-8 text-primary" /><h2 className="mt-4 text-xl font-semibold">{t("portfolio.noProjects")}</h2><p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">{t("portfolio.noProjectsDescription")}</p><div className="mt-6 flex flex-wrap justify-center gap-2"><Button onClick={() => setCreating(true)}>{t("portfolio.newProject")}</Button>{session?.platformAdmin && <Button variant="outline" className="gap-1.5" render={<Link href="/app/admin" />}><RiShieldKeyholeLine className="size-3.5" />{t("nav.platformAdmin")}</Button>}</div></Card>
         )}
       </div>
     </div>
@@ -136,6 +137,7 @@ export function PortfolioDashboard() {
       onCreateProject={() => setCreating(true)}
       onLogout={() => void handleLogout()}
       showNewTask={false}
+      platformAdmin={session.platformAdmin}
     >
       {dashboard}
       {dialog}

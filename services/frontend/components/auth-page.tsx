@@ -23,13 +23,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   ApiError,
+  getAuthConfig,
   getOidcStartUrl,
-  getOidcStatus,
   getSession,
   isApiConfigured,
   login,
   register,
 } from "@/lib/api"
+import type { AuthConfig } from "@/lib/types"
 
 type AuthPageMode = "login" | "register"
 
@@ -56,6 +57,7 @@ export function AuthPage({ mode }: { mode: AuthPageMode }) {
   const [loading, setLoading] = useState(false)
   const [oidcLoading, setOidcLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [authConfig, setAuthConfig] = useState<AuthConfig | null>(null)
   const [oidcAvailable, setOidcAvailable] = useState<boolean | null>(() =>
     isApiConfigured ? null : false
   )
@@ -64,9 +66,12 @@ export function AuthPage({ mode }: { mode: AuthPageMode }) {
     if (!isApiConfigured) return
 
     let active = true
-    void getOidcStatus()
+    void getAuthConfig()
       .then((result) => {
-        if (active) setOidcAvailable(result.enabled)
+        if (active) {
+          setAuthConfig(result)
+          setOidcAvailable(result.oidcEnabled)
+        }
       })
       .catch(() => {
         // A missing or unavailable capability endpoint means OIDC is hidden.
@@ -96,16 +101,24 @@ export function AuthPage({ mode }: { mode: AuthPageMode }) {
         await login({ email, password })
         await getSession()
       } else {
+        if (authConfig?.signupEnabled === false) {
+          setError(t("auth.signupDisabled"))
+          return
+        }
         await register(registerForm)
       }
       router.replace("/app")
     } catch (caught) {
       setError(
-        caught instanceof ApiError && caught.status === 401
-          ? t("auth.sessionUnavailable")
-          : caught instanceof Error
-            ? caught.message
-            : t("workspace.loadError")
+        caught instanceof ApiError && caught.status === 403
+          ? isLogin
+            ? t("auth.loginDisabled")
+            : t("auth.signupDisabled")
+          : caught instanceof ApiError && caught.status === 401
+            ? t("auth.sessionUnavailable")
+            : caught instanceof Error
+              ? caught.message
+              : t("workspace.loadError")
       )
     } finally {
       setLoading(false)
@@ -172,6 +185,16 @@ export function AuthPage({ mode }: { mode: AuthPageMode }) {
                   ? t("login.signInDescription")
                   : t("register.createDescription")}
               </p>
+              {isLogin && authConfig?.loginEnabled === false && (
+                <p className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3.5 py-3 text-xs leading-relaxed text-amber-800 dark:text-amber-200">
+                  {t("auth.loginDisabled")}
+                </p>
+              )}
+              {!isLogin && authConfig?.signupEnabled === false && (
+                <p className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3.5 py-3 text-xs leading-relaxed text-amber-800 dark:text-amber-200">
+                  {t("auth.signupDisabled")}
+                </p>
+              )}
             </div>
 
             <form onSubmit={submit} className="auth-form-stagger mt-8 space-y-4">
@@ -243,7 +266,11 @@ export function AuthPage({ mode }: { mode: AuthPageMode }) {
               <Button
                 className="h-11 w-full rounded-xl text-sm shadow-lg shadow-primary/15 transition-transform duration-150 active:scale-[0.98]"
                 type="submit"
-                disabled={loading || oidcLoading}
+                disabled={
+                  loading ||
+                  oidcLoading ||
+                  (!isLogin && authConfig?.signupEnabled === false)
+                }
               >
                 {loading && (
                   <RiLoader4Line
@@ -261,7 +288,8 @@ export function AuthPage({ mode }: { mode: AuthPageMode }) {
               </p>
             )}
 
-            {oidcAvailable === true && (
+            {oidcAvailable === true &&
+              (isLogin || authConfig?.signupEnabled !== false) && (
               <div className="mt-6">
                 <div className="flex items-center gap-3 text-[10px] font-medium tracking-[0.18em] text-muted-foreground/80 uppercase">
                   <span className="h-px flex-1 bg-border" />
@@ -350,7 +378,7 @@ function AuthVisual() {
         <div className="auth-reveal flex items-center gap-2.5 text-sm font-semibold tracking-tight">
           <JustProjectsLogo className="h-8 text-white" />
           <span className="font-normal">
-            Just <span className="font-semibold">Projects</span>
+            Just<span className="font-semibold">Projects</span>
           </span>
         </div>
 

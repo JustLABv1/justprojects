@@ -9,6 +9,8 @@ export interface User {
   name: string
   email: string
   emailVerified?: boolean
+  platformAdmin?: boolean
+  suspended?: boolean
 }
 
 export interface Tenant {
@@ -50,6 +52,60 @@ export interface Session {
   user: User
   tenant: Tenant
   membership: Membership
+  platformAdmin?: boolean
+}
+
+export interface AuthConfig {
+  loginEnabled: boolean
+  signupEnabled: boolean
+  oidcEnabled: boolean
+}
+
+export interface PlatformStats {
+  users: number
+  activeUsers: number
+  suspendedUsers: number
+  workspaces: number
+  projects: number
+  tasks: number
+  activeSessions: number
+  recentSignups: number
+  recentProjects: number
+}
+
+export interface PlatformSettings {
+  loginEnabled: boolean
+  signupEnabled: boolean
+  oidcEnabled: boolean
+}
+
+export interface PlatformUserSummary {
+  id: string
+  name: string
+  email: string
+  emailVerified: boolean
+  platformAdmin: boolean
+  suspended: boolean
+  createdAt: string
+  updatedAt: string
+  tenantCount: number
+  projectCount: number
+  activeSessions: number
+  lastActiveAt?: string | null
+}
+
+export interface PlatformProjectSummary {
+  id: string
+  tenantId: string
+  tenantName: string
+  name: string
+  key: string
+  status: string
+  createdAt: string
+  updatedAt: string
+  createdByName: string
+  taskCount: number
+  completedTasks: number
 }
 
 export interface Project {
