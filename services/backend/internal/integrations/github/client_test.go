@@ -93,12 +93,13 @@ func TestParsePrivateKeyAcceptsPKCS1PKCS8AndEscapedNewlines(t *testing.T) {
 }
 
 func TestIssueAndMilestonePatchesPreserveClearOperations(t *testing.T) {
-	issueJSON, err := json.Marshal(IssuePatch{Title: "Updated", Labels: nil, Assignees: nil, Milestone: nil})
+	assignees := []string{}
+	issueJSON, err := json.Marshal(IssuePatch{Title: "Updated", Labels: nil, Assignees: &assignees, Milestone: nil})
 	if err != nil {
 		t.Fatalf("marshal issue patch: %v", err)
 	}
 	issuePayload := string(issueJSON)
-	for _, field := range []string{`"labels":null`, `"assignees":null`, `"milestone":null`} {
+	for _, field := range []string{`"labels":null`, `"assignees":[]`, `"milestone":null`} {
 		if !strings.Contains(issuePayload, field) {
 			t.Fatalf("issue patch %s omitted clear field: %s", field, issuePayload)
 		}
@@ -109,6 +110,16 @@ func TestIssueAndMilestonePatchesPreserveClearOperations(t *testing.T) {
 	}
 	if !strings.Contains(string(milestoneJSON), `"due_on":null`) {
 		t.Fatalf("milestone patch omitted due date clear: %s", milestoneJSON)
+	}
+}
+
+func TestIssuePatchOmitsAssigneesWhenUnchanged(t *testing.T) {
+	issueJSON, err := json.Marshal(IssuePatch{Title: "Updated", Labels: nil, Assignees: nil, Milestone: nil})
+	if err != nil {
+		t.Fatalf("marshal issue patch: %v", err)
+	}
+	if strings.Contains(string(issueJSON), "assignees") {
+		t.Fatalf("unchanged assignees should be omitted: %s", issueJSON)
 	}
 }
 

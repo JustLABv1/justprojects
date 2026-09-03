@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/mail"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -1129,10 +1130,17 @@ func validStatusCategory(value string) bool {
 
 type taskResponse struct {
 	db.Task
-	StatusName     string     `json:"statusName"`
-	StatusCategory string     `json:"statusCategory"`
-	AssigneeName   string     `json:"assigneeName,omitempty"`
-	Labels         []db.Label `json:"labels,omitempty"`
+	StatusName      string                   `json:"statusName"`
+	StatusCategory  string                   `json:"statusCategory"`
+	AssigneeName    string                   `json:"assigneeName,omitempty"`
+	RemoteAssignees []remoteAssigneeResponse `json:"remoteAssignees,omitempty"`
+	Labels          []db.Label               `json:"labels,omitempty"`
+}
+
+type remoteAssigneeResponse struct {
+	Provider string `json:"provider"`
+	Login    string `json:"login"`
+	Mapped   bool   `json:"mapped"`
 }
 
 type taskRequest struct {
@@ -1149,6 +1157,28 @@ type taskRequest struct {
 	LabelIDs     []string `json:"labelIds"`
 	Visibility   string   `json:"visibility"`
 	Position     *int     `json:"position"`
+}
+
+// nullableStringInput keeps the distinction between an omitted field and an
+// explicit JSON null. PATCH clients use null to clear an assignee, while an
+// omitted assignee must leave provider synchronization untouched.
+type nullableStringInput struct {
+	Value *string
+	Set   bool
+}
+
+func (value *nullableStringInput) UnmarshalJSON(data []byte) error {
+	value.Set = true
+	if strings.TrimSpace(string(data)) == "null" {
+		value.Value = nil
+		return nil
+	}
+	var parsed string
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return err
+	}
+	value.Value = &parsed
+	return nil
 }
 
 func (s *Server) listTasks(c *gin.Context) {
@@ -1243,16 +1273,135 @@ func (s *Server) taskResponses(c *gin.Context, tasks []db.Task) ([]taskResponse,
 			labelsByTask[taskLabel.TaskID] = append(labelsByTask[taskLabel.TaskID], label)
 		}
 	}
+	remoteAssignees, err := s.taskRemoteAssignees(c, tasks)
+	if err != nil {
+		return nil, err
+	}
 	responses := make([]taskResponse, 0, len(tasks))
 	for _, task := range tasks {
 		status := statusMap[task.StatusID]
-		response := taskResponse{Task: task, StatusName: status.Name, StatusCategory: status.Category, Labels: labelsByTask[task.ID]}
+		response := taskResponse{Task: task, StatusName: status.Name, StatusCategory: status.Category, RemoteAssignees: remoteAssignees[task.ID], Labels: labelsByTask[task.ID]}
 		if task.AssigneeID != nil {
 			response.AssigneeName = users[*task.AssigneeID]
 		}
 		responses = append(responses, response)
 	}
 	return responses, nil
+}
+
+func (s *Server) taskRemoteAssignees(c *gin.Context, tasks []db.Task) (map[uuid.UUID][]remoteAssigneeResponse, error) {
+	result := make(map[uuid.UUID][]remoteAssigneeResponse)
+	if len(tasks) == 0 {
+		return result, nil
+	}
+	tenantID := s.principal(c).Tenant.ID
+	links := make([]db.ExternalLink, 0)
+	if err := s.Store.DB.NewSelect().Model(&links).
+		Where("tenant_id = ? AND local_type = 'task' AND external_type = 'issue' AND local_id IN (?)", tenantID, bun.In(taskIDs(tasks))).
+		Scan(c.Request.Context()); err != nil {
+		return nil, err
+	}
+	if len(links) == 0 {
+		return result, nil
+	}
+	repositoryIDs := make([]uuid.UUID, 0, len(links))
+	for _, link := range links {
+		repositoryIDs = append(repositoryIDs, link.RepositoryID)
+	}
+	repositories := make([]db.GitRepository, 0)
+	if err := s.Store.DB.NewSelect().Model(&repositories).Where("id IN (?)", bun.In(repositoryIDs)).Scan(c.Request.Context()); err != nil {
+		return nil, err
+	}
+	repositoryByID := make(map[uuid.UUID]db.GitRepository, len(repositories))
+	connectionIDs := make([]uuid.UUID, 0, len(repositories))
+	for _, repository := range repositories {
+		repositoryByID[repository.ID] = repository
+		connectionIDs = append(connectionIDs, repository.ConnectionID)
+	}
+	connections := make([]db.GitConnection, 0)
+	if len(connectionIDs) > 0 {
+		if err := s.Store.DB.NewSelect().Model(&connections).Where("id IN (?) AND tenant_id = ?", bun.In(connectionIDs), tenantID).Scan(c.Request.Context()); err != nil {
+			return nil, err
+		}
+	}
+	providerByConnectionID := make(map[uuid.UUID]string, len(connections))
+	for _, connection := range connections {
+		provider := connection.Provider
+		if provider == "" {
+			provider = "github"
+		}
+		providerByConnectionID[connection.ID] = provider
+	}
+	mappings := make([]db.GitUserMapping, 0)
+	if err := s.Store.DB.NewSelect().Model(&mappings).Where("tenant_id = ?", tenantID).Scan(c.Request.Context()); err != nil {
+		return nil, err
+	}
+	mapped := make(map[string]struct{}, len(mappings))
+	for _, mapping := range mappings {
+		provider := mapping.Provider
+		if provider == "" {
+			provider = "github"
+		}
+		mapped[remoteAssigneeKey(provider, mapping.RemoteLogin)] = struct{}{}
+	}
+	seen := make(map[uuid.UUID]map[string]struct{}, len(links))
+	for _, link := range links {
+		repository, ok := repositoryByID[link.RepositoryID]
+		if !ok {
+			continue
+		}
+		provider := providerByConnectionID[repository.ConnectionID]
+		if provider == "" {
+			provider = "github"
+		}
+		assignees, ok := stringSliceValue(link.FieldSnapshot["assignees"])
+		if !ok {
+			continue
+		}
+		if seen[link.LocalID] == nil {
+			seen[link.LocalID] = make(map[string]struct{})
+		}
+		for _, login := range assignees {
+			login = strings.TrimSpace(login)
+			if login == "" {
+				continue
+			}
+			key := remoteAssigneeKey(provider, login)
+			if _, alreadySeen := seen[link.LocalID][key]; alreadySeen {
+				continue
+			}
+			seen[link.LocalID][key] = struct{}{}
+			_, isMapped := mapped[key]
+			result[link.LocalID] = append(result[link.LocalID], remoteAssigneeResponse{Provider: provider, Login: login, Mapped: isMapped})
+		}
+	}
+	for taskID := range result {
+		slices := result[taskID]
+		sort.SliceStable(slices, func(i, j int) bool {
+			if slices[i].Provider == slices[j].Provider {
+				return strings.ToLower(slices[i].Login) < strings.ToLower(slices[j].Login)
+			}
+			return slices[i].Provider < slices[j].Provider
+		})
+		result[taskID] = slices
+	}
+	return result, nil
+}
+
+func remoteAssigneeKey(provider, login string) string {
+	return strings.ToLower(strings.TrimSpace(provider) + "\x00" + strings.TrimSpace(login))
+}
+
+func stringSliceValue(value any) ([]string, bool) {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil, false
+	}
+	var values []string
+	if err = json.Unmarshal(encoded, &values); err != nil {
+		return nil, false
+	}
+	return values, true
 }
 
 func taskIDs(tasks []db.Task) []uuid.UUID {
@@ -1405,12 +1554,227 @@ func (s *Server) createTask(c *gin.Context) {
 		return
 	}
 	_ = s.audit(c, "task.created", "task", task.ID, nil)
+	if err = s.enqueueTaskIssueCreate(c.Request.Context(), task); err != nil {
+		// Task creation is still a local product operation. Keep it available
+		// when the provider queue is temporarily unavailable, while recording
+		// the failure in the server log for the operator.
+		slog.Default().Warn("could not queue task provider sync", "task_id", task.ID, "error", err)
+	}
 	response, err := s.taskResponse(c, task)
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load task"))
 		return
 	}
 	c.JSON(http.StatusCreated, response)
+}
+
+// enqueueTaskIssueCreate schedules the first outbound synchronization for a
+// locally-created task. A project can have several attached repositories, so
+// the oldest attachment is the project's default outbound target, matching the
+// repository chosen by the no-argument import flow.
+func (s *Server) enqueueTaskIssueCreate(ctx context.Context, task db.Task) error {
+	var repository db.GitRepository
+	if err := s.Store.DB.NewSelect().Model(&repository).
+		Join("JOIN project_repositories AS pr ON pr.repository_id = gr.id").
+		Join("JOIN git_connections AS gc ON gc.id = gr.connection_id").
+		Where("pr.project_id = ? AND gc.tenant_id = ? AND gc.active = true", task.ProjectID, task.TenantID).
+		Order("pr.created_at ASC").Limit(1).Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Projects without an attached repository remain local-only.
+			return nil
+		}
+		return fmt.Errorf("load project sync repository: %w", err)
+	}
+	var connection db.GitConnection
+	if err := s.Store.DB.NewSelect().Model(&connection).
+		Where("id = ? AND tenant_id = ? AND active = true", repository.ConnectionID, task.TenantID).
+		Scan(ctx); err != nil {
+		return fmt.Errorf("load project sync connection: %w", err)
+	}
+	provider := connection.Provider
+	if provider == "" {
+		provider = "github"
+	}
+	now := time.Now().UTC()
+	deliveryID := "task-create-" + task.ID.String() + "-" + repository.ID.String()
+	event := &db.SyncEvent{
+		RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now},
+		TenantID:     uuidPtr(task.TenantID),
+		ConnectionID: uuidPtr(connection.ID),
+		Provider:     provider,
+		DeliveryID:   deliveryID,
+		EventName:    provider + ".issue",
+		Action:       "create",
+		Payload: map[string]any{
+			"projectId":    task.ProjectID.String(),
+			"taskId":       task.ID.String(),
+			"repositoryId": repository.ID.String(),
+		},
+		Status: "queued",
+	}
+	result, err := s.Store.DB.NewInsert().Model(event).On("CONFLICT (delivery_id) DO NOTHING").Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("create task sync event: %w", err)
+	}
+	if count, _ := result.RowsAffected(); count == 0 {
+		if err = s.Store.DB.NewSelect().Model(event).Where("delivery_id = ?", deliveryID).Scan(ctx); err != nil {
+			return fmt.Errorf("load existing task sync event: %w", err)
+		}
+		if event.Status != "failed" {
+			// The existing event owns the worker job. This makes task updates
+			// before the first create completes safe and duplicate-free.
+			return nil
+		}
+		if _, err = s.Store.DB.NewUpdate().Model((*db.SyncEvent)(nil)).
+			Set("status = 'queued'").Set("error_message = NULL").Set("updated_at = ?", now).
+			Where("id = ?", event.ID).Exec(ctx); err != nil {
+			return fmt.Errorf("requeue failed task sync event: %w", err)
+		}
+	}
+	queuedLog := &db.SyncEventLog{
+		RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now},
+		TenantID:     task.TenantID,
+		SyncEventID:  event.ID,
+		Level:        "info",
+		Phase:        "queued",
+		Message:      "Task queued for provider issue creation",
+		Metadata: map[string]any{
+			"projectId":    task.ProjectID.String(),
+			"taskId":       task.ID.String(),
+			"repositoryId": repository.ID.String(),
+		},
+	}
+	if _, err := s.Store.DB.NewInsert().Model(queuedLog).Exec(ctx); err != nil {
+		slog.Default().Warn("could not write task sync queue log", "sync_event_id", event.ID, "error", err)
+	}
+	if err := s.Queue.Enqueue(ctx, "git.issue.create", map[string]any{
+		"tenantId":     task.TenantID.String(),
+		"projectId":    task.ProjectID.String(),
+		"taskId":       task.ID.String(),
+		"repositoryId": repository.ID.String(),
+		"syncEventId":  event.ID.String(),
+	}); err != nil {
+		message := "could not queue task provider sync: " + err.Error()
+		_, _ = s.Store.DB.NewUpdate().Model((*db.SyncEvent)(nil)).
+			Set("status = 'failed'").Set("error_message = ?", message).Set("updated_at = now()").
+			Where("id = ?", event.ID).Exec(ctx)
+		failedLog := &db.SyncEventLog{
+			RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()},
+			TenantID:     task.TenantID,
+			SyncEventID:  event.ID,
+			Level:        "error",
+			Phase:        "queue",
+			Message:      "Task provider sync could not be queued",
+			Metadata:     map[string]any{"error": err.Error()},
+		}
+		_, _ = s.Store.DB.NewInsert().Model(failedLog).Exec(ctx)
+		return err
+	}
+	return nil
+}
+
+// enqueueMilestoneCreate schedules the first outbound synchronization for a
+// locally-created milestone. A project can have several attached repositories,
+// so the oldest attachment is the project's default outbound target, matching
+// task creation and the no-argument import flow.
+func (s *Server) enqueueMilestoneCreate(ctx context.Context, milestone db.Milestone) error {
+	var repository db.GitRepository
+	if err := s.Store.DB.NewSelect().Model(&repository).
+		Join("JOIN project_repositories AS pr ON pr.repository_id = gr.id").
+		Join("JOIN git_connections AS gc ON gc.id = gr.connection_id").
+		Where("pr.project_id = ? AND gc.tenant_id = ? AND gc.active = true", milestone.ProjectID, milestone.TenantID).
+		Order("pr.created_at ASC").Limit(1).Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Projects without an attached repository remain local-only.
+			return nil
+		}
+		return fmt.Errorf("load project milestone repository: %w", err)
+	}
+	var connection db.GitConnection
+	if err := s.Store.DB.NewSelect().Model(&connection).
+		Where("id = ? AND tenant_id = ? AND active = true", repository.ConnectionID, milestone.TenantID).
+		Scan(ctx); err != nil {
+		return fmt.Errorf("load project milestone connection: %w", err)
+	}
+	provider := connection.Provider
+	if provider == "" {
+		provider = "github"
+	}
+	now := time.Now().UTC()
+	deliveryID := "milestone-create-" + milestone.ID.String() + "-" + repository.ID.String()
+	event := &db.SyncEvent{
+		RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now},
+		TenantID:     uuidPtr(milestone.TenantID),
+		ConnectionID: uuidPtr(connection.ID),
+		Provider:     provider,
+		DeliveryID:   deliveryID,
+		EventName:    provider + ".milestone",
+		Action:       "create",
+		Payload: map[string]any{
+			"projectId":    milestone.ProjectID.String(),
+			"milestoneId":  milestone.ID.String(),
+			"repositoryId": repository.ID.String(),
+		},
+		Status: "queued",
+	}
+	result, err := s.Store.DB.NewInsert().Model(event).On("CONFLICT (delivery_id) DO NOTHING").Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("create milestone sync event: %w", err)
+	}
+	if count, _ := result.RowsAffected(); count == 0 {
+		if err = s.Store.DB.NewSelect().Model(event).Where("delivery_id = ?", deliveryID).Scan(ctx); err != nil {
+			return fmt.Errorf("load existing milestone sync event: %w", err)
+		}
+		if event.Status != "failed" {
+			// The existing event owns the worker job, keeping retries duplicate-free.
+			return nil
+		}
+		if _, err = s.Store.DB.NewUpdate().Model((*db.SyncEvent)(nil)).
+			Set("status = 'queued'").Set("error_message = NULL").Set("updated_at = ?", now).
+			Where("id = ?", event.ID).Exec(ctx); err != nil {
+			return fmt.Errorf("requeue failed milestone sync event: %w", err)
+		}
+	}
+	queuedLog := &db.SyncEventLog{
+		RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now},
+		TenantID:     milestone.TenantID,
+		SyncEventID:  event.ID,
+		Level:        "info",
+		Phase:        "queued",
+		Message:      "Milestone queued for provider milestone creation",
+		Metadata: map[string]any{
+			"projectId":    milestone.ProjectID.String(),
+			"milestoneId":  milestone.ID.String(),
+			"repositoryId": repository.ID.String(),
+		},
+	}
+	if _, err := s.Store.DB.NewInsert().Model(queuedLog).Exec(ctx); err != nil {
+		slog.Default().Warn("could not write milestone sync queue log", "sync_event_id", event.ID, "error", err)
+	}
+	if err := s.Queue.Enqueue(ctx, "git.milestone.create", map[string]any{
+		"tenantId":     milestone.TenantID.String(),
+		"projectId":    milestone.ProjectID.String(),
+		"milestoneId":  milestone.ID.String(),
+		"repositoryId": repository.ID.String(),
+		"syncEventId":  event.ID.String(),
+	}); err != nil {
+		message := "could not queue milestone provider sync: " + err.Error()
+		_, _ = s.Store.DB.NewUpdate().Model((*db.SyncEvent)(nil)).
+			Set("status = 'failed'").Set("error_message = ?", message).Set("updated_at = now()").
+			Where("id = ?", event.ID).Exec(ctx)
+		failedLog := &db.SyncEventLog{
+			RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()},
+			TenantID:     milestone.TenantID,
+			SyncEventID:  event.ID,
+			Level:        "error",
+			Phase:        "queue",
+			Message:      "Milestone provider sync could not be queued",
+			Metadata:     map[string]any{"error": err.Error()},
+		}
+		_, _ = s.Store.DB.NewInsert().Model(failedLog).Exec(ctx)
+		return err
+	}
+	return nil
 }
 
 func (s *Server) updateTask(c *gin.Context) {
@@ -1431,20 +1795,20 @@ func (s *Server) updateTask(c *gin.Context) {
 		return
 	}
 	var input struct {
-		Title        *string   `json:"title"`
-		Description  *string   `json:"description"`
-		StatusID     *string   `json:"statusId"`
-		ParentID     *string   `json:"parentId"`
-		MilestoneID  *string   `json:"milestoneId"`
-		Priority     *string   `json:"priority"`
-		StartDate    *string   `json:"startDate"`
-		DueDate      *string   `json:"dueDate"`
-		EstimateMins *int      `json:"estimateMinutes"`
-		AssigneeID   *string   `json:"assigneeId"`
-		LabelIDs     *[]string `json:"labelIds"`
-		Visibility   *string   `json:"visibility"`
-		Position     *int      `json:"position"`
-		Version      int64     `json:"version"`
+		Title        *string             `json:"title"`
+		Description  *string             `json:"description"`
+		StatusID     *string             `json:"statusId"`
+		ParentID     *string             `json:"parentId"`
+		MilestoneID  *string             `json:"milestoneId"`
+		Priority     *string             `json:"priority"`
+		StartDate    *string             `json:"startDate"`
+		DueDate      *string             `json:"dueDate"`
+		EstimateMins *int                `json:"estimateMinutes"`
+		AssigneeID   nullableStringInput `json:"assigneeId"`
+		LabelIDs     *[]string           `json:"labelIds"`
+		Visibility   *string             `json:"visibility"`
+		Position     *int                `json:"position"`
+		Version      int64               `json:"version"`
 	}
 	if err = c.ShouldBindJSON(&input); err != nil {
 		badRequest(c, errors.New("invalid task payload"))
@@ -1528,8 +1892,12 @@ func (s *Server) updateTask(c *gin.Context) {
 		}
 		updates["estimate_minutes"] = *input.EstimateMins
 	}
-	if input.AssigneeID != nil {
-		assigneeID, assigneeErr := optionalUUID(*input.AssigneeID)
+	if input.AssigneeID.Set {
+		assigneeValue := ""
+		if input.AssigneeID.Value != nil {
+			assigneeValue = *input.AssigneeID.Value
+		}
+		assigneeID, assigneeErr := optionalUUID(assigneeValue)
 		if assigneeErr != nil {
 			badRequest(c, errors.New("invalid assignee id"))
 			return
@@ -1537,6 +1905,23 @@ func (s *Server) updateTask(c *gin.Context) {
 		if assigneeErr = s.validateAssignee(c, assigneeID); assigneeErr != nil {
 			badRequest(c, assigneeErr)
 			return
+		}
+		if assigneeID != nil {
+			provider, linked, mapped, mappingErr := s.taskAssigneeMapping(c, taskID, *assigneeID)
+			if mappingErr != nil {
+				writeError(c, http.StatusInternalServerError, errors.New("could not validate provider assignee mapping"))
+				return
+			}
+			if linked && !mapped {
+				providerName := provider
+				if provider == "github" {
+					providerName = "GitHub"
+				} else if provider == "gitlab" {
+					providerName = "GitLab"
+				}
+				writeError(c, http.StatusConflict, fmt.Errorf("map this workspace member to a %s login under Integrations before assigning this synced task", providerName))
+				return
+			}
 		}
 		updates["assignee_id"] = assigneeID
 	}
@@ -1593,8 +1978,24 @@ func (s *Server) updateTask(c *gin.Context) {
 		return
 	}
 	_ = s.audit(c, "task.updated", "task", taskID, nil)
-	if err := s.Queue.Enqueue(c.Request.Context(), "git.issue.update", map[string]any{"tenantId": s.principal(c).Tenant.ID.String(), "taskId": taskID.String()}); err != nil {
-		slog.Default().Warn("queue git issue update", "task_id", taskID, "error", err)
+	linked, linkErr := s.taskHasProviderIssueLink(c.Request.Context(), s.principal(c).Tenant.ID, taskID)
+	if linkErr != nil {
+		slog.Default().Warn("could not determine task provider link", "task_id", taskID, "error", linkErr)
+	} else if linked {
+		issueUpdatePayload := map[string]any{"tenantId": s.principal(c).Tenant.ID.String(), "taskId": taskID.String()}
+		if input.AssigneeID.Set {
+			// The worker must distinguish an intentional assignment clear/change
+			// from an ordinary task update. Without this flag an unmapped remote
+			// assignee could be overwritten with an empty provider assignment list.
+			issueUpdatePayload["assigneeChanged"] = true
+		}
+		if err := s.Queue.Enqueue(c.Request.Context(), "git.issue.update", issueUpdatePayload); err != nil {
+			slog.Default().Warn("queue git issue update", "task_id", taskID, "error", err)
+		}
+	} else if err := s.enqueueTaskIssueCreate(c.Request.Context(), updated); err != nil {
+		// This also repairs a local task that was created before a provider
+		// connection was available or before outbound task creation existed.
+		slog.Default().Warn("queue task provider create", "task_id", taskID, "error", err)
 	}
 	response, err := s.taskResponse(c, updated)
 	if err != nil {
@@ -1657,6 +2058,45 @@ func (s *Server) task(c *gin.Context, projectID, taskID uuid.UUID) (db.Task, err
 	err := s.Store.DB.NewSelect().Model(&task).Where("id = ? AND project_id = ? AND tenant_id = ?", taskID, projectID, s.principal(c).Tenant.ID).Scan(c.Request.Context())
 	return task, err
 }
+
+func (s *Server) taskHasProviderIssueLink(ctx context.Context, tenantID, taskID uuid.UUID) (bool, error) {
+	count, err := s.Store.DB.NewSelect().Model((*db.ExternalLink)(nil)).
+		Where("tenant_id = ? AND local_type = 'task' AND local_id = ? AND external_type = 'issue'", tenantID, taskID).
+		Count(ctx)
+	return count > 0, err
+}
+
+func (s *Server) milestoneHasProviderLink(ctx context.Context, tenantID, milestoneID uuid.UUID) (bool, error) {
+	count, err := s.Store.DB.NewSelect().Model((*db.ExternalLink)(nil)).
+		Where("tenant_id = ? AND local_type = 'milestone' AND local_id = ? AND external_type = 'milestone'", tenantID, milestoneID).
+		Count(ctx)
+	return count > 0, err
+}
+
+func (s *Server) taskAssigneeMapping(c *gin.Context, taskID, assigneeID uuid.UUID) (string, bool, bool, error) {
+	var link db.ExternalLink
+	if err := s.Store.DB.NewSelect().Model(&link).Where("tenant_id = ? AND local_type = 'task' AND local_id = ? AND external_type = 'issue'", s.principal(c).Tenant.ID, taskID).Limit(1).Scan(c.Request.Context()); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", false, true, nil
+		}
+		return "", false, false, err
+	}
+	var repository db.GitRepository
+	if err := s.Store.DB.NewSelect().Model(&repository).Where("id = ?", link.RepositoryID).Scan(c.Request.Context()); err != nil {
+		return "", true, false, err
+	}
+	var connection db.GitConnection
+	if err := s.Store.DB.NewSelect().Model(&connection).Where("id = ? AND tenant_id = ?", repository.ConnectionID, s.principal(c).Tenant.ID).Scan(c.Request.Context()); err != nil {
+		return "", true, false, err
+	}
+	provider := connection.Provider
+	if provider == "" {
+		provider = "github"
+	}
+	count, err := s.Store.DB.NewSelect().Model((*db.GitUserMapping)(nil)).Where("tenant_id = ? AND provider = ? AND user_id = ?", s.principal(c).Tenant.ID, provider, assigneeID).Count(c.Request.Context())
+	return provider, true, count > 0, err
+}
+
 func (s *Server) taskResponse(c *gin.Context, task db.Task) (taskResponse, error) {
 	responses, err := s.taskResponses(c, []db.Task{task})
 	if err != nil || len(responses) == 0 {
@@ -1762,6 +2202,11 @@ func (s *Server) createMilestone(c *gin.Context) {
 		return
 	}
 	_ = s.audit(c, "milestone.created", "milestone", milestone.ID, nil)
+	if err = s.enqueueMilestoneCreate(c.Request.Context(), milestone); err != nil {
+		// Milestone creation remains available locally when the provider queue is
+		// temporarily unavailable; the failure is recorded for the operator.
+		slog.Default().Warn("could not queue milestone provider sync", "milestone_id", milestone.ID, "error", err)
+	}
 	c.JSON(http.StatusCreated, milestone)
 }
 
@@ -1862,8 +2307,17 @@ func (s *Server) updateMilestone(c *gin.Context) {
 		return
 	}
 	_ = s.audit(c, "milestone.updated", "milestone", milestoneID, nil)
-	if err := s.Queue.Enqueue(c.Request.Context(), "git.milestone.update", map[string]any{"tenantId": s.principal(c).Tenant.ID.String(), "milestoneId": milestoneID.String()}); err != nil {
-		slog.Default().Warn("queue git milestone update", "milestone_id", milestoneID, "error", err)
+	linked, linkErr := s.milestoneHasProviderLink(c.Request.Context(), s.principal(c).Tenant.ID, milestoneID)
+	if linkErr != nil {
+		slog.Default().Warn("could not determine milestone provider link", "milestone_id", milestoneID, "error", linkErr)
+	} else if linked {
+		if err := s.Queue.Enqueue(c.Request.Context(), "git.milestone.update", map[string]any{"tenantId": s.principal(c).Tenant.ID.String(), "milestoneId": milestoneID.String()}); err != nil {
+			slog.Default().Warn("queue git milestone update", "milestone_id", milestoneID, "error", err)
+		}
+	} else if err := s.enqueueMilestoneCreate(c.Request.Context(), milestone); err != nil {
+		// This also repairs a local milestone created before a provider
+		// connection was available or before outbound milestone creation existed.
+		slog.Default().Warn("queue milestone provider create", "milestone_id", milestoneID, "error", err)
 	}
 	c.JSON(http.StatusOK, milestone)
 }
@@ -2430,7 +2884,71 @@ func (s *Server) listConflicts(c *gin.Context) {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load sync conflicts"))
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": conflicts, "count": len(conflicts)})
+	items := make([]syncConflictResponse, 0, len(conflicts))
+	for _, conflict := range conflicts {
+		item, enrichErr := s.enrichSyncConflict(c, conflict)
+		if enrichErr != nil {
+			writeError(c, http.StatusInternalServerError, errors.New("could not load sync conflict details"))
+			return
+		}
+		items = append(items, item)
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items, "count": len(items)})
+}
+
+type syncConflictResponse struct {
+	db.SyncConflict
+	ProjectID      uuid.UUID `json:"projectId"`
+	LocalType      string    `json:"localType"`
+	LocalID        uuid.UUID `json:"localId"`
+	LocalTitle     string    `json:"localTitle"`
+	RepositoryName string    `json:"repositoryName"`
+	Provider       string    `json:"provider"`
+	ExternalNumber int       `json:"externalNumber"`
+}
+
+func (s *Server) enrichSyncConflict(c *gin.Context, conflict db.SyncConflict) (syncConflictResponse, error) {
+	item := syncConflictResponse{SyncConflict: conflict}
+	var link db.ExternalLink
+	if err := s.Store.DB.NewSelect().Model(&link).Where("id = ? AND tenant_id = ?", conflict.ExternalLinkID, conflict.TenantID).Scan(c.Request.Context()); err != nil {
+		return item, err
+	}
+	var repository db.GitRepository
+	if err := s.Store.DB.NewSelect().Model(&repository).Where("id = ?", link.RepositoryID).Scan(c.Request.Context()); err != nil {
+		return item, err
+	}
+	var connection db.GitConnection
+	if err := s.Store.DB.NewSelect().Model(&connection).Where("id = ? AND tenant_id = ?", repository.ConnectionID, conflict.TenantID).Scan(c.Request.Context()); err != nil {
+		return item, err
+	}
+	provider := connection.Provider
+	if provider == "" {
+		provider = "github"
+	}
+	item.LocalType = link.LocalType
+	item.LocalID = link.LocalID
+	item.RepositoryName = repository.FullName
+	item.Provider = provider
+	item.ExternalNumber = link.ExternalNumber
+	switch link.LocalType {
+	case "task":
+		var task db.Task
+		if err := s.Store.DB.NewSelect().Model(&task).Column("project_id", "title").Where("id = ? AND tenant_id = ?", link.LocalID, conflict.TenantID).Scan(c.Request.Context()); err != nil {
+			return item, err
+		}
+		item.ProjectID = task.ProjectID
+		item.LocalTitle = task.Title
+	case "milestone":
+		var milestone db.Milestone
+		if err := s.Store.DB.NewSelect().Model(&milestone).Column("project_id", "name").Where("id = ? AND tenant_id = ?", link.LocalID, conflict.TenantID).Scan(c.Request.Context()); err != nil {
+			return item, err
+		}
+		item.ProjectID = milestone.ProjectID
+		item.LocalTitle = milestone.Name
+	default:
+		return item, errors.New("unsupported external link type")
+	}
+	return item, nil
 }
 
 func (s *Server) resolveConflict(c *gin.Context) {
@@ -2458,6 +2976,17 @@ func (s *Server) resolveConflict(c *gin.Context) {
 		badRequest(c, errors.New("resolution must be local, remote, or ignore"))
 		return
 	}
+	if input.Resolution == "local" && conflict.Field == "assignees" {
+		mapped, mappingErr := s.localAssigneeMappingExists(c, conflict)
+		if mappingErr != nil {
+			writeError(c, http.StatusInternalServerError, errors.New("could not validate local assignee mapping"))
+			return
+		}
+		if !mapped {
+			writeError(c, http.StatusConflict, errors.New("map the local assignee to a GitHub login before keeping the JustProjects value"))
+			return
+		}
+	}
 	status := "resolved"
 	if input.Resolution == "ignore" {
 		status = "ignored"
@@ -2478,6 +3007,37 @@ func (s *Server) resolveConflict(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func (s *Server) localAssigneeMappingExists(c *gin.Context, conflict db.SyncConflict) (bool, error) {
+	var link db.ExternalLink
+	if err := s.Store.DB.NewSelect().Model(&link).Where("id = ? AND tenant_id = ?", conflict.ExternalLinkID, conflict.TenantID).Scan(c.Request.Context()); err != nil {
+		return false, err
+	}
+	if link.LocalType != "task" {
+		return true, nil
+	}
+	var task db.Task
+	if err := s.Store.DB.NewSelect().Model(&task).Column("assignee_id").Where("id = ? AND tenant_id = ?", link.LocalID, conflict.TenantID).Scan(c.Request.Context()); err != nil {
+		return false, err
+	}
+	if task.AssigneeID == nil {
+		return true, nil
+	}
+	var repository db.GitRepository
+	if err := s.Store.DB.NewSelect().Model(&repository).Where("id = ?", link.RepositoryID).Scan(c.Request.Context()); err != nil {
+		return false, err
+	}
+	var connection db.GitConnection
+	if err := s.Store.DB.NewSelect().Model(&connection).Where("id = ? AND tenant_id = ?", repository.ConnectionID, conflict.TenantID).Scan(c.Request.Context()); err != nil {
+		return false, err
+	}
+	provider := connection.Provider
+	if provider == "" {
+		provider = "github"
+	}
+	count, err := s.Store.DB.NewSelect().Model((*db.GitUserMapping)(nil)).Where("tenant_id = ? AND provider = ? AND user_id = ?", conflict.TenantID, provider, *task.AssigneeID).Count(c.Request.Context())
+	return count > 0, err
 }
 
 func (s *Server) projectForExternalLink(c *gin.Context, linkID uuid.UUID) (*uuid.UUID, error) {
@@ -3270,20 +3830,91 @@ func (s *Server) createGitHubUserMapping(c *gin.Context) {
 		notFound(c)
 		return
 	}
+	tenantID := s.principal(c).Tenant.ID
 	now := time.Now().UTC()
-	mapping := db.GitUserMapping{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: s.principal(c).Tenant.ID, Provider: "github", RemoteLogin: login, UserID: userID}
-	if _, err = s.Store.DB.NewInsert().Model(&mapping).
-		On("CONFLICT (tenant_id, provider, remote_login) DO UPDATE").
-		Set("user_id = EXCLUDED.user_id").Set("updated_at = now()").Exec(c.Request.Context()); err != nil {
-		conflict(c, "github login is already mapped")
+	// The uniqueness rule is a functional index on lower(remote_login), so a
+	// plain-column ON CONFLICT target cannot be inferred by PostgreSQL. Update
+	// an existing case-insensitive mapping first and insert only when absent.
+	result, err := s.Store.DB.NewUpdate().Model((*db.GitUserMapping)(nil)).
+		Set("user_id = ?", userID).
+		Set("updated_at = ?", now).
+		Where("tenant_id = ? AND provider = 'github' AND lower(remote_login) = lower(?)", tenantID, login).
+		Exec(c.Request.Context())
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, errors.New("could not update github user mapping"))
 		return
 	}
-	if err = s.Store.DB.NewSelect().Model(&mapping).Where("tenant_id = ? AND provider = 'github' AND remote_login = ?", s.principal(c).Tenant.ID, login).Scan(c.Request.Context()); err != nil {
+	if count, _ := result.RowsAffected(); count == 0 {
+		mapping := db.GitUserMapping{RecordFields: db.RecordFields{ID: uuid.New(), CreatedAt: now, UpdatedAt: now}, TenantID: tenantID, Provider: "github", RemoteLogin: login, UserID: userID}
+		if _, err = s.Store.DB.NewInsert().Model(&mapping).Exec(c.Request.Context()); err != nil {
+			// A concurrent request may have inserted the same login between the
+			// update and insert. Re-read it and apply the requested member.
+			var existing db.GitUserMapping
+			if selectErr := s.Store.DB.NewSelect().Model(&existing).
+				Where("tenant_id = ? AND provider = 'github' AND lower(remote_login) = lower(?)", tenantID, login).
+				Scan(c.Request.Context()); selectErr != nil {
+				writeError(c, http.StatusInternalServerError, errors.New("could not save github user mapping"))
+				return
+			}
+			if _, updateErr := s.Store.DB.NewUpdate().Model((*db.GitUserMapping)(nil)).
+				Set("user_id = ?", userID).
+				Set("updated_at = ?", now).
+				Where("id = ? AND tenant_id = ?", existing.ID, tenantID).
+				Exec(c.Request.Context()); updateErr != nil {
+				writeError(c, http.StatusInternalServerError, errors.New("could not update github user mapping"))
+				return
+			}
+		}
+	}
+	var mapping db.GitUserMapping
+	if err = s.Store.DB.NewSelect().Model(&mapping).Where("tenant_id = ? AND provider = 'github' AND lower(remote_login) = lower(?)", tenantID, login).Scan(c.Request.Context()); err != nil {
 		writeError(c, http.StatusInternalServerError, errors.New("could not load saved github mapping"))
 		return
 	}
 	_ = s.audit(c, "git_user_mapping.created", "git_user_mapping", mapping.ID, map[string]any{"provider": "github", "remoteLogin": login, "userId": userID})
+	if err = s.remapLinkedTasks(c.Request.Context(), mapping); err != nil {
+		// The mapping is still useful for future imports even if an existing
+		// task could not be remapped. Keep the successful mapping and leave a
+		// diagnostic in the server log instead of turning this into a false
+		// validation failure for the user.
+		slog.Default().Warn("remap tasks after git user mapping", "mapping_id", mapping.ID, "error", err)
+	}
 	c.JSON(http.StatusCreated, mapping)
+}
+
+func (s *Server) remapLinkedTasks(ctx context.Context, mapping db.GitUserMapping) error {
+	links := make([]db.ExternalLink, 0)
+	if err := s.Store.DB.NewSelect().Model(&links).
+		Join("JOIN git_repositories AS gr ON gr.id = el.repository_id").
+		Join("JOIN git_connections AS gc ON gc.id = gr.connection_id").
+		Where("el.tenant_id = ? AND el.local_type = 'task' AND el.external_type = 'issue' AND (gc.provider = 'github' OR gc.provider = '')", mapping.TenantID).
+		Scan(ctx); err != nil {
+		return err
+	}
+	for _, link := range links {
+		assignees, ok := stringSliceValue(link.FieldSnapshot["assignees"])
+		if !ok || !containsFold(assignees, mapping.RemoteLogin) {
+			continue
+		}
+		if _, err := s.Store.DB.NewUpdate().Model((*db.Task)(nil)).
+			Set("assignee_id = ?", mapping.UserID).
+			Set("updated_at = now()").
+			Set("version = version + 1").
+			Where("id = ? AND tenant_id = ? AND assignee_id IS NULL", link.LocalID, mapping.TenantID).
+			Exec(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func containsFold(values []string, target string) bool {
+	for _, value := range values {
+		if strings.EqualFold(strings.TrimSpace(value), strings.TrimSpace(target)) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) deleteGitHubUserMapping(c *gin.Context) {

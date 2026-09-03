@@ -56,12 +56,16 @@ type Milestone struct {
 }
 
 type IssuePatch struct {
-	Title     string   `json:"title,omitempty"`
-	Body      string   `json:"body,omitempty"`
-	State     string   `json:"state,omitempty"`
-	Labels    []string `json:"labels"`
-	Assignees []string `json:"assignees"`
-	Milestone *int     `json:"milestone"`
+	Title  string   `json:"title,omitempty"`
+	Body   string   `json:"body,omitempty"`
+	State  string   `json:"state,omitempty"`
+	Labels []string `json:"labels"`
+	// Assignees is optional so an issue update that does not intentionally
+	// change assignees cannot clear remote assignments when a provider login
+	// has not been mapped to a local user yet. An explicit empty slice still
+	// clears all remote assignees.
+	Assignees *[]string `json:"assignees,omitempty"`
+	Milestone *int      `json:"milestone"`
 }
 
 type MilestonePatch struct {

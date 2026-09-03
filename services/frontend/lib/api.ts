@@ -21,8 +21,10 @@ import type {
   Session,
   SyncEvent,
   SyncEventLog,
+  SyncConflict,
   Task,
   TenantMember,
+  GitUserMapping,
 } from "@/lib/types"
 
 const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL
@@ -428,6 +430,28 @@ export function listGitHubRepositories() {
   )
 }
 
+export function listGitHubUserMappings() {
+  return request<{ items: GitUserMapping[]; count?: number }>(
+    "/integrations/github/user-mappings"
+  )
+}
+
+export function createGitHubUserMapping(input: {
+  githubLogin: string
+  userId: string
+}) {
+  return request<GitUserMapping>("/integrations/github/user-mappings", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+export function deleteGitHubUserMapping(mappingId: string) {
+  return request<void>(`/integrations/github/user-mappings/${mappingId}`, {
+    method: "DELETE",
+  })
+}
+
 export function listGitRepositories(connectionId?: string) {
   const suffix = connectionId
     ? `?connectionId=${encodeURIComponent(connectionId)}`
@@ -641,6 +665,29 @@ export function listSyncRuns() {
     items: SyncEvent[]
     count?: number
   }>("/sync/runs")
+}
+
+export function listSyncConflicts(query?: {
+  projectId?: string
+  status?: "open" | "resolved" | "ignored"
+}) {
+  const params = new URLSearchParams()
+  if (query?.projectId) params.set("projectId", query.projectId)
+  if (query?.status) params.set("status", query.status)
+  const suffix = params.size ? `?${params.toString()}` : ""
+  return request<{ items: SyncConflict[]; count?: number }>(
+    `/sync/conflicts${suffix}`
+  )
+}
+
+export function resolveSyncConflict(
+  conflictId: string,
+  resolution: "local" | "remote" | "ignore"
+) {
+  return request<void>(`/sync/conflicts/${conflictId}/resolve`, {
+    method: "POST",
+    body: JSON.stringify({ resolution }),
+  })
 }
 
 export function listSyncRunLogs(runId: string) {

@@ -6,6 +6,7 @@ import {
   RiArrowRightSLine,
   RiCheckboxCircleLine,
   RiEditLine,
+  RiFlagLine,
   RiIndentIncrease,
 } from "@remixicon/react"
 
@@ -13,17 +14,19 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useI18n } from "@/components/language-provider"
-import type { ProjectStatus, Task } from "@/lib/types"
+import type { Milestone, ProjectStatus, Task } from "@/lib/types"
 import { PriorityPill, StatusPill, UserAvatar } from "@/components/status-pill"
 
 export function TaskList({
   tasks,
   statuses,
+  milestones,
   onSelectTask,
   onEditTask,
 }: {
   tasks: Task[]
   statuses: ProjectStatus[]
+  milestones: Milestone[]
   onSelectTask?: (task: Task) => void
   onEditTask?: (task: Task) => void
 }) {
@@ -35,6 +38,10 @@ export function TaskList({
   const statusMap = useMemo(
     () => new Map(statuses.map((status) => [status.id, status])),
     [statuses]
+  )
+  const milestoneMap = useMemo(
+    () => new Map(milestones.map((milestone) => [milestone.id, milestone])),
+    [milestones]
   )
   const visibleTasks = useMemo(() => {
     const children = new Map<string, Task[]>()
@@ -111,6 +118,9 @@ export function TaskList({
               const childCount = visibleTasks.children.get(task.id)?.length ?? 0
               const isExpanded = expanded[task.id] ?? false
               const status = statusMap.get(task.statusId)
+              const milestone = task.milestoneId
+                ? milestoneMap.get(task.milestoneId)
+                : undefined
               return (
                 <tr
                   key={task.id}
@@ -172,6 +182,18 @@ export function TaskList({
                               : t("tasks.childTasks", { count: childCount })}
                           </span>
                         )}
+                        {milestone && (
+                          <span
+                            className="mt-1 flex max-w-48 items-center gap-1 text-[11px] font-normal text-primary"
+                            title={`${t("tasks.milestone")}: ${milestone.name}`}
+                          >
+                            <RiFlagLine
+                              className="size-3 shrink-0"
+                              aria-hidden="true"
+                            />
+                            <span className="truncate">{milestone.name}</span>
+                          </span>
+                        )}
                       </button>
                     </div>
                   </td>
@@ -190,15 +212,29 @@ export function TaskList({
                     {task.dueDate ? formatDate(task.dueDate, locale) : "—"}
                   </td>
                   <td className="px-3 py-3">
-                    <span
-                      className="flex items-center gap-1.5"
-                      title={task.assigneeName || t("details.unassigned")}
-                    >
-                      <UserAvatar name={task.assigneeName} size="sm" />
-                      <span className="max-w-28 truncate text-xs text-muted-foreground">
-                        {task.assigneeName || t("details.unassigned")}
+                    <div className="max-w-44 space-y-1">
+                      <span
+                        className="flex items-center gap-1.5"
+                        title={task.assigneeName || t("details.unassigned")}
+                      >
+                        <UserAvatar name={task.assigneeName} size="sm" />
+                        <span className="max-w-28 truncate text-xs text-muted-foreground">
+                          {task.assigneeName || t("details.unassigned")}
+                        </span>
                       </span>
-                    </span>
+                      {task.remoteAssignees
+                        ?.filter((assignee) => !assignee.mapped)
+                        .map((assignee) => (
+                          <Badge
+                            key={`${assignee.provider}-${assignee.login}`}
+                            variant="outline"
+                            className="h-5 max-w-full truncate px-1.5 text-[10px] font-normal"
+                            title={`${t("tasks.remoteAssignee")}: @${assignee.login}`}
+                          >
+                            {assignee.provider} · @{assignee.login}
+                          </Badge>
+                        ))}
+                    </div>
                   </td>
                   <td className="px-3 py-3 text-right">
                     {task.visibility === "customer" && (

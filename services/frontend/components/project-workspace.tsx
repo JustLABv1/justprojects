@@ -48,6 +48,7 @@ import {
 } from "@/components/reui/frame"
 import { AppShell } from "@/components/app-shell"
 import { FeedbackNotice } from "@/components/feedback-notice"
+import { GitAssigneeMappings } from "@/components/git-assignee-mappings"
 import { GitConnectionDialog } from "@/components/git-connection-dialog"
 import { KanbanBoardView } from "@/components/kanban-board"
 import { CustomerPageControls } from "@/components/customer-page-controls"
@@ -74,6 +75,7 @@ import { RoadmapView } from "@/components/roadmap-view"
 import { ProjectUpdatesPanel } from "@/components/project-updates-panel"
 import { StatusPill } from "@/components/status-pill"
 import { SyncActivity } from "@/components/sync-activity"
+import { SyncConflictPanel } from "@/components/sync-conflict-panel"
 import {
   TaskDialog,
   type NewTaskInput,
@@ -133,6 +135,7 @@ import {
   listProjectRepositories,
   listProjectUpdates,
   listProjects,
+  listSyncConflicts,
   listSyncRuns,
   listTasks,
   listTenantMembers,
@@ -143,6 +146,7 @@ import {
   updateTenantMemberRole,
   updateMilestone,
   updateTask,
+  resolveSyncConflict,
 } from "@/lib/api"
 import type {
   GitConnection,
@@ -153,6 +157,7 @@ import type {
   ProjectStatus,
   PublicPageSummary,
   Session,
+  SyncConflict,
   TenantMember,
   Invitation,
   PermissionGrant,
@@ -606,6 +611,8 @@ export function ProjectWorkspace({
       ),
     }))
     try {
+      const assigneeChanged =
+        (task.assigneeId ?? null) !== (input.assigneeId ?? null)
       const updated = await updateTask(projectId, task.id, {
         title: input.title,
         description: input.description,
@@ -615,9 +622,10 @@ export function ProjectWorkspace({
         startDate: input.startDate,
         dueDate: input.dueDate,
         estimateMinutes: input.estimateMinutes ?? 0,
-        // The API accepts an empty string as the explicit clear value for the
-        // nullable assignee field in a PATCH payload.
-        assigneeId: input.assigneeId ?? "",
+        // Only include this field when the user actually changed it. The
+        // worker treats a missing assignee field as "preserve the provider's
+        // assignment", which is important for unmapped provider logins.
+        ...(assigneeChanged ? { assigneeId: input.assigneeId ?? "" } : {}),
         visibility: input.visibility,
         version: input.version,
       })
@@ -907,6 +915,7 @@ export function ProjectWorkspace({
                 data={data}
                 progress={progress}
                 onOpenTasks={() => onViewChange("tasks")}
+                onOpenIntegrations={() => onViewChange("integrations")}
                 onSelectTask={setSelectedTask}
                 onEditTask={openTaskEditor}
                 onUpdateCreated={(update) =>
@@ -940,6 +949,7 @@ export function ProjectWorkspace({
                   <KanbanBoardView
                     tasks={filteredTasks}
                     statuses={data.statuses}
+                    milestones={data.milestones}
                     onTaskStatusChange={(taskId, statusId) =>
                       void handleTaskStatusChange(taskId, statusId)
                     }
@@ -950,6 +960,7 @@ export function ProjectWorkspace({
                   <TaskList
                     tasks={filteredTasks}
                     statuses={data.statuses}
+                    milestones={data.milestones}
                     onSelectTask={setSelectedTask}
                     onEditTask={openTaskEditor}
                   />
@@ -970,9 +981,12 @@ export function ProjectWorkspace({
                 project={data.project}
                 connections={data.gitConnections}
                 syncEvents={data.syncEvents}
+                tasks={data.tasks}
+                members={data.members}
                 onProjectConnectionChange={handleProjectConnectionChange}
                 onConnectionsChange={handleGitConnectionsChange}
                 onRefreshSyncRuns={refreshSyncRuns}
+                onRefreshTasks={refreshTasks}
               />
             )}
             {activeView === "settings" && (
@@ -1025,6 +1039,7 @@ function OverviewView({
   data,
   progress,
   onOpenTasks,
+  onOpenIntegrations,
   onSelectTask,
   onEditTask,
   onUpdateCreated,
@@ -1032,6 +1047,7 @@ function OverviewView({
   data: WorkspaceData
   progress: number
   onOpenTasks: () => void
+  onOpenIntegrations: () => void
   onSelectTask: (task: Task) => void
   onEditTask: (task: Task) => void
   onUpdateCreated: (update: ProjectUpdate) => void
@@ -1096,7 +1112,7 @@ function OverviewView({
         />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.75fr)]">
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.75fr)]">
         <Frame variant="ghost" className="bg-transparent" spacing="xs">
           <FramePanel fit>
             <FrameHeader className="px-0 pt-0">
@@ -1121,6 +1137,7 @@ function OverviewView({
               <KanbanBoardView
                 tasks={data.tasks.slice(0, 6)}
                 statuses={data.statuses}
+                milestones={data.milestones}
                 compact
                 onTaskStatusChange={() => undefined}
                 onSelectTask={onSelectTask}
@@ -1143,12 +1160,12 @@ function OverviewView({
                 })}
               </FrameDescription>
             </FrameHeader>
-            <SyncActivity events={data.syncEvents} />
+            <SyncActivity events={data.syncEvents} compact />
             <Button
               variant="ghost"
               size="sm"
               className="mt-3 w-full gap-1.5"
-              onClick={() => undefined}
+              onClick={onOpenIntegrations}
             >
               {t("workspace.viewSyncHistory")}{" "}
               <RiArrowRightUpLine className="size-3.5" aria-hidden="true" />
@@ -1469,18 +1486,24 @@ function IntegrationsView({
   project,
   connections,
   syncEvents,
+  tasks,
+  members,
   onProjectConnectionChange,
   onConnectionsChange,
   onRefreshSyncRuns,
+  onRefreshTasks,
 }: {
   project: Project
   connections: WorkspaceData["gitConnections"]
   syncEvents: WorkspaceData["syncEvents"]
+  tasks: Task[]
+  members: TenantMember[]
   onProjectConnectionChange: (
     connectionId: string | null
   ) => Promise<void> | void
   onConnectionsChange: (connections: GitConnection[]) => void
   onRefreshSyncRuns: (quiet?: boolean) => Promise<void>
+  onRefreshTasks: (projectId: string, quiet?: boolean) => Promise<void>
 }) {
   const [connecting, setConnecting] = useState(false)
   const [installing, setInstalling] = useState(false)
@@ -1497,6 +1520,10 @@ function IntegrationsView({
   const [selectedConnectionId, setSelectedConnectionId] = useState(
     project.connectionId ?? ""
   )
+  const [conflicts, setConflicts] = useState<SyncConflict[]>([])
+  const [resolvingConflictId, setResolvingConflictId] = useState<string>()
+  const [conflictsUnavailable, setConflictsUnavailable] = useState(false)
+  const [conflictError, setConflictError] = useState<string>()
   const [error, setError] = useState<string>()
   const { t } = useI18n()
   const { showToast } = useToast()
@@ -1534,6 +1561,36 @@ function IntegrationsView({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadRepositories()
   }, [loadRepositories])
+
+  const loadConflicts = useCallback(async () => {
+    if (!isApiConfigured || conflictsUnavailable) return
+    try {
+      const result = await listSyncConflicts({ projectId: project.id })
+      setConflicts(result.items ?? [])
+      setConflictError(undefined)
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.status === 403) {
+        setConflictsUnavailable(true)
+        return
+      }
+      setConflictError(t("sync.conflictLoadError"))
+    }
+  }, [conflictsUnavailable, project.id, t])
+
+  useEffect(() => {
+    // Conflict data is intentionally polled with the sync activity so a
+    // webhook-created conflict appears without a full page reload.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadConflicts()
+  }, [loadConflicts])
+
+  useEffect(() => {
+    if (!isApiConfigured || conflictsUnavailable) return
+    const interval = window.setInterval(() => {
+      void loadConflicts()
+    }, 3000)
+    return () => window.clearInterval(interval)
+  }, [conflictsUnavailable, loadConflicts])
 
   const connectGitHub = async () => {
     setConnecting(true)
@@ -1670,6 +1727,36 @@ function IntegrationsView({
     }
   }
 
+  const resolveConflict = async (
+    conflict: SyncConflict,
+    resolution: "local" | "remote" | "ignore"
+  ) => {
+    setResolvingConflictId(conflict.id)
+    try {
+      await resolveSyncConflict(conflict.id, resolution)
+      setConflicts((current) =>
+        current.filter((item) => item.id !== conflict.id)
+      )
+      showToast({
+        kind: "success",
+        message: t("sync.conflictResolveQueued"),
+      })
+      void onRefreshSyncRuns(true)
+      void onRefreshTasks(project.id, true)
+      void loadConflicts()
+    } catch (caught) {
+      showToast({
+        kind: "error",
+        message:
+          caught instanceof ApiError && caught.status === 409
+            ? caught.message
+            : t("sync.conflictResolveError"),
+      })
+    } finally {
+      setResolvingConflictId(undefined)
+    }
+  }
+
   const selectedConnection = availableConnections.find(
     (connection) => connection.id === selectedConnectionId
   )
@@ -1699,410 +1786,439 @@ function IntegrationsView({
   )
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-      <Frame variant="ghost" className="bg-transparent" spacing="xs">
-        <FramePanel fit>
-          <FrameHeader className="px-0 pt-0">
-            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-              <div>
-                <FrameTitle>{t("integrations.connections")}</FrameTitle>
-                <FrameDescription className="mt-1">
-                  {t("integrations.manageDescription")}
-                </FrameDescription>
-              </div>
-              <Button
-                size="sm"
-                className="w-fit gap-1.5"
-                onClick={() => setConnectionDialogOpen(true)}
-              >
-                <RiLinkM className="size-3.5" aria-hidden="true" />
-                {t("integrations.addConnection")}
-              </Button>
-            </div>
-          </FrameHeader>
-          <div className="mt-4 space-y-3">
-            {availableConnections.length === 0 ? (
-              <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-dashed bg-muted/20 px-6 py-10 text-center">
-                <span className="flex size-12 items-center justify-center rounded-2xl border bg-background text-primary shadow-xs">
-                  <RiLinkM className="size-5" aria-hidden="true" />
-                </span>
-                <p className="mt-4 text-sm font-semibold">
-                  {t("integrations.noConnectionsTitle")}
-                </p>
-                <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
-                  {t("integrations.noConnectionsDescription")}
-                </p>
+      <div className="space-y-5">
+        <Frame variant="ghost" className="bg-transparent" spacing="xs">
+          <FramePanel fit>
+            <FrameHeader className="px-0 pt-0">
+              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                <div>
+                  <FrameTitle>{t("integrations.connections")}</FrameTitle>
+                  <FrameDescription className="mt-1">
+                    {t("integrations.manageDescription")}
+                  </FrameDescription>
+                </div>
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="mt-5 gap-1.5"
+                  className="w-fit gap-1.5"
                   onClick={() => setConnectionDialogOpen(true)}
                 >
                   <RiLinkM className="size-3.5" aria-hidden="true" />
                   {t("integrations.addConnection")}
                 </Button>
               </div>
-            ) : (
-              availableConnections.map((connection) => {
-                const isGitHub = connection.provider === "github"
-                const ProviderIcon = isGitHub ? RiGitHubLine : RiGitlabLine
-                const providerName = isGitHub
-                  ? t("integrations.github")
-                  : t("integrations.gitlab")
-                return (
-                  <article
-                    key={connection.id}
-                    className={cn(
-                      "rounded-2xl border bg-background p-5 transition-colors",
-                      selectedConnectionId === connection.id &&
-                        "border-primary/40 bg-primary/5 ring-2 ring-primary/10"
-                    )}
+            </FrameHeader>
+            <div className="mt-4 space-y-3">
+              {availableConnections.length === 0 ? (
+                <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-dashed bg-muted/20 px-6 py-10 text-center">
+                  <span className="flex size-12 items-center justify-center rounded-2xl border bg-background text-primary shadow-xs">
+                    <RiLinkM className="size-5" aria-hidden="true" />
+                  </span>
+                  <p className="mt-4 text-sm font-semibold">
+                    {t("integrations.noConnectionsTitle")}
+                  </p>
+                  <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
+                    {t("integrations.noConnectionsDescription")}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-5 gap-1.5"
+                    onClick={() => setConnectionDialogOpen(true)}
                   >
-                    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                      <div className="flex min-w-0 items-start gap-3.5">
-                        <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-xs dark:bg-white dark:text-slate-950">
-                          <ProviderIcon className="size-5" aria-hidden="true" />
-                        </span>
-                        <div className="min-w-0 pt-0.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="truncate font-medium">
-                              {connection.name || providerName}
-                            </p>
-                            <Badge
-                              variant="outline"
-                              className="h-5 px-1.5 text-[10px]"
-                            >
-                              {providerName}
-                            </Badge>
-                          </div>
-                          <p className="mt-1 truncate text-xs text-muted-foreground">
-                            {connection.externalAccountLogin
-                              ? t("integrations.connectedAs", {
-                                  account: connection.externalAccountLogin,
-                                })
-                              : providerName}
-                          </p>
-                          <p className="mt-1 truncate text-[11px] text-muted-foreground/75">
-                            {connection.apiBaseUrl}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 sm:pt-0.5">
-                        <Badge variant="secondary" className="w-fit gap-1.5">
-                          <span className="size-1.5 rounded-full bg-emerald-500" />
-                          {t("status.active")}
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          onClick={() => void disconnect(connection)}
-                        >
-                          {t("integrations.disconnect")}
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="mt-5 grid gap-3 rounded-xl border bg-muted/25 p-3.5 sm:grid-cols-3">
-                      <ConnectionStat
-                        label={t("integrations.authMethod")}
-                        value={
-                          connection.authMethod === "app"
-                            ? t("integrations.githubApp")
-                            : connection.authMethod === "oauth"
-                              ? t("integrations.oauth")
-                              : t("integrations.patToken")
-                        }
-                      />
-                      <ConnectionStat
-                        label={t("integrations.scopePosture")}
-                        value={
-                          isGitHub
-                            ? t("integrations.issuesMetadata")
-                            : connection.scopes.join(", ") || "API"
-                        }
-                      />
-                      <ConnectionStat
-                        label={t("integrations.repositories")}
-                        value={t("integrations.selectPerProject")}
-                      />
-                    </div>
-                    {isGitHub && (
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1.5"
-                          onClick={() => void connectGitHub()}
-                          disabled={connecting}
-                        >
-                          {connecting && (
-                            <RiLoader4Line
-                              className="size-3.5 animate-spin"
-                              aria-hidden="true"
-                            />
-                          )}
-                          {t("integrations.connectAnotherOAuth")}
-                          <RiArrowRightUpLine
-                            className="size-3.5"
-                            aria-hidden="true"
-                          />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1.5"
-                          onClick={() => void installGitHubApp()}
-                          disabled={installing}
-                        >
-                          {installing && (
-                            <RiLoader4Line
-                              className="size-3.5 animate-spin"
-                              aria-hidden="true"
-                            />
-                          )}
-                          {t("integrations.installApp")}
-                          <RiArrowRightUpLine
-                            className="size-3.5"
-                            aria-hidden="true"
-                          />
-                        </Button>
-                      </div>
-                    )}
-                  </article>
-                )
-              })
-            )}
-          </div>
-          <div className="mt-8 border-t pt-7">
-            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-              <div>
-                <p className="text-sm font-medium">
-                  {t("integrations.projectConnection")}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t("integrations.projectConnectionDescription")}
-                </p>
-              </div>
-              <div className="w-full sm:max-w-xs">
-                <label htmlFor="project-connection" className="sr-only">
-                  {t("integrations.projectConnection")}
-                </label>
-                <Select
-                  value={selectedConnectionId || "none"}
-                  onValueChange={(value) => void selectConnection(value)}
-                >
-                  <SelectTrigger id="project-connection" className="w-full">
-                    <SelectValue>
-                      {selectedConnection
-                        ? selectedConnection.name ||
-                          selectedConnection.externalAccountLogin ||
-                          selectedConnection.provider
-                        : t("integrations.noProjectConnection")}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">
-                      {t("integrations.noProjectConnection")}
-                    </SelectItem>
-                    {availableConnections.map((connection) => (
-                      <SelectItem key={connection.id} value={connection.id}>
-                        {connection.name ||
-                          connection.externalAccountLogin ||
-                          connection.provider}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            {selectedConnection && (
-              <p className="mt-3 text-xs text-primary" role="status">
-                {t("integrations.connectedAs", {
-                  account:
-                    selectedConnection.name || selectedConnection.provider,
-                })}
-              </p>
-            )}
-          </div>
-          {error && (
-            <FeedbackNotice
-              kind="error"
-              message={error}
-              retry={() => void loadRepositories()}
-            />
-          )}
-          <div className="mt-6 border-t pt-8">
-            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-              <div>
-                <p className="text-sm font-medium">
-                  {t("integrations.projectRepositories")}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t("integrations.repositoryDescription")}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-fit gap-1.5"
-                onClick={() => void loadRepositories()}
-                disabled={loadingRepositories}
-              >
-                <RiRefreshLine
-                  className={
-                    loadingRepositories ? "size-3.5 animate-spin" : "size-3.5"
-                  }
-                  aria-hidden="true"
-                />
-                {t("integrations.refresh")}
-              </Button>
-            </div>
-            {!isApiConfigured ? (
-              <div className="mt-5 rounded-xl border border-dashed bg-muted/20 px-4 py-6 text-center text-xs text-muted-foreground">
-                {t("integrations.backendRequired")}
-              </div>
-            ) : repositories.length === 0 ? (
-              <div className="mt-5 rounded-xl border border-dashed bg-muted/20 px-4 py-6 text-center text-xs text-muted-foreground">
-                {loadingRepositories
-                  ? t("integrations.loadingRepositories")
-                  : t("integrations.connectThenRefresh")}
-              </div>
-            ) : (
-              <ul
-                className="mt-5 grid max-h-80 gap-2.5 overflow-y-auto pr-1"
-                aria-label={t("integrations.repositories")}
-              >
-                {repositories.map((repository) => {
-                  const isAttached = attachedIDs.has(repository.id)
-                  const isImporting = importingRepositoryId === repository.id
-                  const importRunning =
-                    isImporting || activeImportRepositoryIDs.has(repository.id)
-                  const isDetaching = detachingRepositoryId === repository.id
+                    <RiLinkM className="size-3.5" aria-hidden="true" />
+                    {t("integrations.addConnection")}
+                  </Button>
+                </div>
+              ) : (
+                availableConnections.map((connection) => {
+                  const isGitHub = connection.provider === "github"
+                  const ProviderIcon = isGitHub ? RiGitHubLine : RiGitlabLine
+                  const providerName = isGitHub
+                    ? t("integrations.github")
+                    : t("integrations.gitlab")
                   return (
-                    <li
-                      key={repository.id}
-                      className="group flex flex-col justify-between gap-4 rounded-xl border bg-background/70 p-4 transition-colors hover:border-primary/30 hover:bg-muted/20 sm:flex-row sm:items-center"
+                    <article
+                      key={connection.id}
+                      className={cn(
+                        "rounded-2xl border bg-background p-5 transition-colors",
+                        selectedConnectionId === connection.id &&
+                          "border-primary/40 bg-primary/5 ring-2 ring-primary/10"
+                      )}
                     >
-                      <div className="flex min-w-0 items-start gap-3">
-                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground transition-colors group-hover:border-primary/25 group-hover:text-primary">
-                          <RiGitRepositoryLine
-                            className="size-4"
-                            aria-hidden="true"
-                          />
-                        </span>
-                        <div className="min-w-0 pt-0.5">
-                          <p className="truncate text-sm font-medium">
-                            {repository.fullName}
-                          </p>
-                          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                            <Badge
-                              variant={
-                                repository.private ? "secondary" : "outline"
-                              }
-                              className="h-5 px-1.5 text-[10px]"
-                            >
-                              {repository.private
-                                ? t("integrations.privateRepository")
-                                : t("integrations.publicRepository")}
-                            </Badge>
-                            {isAttached && (
+                      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                        <div className="flex min-w-0 items-start gap-3.5">
+                          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-xs dark:bg-white dark:text-slate-950">
+                            <ProviderIcon
+                              className="size-5"
+                              aria-hidden="true"
+                            />
+                          </span>
+                          <div className="min-w-0 pt-0.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate font-medium">
+                                {connection.name || providerName}
+                              </p>
                               <Badge
                                 variant="outline"
-                                className="h-5 border-primary/25 bg-primary/5 px-1.5 text-[10px] text-primary"
+                                className="h-5 px-1.5 text-[10px]"
                               >
-                                {t("integrations.attached")}
+                                {providerName}
                               </Badge>
-                            )}
+                            </div>
+                            <p className="mt-1 truncate text-xs text-muted-foreground">
+                              {connection.externalAccountLogin
+                                ? t("integrations.connectedAs", {
+                                    account: connection.externalAccountLogin,
+                                  })
+                                : providerName}
+                            </p>
+                            <p className="mt-1 truncate text-[11px] text-muted-foreground/75">
+                              {connection.apiBaseUrl}
+                            </p>
                           </div>
                         </div>
+                        <div className="flex items-center gap-2 sm:pt-0.5">
+                          <Badge variant="secondary" className="w-fit gap-1.5">
+                            <span className="size-1.5 rounded-full bg-emerald-500" />
+                            {t("status.active")}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => void disconnect(connection)}
+                          >
+                            {t("integrations.disconnect")}
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row">
-                        {isAttached && (
+                      <div className="mt-5 grid gap-3 rounded-xl border bg-muted/25 p-3.5 sm:grid-cols-3">
+                        <ConnectionStat
+                          label={t("integrations.authMethod")}
+                          value={
+                            connection.authMethod === "app"
+                              ? t("integrations.githubApp")
+                              : connection.authMethod === "oauth"
+                                ? t("integrations.oauth")
+                                : t("integrations.patToken")
+                          }
+                        />
+                        <ConnectionStat
+                          label={t("integrations.scopePosture")}
+                          value={
+                            isGitHub
+                              ? t("integrations.issuesMetadata")
+                              : connection.scopes.join(", ") || "API"
+                          }
+                        />
+                        <ConnectionStat
+                          label={t("integrations.repositories")}
+                          value={t("integrations.selectPerProject")}
+                        />
+                      </div>
+                      {isGitHub && (
+                        <div className="mt-4 flex flex-wrap gap-2">
                           <Button
                             size="sm"
-                            variant="ghost"
-                            className="w-full gap-1.5 text-muted-foreground hover:text-destructive sm:w-auto"
-                            onClick={() => void detachRepository(repository)}
-                            disabled={
-                              Boolean(detachingRepositoryId) || importRunning
-                            }
+                            variant="outline"
+                            className="gap-1.5"
+                            onClick={() => void connectGitHub()}
+                            disabled={connecting}
                           >
-                            {isDetaching ? (
+                            {connecting && (
                               <RiLoader4Line
                                 className="size-3.5 animate-spin"
                                 aria-hidden="true"
                               />
-                            ) : (
-                              <RiCloseLine
-                                className="size-3.5"
+                            )}
+                            {t("integrations.connectAnotherOAuth")}
+                            <RiArrowRightUpLine
+                              className="size-3.5"
+                              aria-hidden="true"
+                            />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5"
+                            onClick={() => void installGitHubApp()}
+                            disabled={installing}
+                          >
+                            {installing && (
+                              <RiLoader4Line
+                                className="size-3.5 animate-spin"
                                 aria-hidden="true"
                               />
                             )}
-                            {isDetaching
-                              ? t("integrations.detachingRepository")
-                              : t("integrations.detachRepository")}
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full gap-1.5 sm:w-auto"
-                          onClick={() => void attachAndImport(repository)}
-                          disabled={
-                            Boolean(importingRepositoryId) || importRunning
-                          }
-                        >
-                          {importRunning && (
-                            <RiLoader4Line
-                              className="size-3.5 animate-spin"
+                            {t("integrations.installApp")}
+                            <RiArrowRightUpLine
+                              className="size-3.5"
                               aria-hidden="true"
                             />
-                          )}
-                          {importRunning
-                            ? t("integrations.importRunning")
-                            : isAttached
-                              ? t("integrations.runImport")
-                              : t("integrations.attachImport")}
-                          <RiArrowRightLine
-                            className="size-3.5"
-                            aria-hidden="true"
-                          />
-                        </Button>
-                      </div>
-                    </li>
+                          </Button>
+                        </div>
+                      )}
+                    </article>
                   )
-                })}
-              </ul>
+                })
+              )}
+            </div>
+            <div className="mt-8 border-t pt-7">
+              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                <div>
+                  <p className="text-sm font-medium">
+                    {t("integrations.projectConnection")}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t("integrations.projectConnectionDescription")}
+                  </p>
+                </div>
+                <div className="w-full sm:max-w-xs">
+                  <label htmlFor="project-connection" className="sr-only">
+                    {t("integrations.projectConnection")}
+                  </label>
+                  <Select
+                    value={selectedConnectionId || "none"}
+                    onValueChange={(value) => void selectConnection(value)}
+                  >
+                    <SelectTrigger id="project-connection" className="w-full">
+                      <SelectValue>
+                        {selectedConnection
+                          ? selectedConnection.name ||
+                            selectedConnection.externalAccountLogin ||
+                            selectedConnection.provider
+                          : t("integrations.noProjectConnection")}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">
+                        {t("integrations.noProjectConnection")}
+                      </SelectItem>
+                      {availableConnections.map((connection) => (
+                        <SelectItem key={connection.id} value={connection.id}>
+                          {connection.name ||
+                            connection.externalAccountLogin ||
+                            connection.provider}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+            {error && (
+              <FeedbackNotice
+                kind="error"
+                message={error}
+                retry={() => void loadRepositories()}
+              />
             )}
-          </div>
-          <div className="mt-5 grid gap-3 border-t pt-5 sm:grid-cols-2">
-            <IntegrationFeature
-              icon={<RiLinkM className="size-4" aria-hidden="true" />}
-              title={t("integrations.bidirectional")}
-              copy={t("integrations.localFields")}
-            />
-            <IntegrationFeature
-              icon={<RiLockLine className="size-4" aria-hidden="true" />}
-              title={t("integrations.conflictSafe")}
-              copy={t("integrations.conflictDescription")}
-            />
-          </div>
-        </FramePanel>
-      </Frame>
-      <Frame variant="ghost" className="bg-transparent" spacing="xs">
-        <FramePanel fit>
-          <FrameHeader className="px-0 pt-0">
-            <FrameTitle>{t("integrations.latestDeliveries")}</FrameTitle>
-            <FrameDescription className="mt-1">
-              {t("integrations.webhookDescription")}
-            </FrameDescription>
-          </FrameHeader>
-          <SyncActivity
-            events={syncEvents}
-            live
-            onRefresh={() => onRefreshSyncRuns(false)}
+            <div className="mt-6 border-t pt-8">
+              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                <div>
+                  <p className="text-sm font-medium">
+                    {t("integrations.projectRepositories")}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t("integrations.repositoryDescription")}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-fit gap-1.5"
+                  onClick={() => void loadRepositories()}
+                  disabled={loadingRepositories}
+                >
+                  <RiRefreshLine
+                    className={
+                      loadingRepositories ? "size-3.5 animate-spin" : "size-3.5"
+                    }
+                    aria-hidden="true"
+                  />
+                  {t("integrations.refresh")}
+                </Button>
+              </div>
+              {!isApiConfigured ? (
+                <div className="mt-5 rounded-xl border border-dashed bg-muted/20 px-4 py-6 text-center text-xs text-muted-foreground">
+                  {t("integrations.backendRequired")}
+                </div>
+              ) : repositories.length === 0 ? (
+                <div className="mt-5 rounded-xl border border-dashed bg-muted/20 px-4 py-6 text-center text-xs text-muted-foreground">
+                  {loadingRepositories
+                    ? t("integrations.loadingRepositories")
+                    : t("integrations.connectThenRefresh")}
+                </div>
+              ) : (
+                <ul
+                  className="mt-5 grid max-h-80 gap-2.5 overflow-y-auto pr-1"
+                  aria-label={t("integrations.repositories")}
+                >
+                  {repositories.map((repository) => {
+                    const isAttached = attachedIDs.has(repository.id)
+                    const isImporting = importingRepositoryId === repository.id
+                    const importRunning =
+                      isImporting ||
+                      activeImportRepositoryIDs.has(repository.id)
+                    const isDetaching = detachingRepositoryId === repository.id
+                    return (
+                      <li
+                        key={repository.id}
+                        className="group flex flex-col justify-between gap-4 rounded-xl border bg-background/70 p-4 transition-colors hover:border-primary/30 hover:bg-muted/20 sm:flex-row sm:items-center"
+                      >
+                        <div className="flex min-w-0 items-start gap-3">
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground transition-colors group-hover:border-primary/25 group-hover:text-primary">
+                            <RiGitRepositoryLine
+                              className="size-4"
+                              aria-hidden="true"
+                            />
+                          </span>
+                          <div className="min-w-0 pt-0.5">
+                            <p className="truncate text-sm font-medium">
+                              {repository.fullName}
+                            </p>
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                              <Badge
+                                variant={
+                                  repository.private ? "secondary" : "outline"
+                                }
+                                className="h-5 px-1.5 text-[10px]"
+                              >
+                                {repository.private
+                                  ? t("integrations.privateRepository")
+                                  : t("integrations.publicRepository")}
+                              </Badge>
+                              {isAttached && (
+                                <Badge
+                                  variant="outline"
+                                  className="h-5 border-primary/25 bg-primary/5 px-1.5 text-[10px] text-primary"
+                                >
+                                  {t("integrations.attached")}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row">
+                          {isAttached && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="w-full gap-1.5 text-muted-foreground hover:text-destructive sm:w-auto"
+                              onClick={() => void detachRepository(repository)}
+                              disabled={
+                                Boolean(detachingRepositoryId) || importRunning
+                              }
+                            >
+                              {isDetaching ? (
+                                <RiLoader4Line
+                                  className="size-3.5 animate-spin"
+                                  aria-hidden="true"
+                                />
+                              ) : (
+                                <RiCloseLine
+                                  className="size-3.5"
+                                  aria-hidden="true"
+                                />
+                              )}
+                              {isDetaching
+                                ? t("integrations.detachingRepository")
+                                : t("integrations.detachRepository")}
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full gap-1.5 sm:w-auto"
+                            onClick={() => void attachAndImport(repository)}
+                            disabled={
+                              Boolean(importingRepositoryId) || importRunning
+                            }
+                          >
+                            {importRunning && (
+                              <RiLoader4Line
+                                className="size-3.5 animate-spin"
+                                aria-hidden="true"
+                              />
+                            )}
+                            {importRunning
+                              ? t("integrations.importRunning")
+                              : isAttached
+                                ? t("integrations.runImport")
+                                : t("integrations.attachImport")}
+                            <RiArrowRightLine
+                              className="size-3.5"
+                              aria-hidden="true"
+                            />
+                          </Button>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+            <div className="mt-5 grid gap-3 border-t pt-5 sm:grid-cols-2">
+              <IntegrationFeature
+                icon={<RiLinkM className="size-4" aria-hidden="true" />}
+                title={t("integrations.bidirectional")}
+                copy={t("integrations.localFields")}
+              />
+              <IntegrationFeature
+                icon={<RiLockLine className="size-4" aria-hidden="true" />}
+                title={t("integrations.conflictSafe")}
+                copy={t("integrations.conflictDescription")}
+              />
+            </div>
+          </FramePanel>
+        </Frame>
+        <GitAssigneeMappings
+          tasks={tasks}
+          members={members}
+          onChanged={() => onRefreshTasks(project.id, true)}
+        />
+      </div>
+      <div className="space-y-5">
+        {conflictError && (
+          <FeedbackNotice
+            kind="error"
+            message={conflictError}
+            retry={() => void loadConflicts()}
           />
-        </FramePanel>
-      </Frame>
+        )}
+        {!conflictsUnavailable && conflicts.length > 0 && (
+          <SyncConflictPanel
+            conflicts={conflicts}
+            resolvingId={resolvingConflictId}
+            onResolve={(conflict, resolution) =>
+              void resolveConflict(conflict, resolution)
+            }
+          />
+        )}
+        <Frame variant="ghost" className="bg-transparent" spacing="xs">
+          <FramePanel
+            fit
+            className="flex min-h-0 flex-col overflow-hidden xl:sticky xl:top-5 xl:h-[calc(100vh-8rem)]"
+          >
+            <FrameHeader className="px-0 pt-0">
+              <FrameTitle>{t("integrations.latestDeliveries")}</FrameTitle>
+              <FrameDescription className="mt-1">
+                {t("integrations.webhookDescription")}
+              </FrameDescription>
+            </FrameHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto pe-1">
+              <SyncActivity
+                events={syncEvents}
+                live
+                onRefresh={async () => {
+                  await onRefreshSyncRuns(false)
+                  await loadConflicts()
+                }}
+              />
+            </div>
+          </FramePanel>
+        </Frame>
+      </div>
       <GitConnectionDialog
         key={connectionDialogOpen ? "open" : "closed"}
         open={connectionDialogOpen}
@@ -3323,6 +3439,26 @@ function TaskDetailsSheet({
                 value={task.assigneeName ?? t("details.unassigned")}
               />
             </div>
+            {task.remoteAssignees?.some((assignee) => !assignee.mapped) && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+                <p className="text-[10px] tracking-[0.12em] text-amber-700 uppercase dark:text-amber-400">
+                  {t("tasks.remoteAssignee")}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {task.remoteAssignees
+                    .filter((assignee) => !assignee.mapped)
+                    .map((assignee) => (
+                      <Badge
+                        key={`${assignee.provider}-${assignee.login}`}
+                        variant="outline"
+                        className="border-amber-500/30 bg-background text-xs"
+                      >
+                        {assignee.provider} · @{assignee.login}
+                      </Badge>
+                    ))}
+                </div>
+              </div>
+            )}
             <div className="rounded-xl border bg-muted/20 p-4">
               <div className="flex items-center justify-between">
                 <div>

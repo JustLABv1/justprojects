@@ -1486,6 +1486,7 @@ components:
         estimateMinutes: { type: integer, nullable: true }
         assigneeId: { type: string, format: uuid, nullable: true }
         assigneeName: { type: string }
+        remoteAssignees: { type: array, items: { $ref: '#/components/schemas/RemoteAssignee' } }
         labels: { type: array, items: { $ref: '#/components/schemas/Label' } }
         visibility: { type: string, enum: [internal, customer] }
         position: { type: integer }
@@ -1739,6 +1740,13 @@ components:
         deliveryId: { type: string }
         status: { type: string, enum: [open, resolved, ignored] }
         resolution: { type: string }
+        projectId: { type: string, format: uuid }
+        localType: { type: string, enum: [task, milestone] }
+        localId: { type: string, format: uuid }
+        localTitle: { type: string }
+        repositoryName: { type: string }
+        provider: { $ref: '#/components/schemas/GitProvider' }
+        externalNumber: { type: integer }
     ConflictList:
       type: object
       properties: { items: { type: array, items: { $ref: '#/components/schemas/SyncConflict' } }, count: { type: integer } }
@@ -1815,13 +1823,22 @@ components:
     PermissionGrantList:
       type: object
       properties: { items: { type: array, items: { $ref: '#/components/schemas/PermissionGrant' } }, count: { type: integer } }
+    RemoteAssignee:
+      type: object
+      required: [provider, login, mapped]
+      properties:
+        provider: { $ref: '#/components/schemas/GitProvider' }
+        login: { type: string }
+        mapped: { type: boolean }
     GitHubUserMapping:
       type: object
-      required: [id, tenantId, githubLogin, userId]
+      required: [id, tenantId, provider, remoteLogin, userId]
       properties:
         id: { type: string, format: uuid }
         tenantId: { type: string, format: uuid }
-        githubLogin: { type: string }
+        provider: { $ref: '#/components/schemas/GitProvider' }
+        remoteLogin: { type: string }
+        remoteId: { type: integer, format: int64, nullable: true }
         userId: { type: string, format: uuid }
     GitHubUserMappingRequest:
       type: object

@@ -1391,6 +1391,7 @@ export interface components {
             /** Format: uuid */
             assigneeId?: string | null;
             assigneeName?: string;
+            remoteAssignees?: components["schemas"]["RemoteAssignee"][];
             labels?: components["schemas"]["Label"][];
             /** @enum {string} */
             visibility: "internal" | "customer";
@@ -1676,6 +1677,16 @@ export interface components {
             /** @enum {string} */
             status: "open" | "resolved" | "ignored";
             resolution?: string;
+            /** Format: uuid */
+            projectId?: string;
+            /** @enum {string} */
+            localType?: "task" | "milestone";
+            /** Format: uuid */
+            localId?: string;
+            localTitle?: string;
+            repositoryName?: string;
+            provider?: components["schemas"]["GitProvider"];
+            externalNumber?: number;
         };
         ConflictList: {
             items?: components["schemas"]["SyncConflict"][];
@@ -1779,12 +1790,20 @@ export interface components {
             items?: components["schemas"]["PermissionGrant"][];
             count?: number;
         };
+        RemoteAssignee: {
+            provider: components["schemas"]["GitProvider"];
+            login: string;
+            mapped: boolean;
+        };
         GitHubUserMapping: {
             /** Format: uuid */
             id: string;
             /** Format: uuid */
             tenantId: string;
-            githubLogin: string;
+            provider: components["schemas"]["GitProvider"];
+            remoteLogin: string;
+            /** Format: int64 */
+            remoteId?: number | null;
             /** Format: uuid */
             userId: string;
         };

@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import { RiAddLine, RiEditLine, RiFlagLine } from "@remixicon/react"
+import { RiAddLine, RiEditLine, RiFlagLine, RiTaskLine } from "@remixicon/react"
 import { de as germanDateLocale, enUS } from "date-fns/locale"
 
 import { Gantt } from "@/components/reui/gantt/gantt"
@@ -32,18 +32,23 @@ export function RoadmapView({
   onEditMilestone: (milestone: Milestone) => void
 }) {
   const { locale, t } = useI18n()
+  const tasksByMilestone = useMemo(() => {
+    const grouped = new Map<string, Task[]>()
+    for (const task of tasks) {
+      if (!task.milestoneId) continue
+      grouped.set(task.milestoneId, [
+        ...(grouped.get(task.milestoneId) ?? []),
+        task,
+      ])
+    }
+    return grouped
+  }, [tasks])
   const startDate = useMemo(
     () => parseDate(project.startDate) ?? new Date(),
     [project.startDate]
   )
   const { resources, events } = useMemo(
-    () =>
-      buildGanttData(
-        tasks,
-        milestones,
-        t("roadmap.milestones"),
-        t("roadmap.tasks")
-      ),
+    () => buildGanttData(tasks, milestones, t("roadmap.tasks")),
     [milestones, t, tasks]
   )
   const ganttI18n = useMemo(
@@ -108,54 +113,96 @@ export function RoadmapView({
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         {milestones.length ? (
-          milestones.map((milestone) => (
-            <Card
-              key={milestone.id}
-              className="gap-2 rounded-2xl p-4 shadow-none"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`flex size-7 items-center justify-center rounded-lg ${milestone.status === "closed" ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/10 text-primary"}`}
-                  >
-                    <RiFlagLine className="size-3.5" aria-hidden="true" />
-                  </span>
-                  <p className="text-sm font-medium">{milestone.name}</p>
+          milestones.map((milestone) => {
+            const assignedTasks = tasksByMilestone.get(milestone.id) ?? []
+            return (
+              <Card
+                key={milestone.id}
+                className="flex min-h-44 flex-col rounded-2xl p-4 shadow-none"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span
+                      className={`flex size-7 shrink-0 items-center justify-center rounded-lg ${milestone.status === "closed" ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/10 text-primary"}`}
+                    >
+                      <RiFlagLine className="size-3.5" aria-hidden="true" />
+                    </span>
+                    <p className="truncate text-sm font-medium">
+                      {milestone.name}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <Badge
+                      variant={
+                        milestone.status === "closed" ? "secondary" : "outline"
+                      }
+                      className="h-5 text-[10px]"
+                    >
+                      {milestone.status === "closed"
+                        ? t("roadmap.complete")
+                        : t("roadmap.upcoming")}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-7 text-muted-foreground hover:text-foreground"
+                      aria-label={t("roadmap.editMilestone", {
+                        name: milestone.name,
+                      })}
+                      title={t("roadmap.editMilestone", {
+                        name: milestone.name,
+                      })}
+                      onClick={() => onEditMilestone(milestone)}
+                    >
+                      <RiEditLine className="size-4" aria-hidden="true" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <Badge
-                    variant={
-                      milestone.status === "closed" ? "secondary" : "outline"
-                    }
-                    className="h-5 text-[10px]"
-                  >
-                    {milestone.status === "closed"
-                      ? t("roadmap.complete")
-                      : t("roadmap.upcoming")}
-                  </Badge>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-7 text-muted-foreground hover:text-foreground"
-                    aria-label={t("roadmap.editMilestone", {
-                      name: milestone.name,
-                    })}
-                    title={t("roadmap.editMilestone", {
-                      name: milestone.name,
-                    })}
-                    onClick={() => onEditMilestone(milestone)}
-                  >
-                    <RiEditLine className="size-4" aria-hidden="true" />
-                  </Button>
+                <p className="ps-9 text-xs text-muted-foreground">
+                  {milestone.dueDate
+                    ? formatDate(milestone.dueDate, locale)
+                    : t("roadmap.dateToConfirm")}
+                </p>
+                <div className="mt-auto border-t pt-3">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <RiTaskLine className="size-3.5" aria-hidden="true" />
+                    <span>
+                      {t("roadmap.assignedTasks", {
+                        count: assignedTasks.length,
+                      })}
+                    </span>
+                  </div>
+                  {assignedTasks.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {assignedTasks.slice(0, 2).map((task) => (
+                        <Badge
+                          key={task.id}
+                          variant="outline"
+                          className="max-w-full gap-1 px-1.5 text-[10px] font-normal"
+                          title={task.title}
+                        >
+                          <RiTaskLine
+                            className="size-3 shrink-0"
+                            aria-hidden="true"
+                          />
+                          <span className="truncate">{task.title}</span>
+                        </Badge>
+                      ))}
+                      {assignedTasks.length > 2 && (
+                        <span className="self-center text-[10px] text-muted-foreground">
+                          +{assignedTasks.length - 2}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {t("roadmap.noAssignedTasks")}
+                    </p>
+                  )}
                 </div>
-              </div>
-              <p className="ps-9 text-xs text-muted-foreground">
-                {milestone.dueDate
-                  ? formatDate(milestone.dueDate, locale)
-                  : t("roadmap.dateToConfirm")}
-              </p>
-            </Card>
-          ))
+              </Card>
+            )
+          })
         ) : (
           <div className="rounded-2xl border border-dashed p-5 text-sm text-muted-foreground sm:col-span-3">
             {t("roadmap.noMilestones")}
@@ -195,37 +242,44 @@ export function RoadmapView({
 function buildGanttData(
   tasks: Task[],
   milestones: Milestone[],
-  milestoneTitle: string,
   taskTitle: string
 ) {
+  const roadmapTasks = tasks.filter((task) => !task.parentId)
+  const taskResource = (task: Task): GanttResource => ({
+    id: task.id,
+    title: task.title,
+    color:
+      task.statusCategory === "done"
+        ? "#22c55e"
+        : task.statusCategory === "blocked"
+          ? "#f59e0b"
+          : "#6366f1",
+  })
+
   const resources: GanttResource[] = [
-    {
-      id: "roadmap-milestones",
-      title: milestoneTitle,
-      color: "#0f766e",
-      children: milestones.map((milestone) => ({
-        id: `milestone-${milestone.id}`,
+    ...milestones.map((milestone) => {
+      const children = roadmapTasks
+        .filter((task) => task.milestoneId === milestone.id)
+        .map(taskResource)
+      return {
+        id: milestone.id,
         title: milestone.name,
         color: "#0f766e",
-      })),
-    },
-    {
-      id: "roadmap-tasks",
-      title: taskTitle,
-      color: "#6366f1",
-      children: tasks
-        .filter((task) => !task.parentId)
-        .map((task) => ({
-          id: `task-${task.id}`,
-          title: task.title,
-          color:
-            task.statusCategory === "done"
-              ? "#22c55e"
-              : task.statusCategory === "blocked"
-                ? "#f59e0b"
-                : "#6366f1",
-        })),
-    },
+        ...(children.length > 0 ? { children } : {}),
+      }
+    }),
+    ...(roadmapTasks.some((task) => !task.milestoneId)
+      ? [
+          {
+            id: "roadmap-tasks",
+            title: taskTitle,
+            color: "#6366f1",
+            children: roadmapTasks
+              .filter((task) => !task.milestoneId)
+              .map(taskResource),
+          },
+        ]
+      : []),
   ]
   const events: GanttEvent[] = [
     ...milestones.map((milestone) => {
@@ -240,41 +294,39 @@ function buildGanttData(
         start,
         end,
         allDay: true,
-        resourceId: `milestone-${milestone.id}`,
+        resourceId: milestone.id,
         color: milestone.status === "closed" ? "#0f766e" : "#14b8a6",
         readOnly: true,
       }
     }),
-    ...tasks
-      .filter((task) => !task.parentId)
-      .map((task) => {
-        const start =
-          parseDate(task.startDate) ?? parseDate(task.dueDate) ?? new Date()
-        const due =
-          parseDate(task.dueDate) ?? new Date(start.getTime() + 2 * 86_400_000)
-        const end = due.getTime() < start.getTime() ? start : due
-        return {
-          id: `task-${task.id}`,
-          title: task.title,
-          start,
-          end,
-          allDay: true,
-          resourceId: `task-${task.id}`,
-          progress:
-            task.statusCategory === "done"
-              ? 100
-              : task.statusCategory === "in_progress"
-                ? 55
-                : 0,
-          color:
-            task.statusCategory === "done"
-              ? "#22c55e"
-              : task.statusCategory === "blocked"
-                ? "#f59e0b"
-                : "#6366f1",
-          readOnly: true,
-        }
-      }),
+    ...roadmapTasks.map((task) => {
+      const start =
+        parseDate(task.startDate) ?? parseDate(task.dueDate) ?? new Date()
+      const due =
+        parseDate(task.dueDate) ?? new Date(start.getTime() + 2 * 86_400_000)
+      const end = due.getTime() < start.getTime() ? start : due
+      return {
+        id: `task-${task.id}`,
+        title: task.title,
+        start,
+        end,
+        allDay: true,
+        resourceId: task.id,
+        progress:
+          task.statusCategory === "done"
+            ? 100
+            : task.statusCategory === "in_progress"
+              ? 55
+              : 0,
+        color:
+          task.statusCategory === "done"
+            ? "#22c55e"
+            : task.statusCategory === "blocked"
+              ? "#f59e0b"
+              : "#6366f1",
+        readOnly: true,
+      }
+    }),
   ]
   return { resources, events }
 }

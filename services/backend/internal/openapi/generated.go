@@ -185,6 +185,12 @@ const (
 	Todo       StatusCategory = "todo"
 )
 
+// Defines values for SyncConflictLocalType.
+const (
+	SyncConflictLocalTypeMilestone SyncConflictLocalType = "milestone"
+	SyncConflictLocalTypeTask      SyncConflictLocalType = "task"
+)
+
 // Defines values for SyncConflictStatus.
 const (
 	SyncConflictStatusIgnored  SyncConflictStatus = "ignored"
@@ -387,8 +393,10 @@ type GitHubRepository = GitRepository
 
 // GitHubUserMapping defines model for GitHubUserMapping.
 type GitHubUserMapping struct {
-	GithubLogin string             `json:"githubLogin"`
 	Id          openapi_types.UUID `json:"id"`
+	Provider    GitProvider        `json:"provider"`
+	RemoteId    *int64             `json:"remoteId"`
+	RemoteLogin string             `json:"remoteLogin"`
 	TenantId    openapi_types.UUID `json:"tenantId"`
 	UserId      openapi_types.UUID `json:"userId"`
 }
@@ -903,6 +911,13 @@ type RegisterRequest struct {
 	TenantName string              `json:"tenantName"`
 }
 
+// RemoteAssignee defines model for RemoteAssignee.
+type RemoteAssignee struct {
+	Login    string      `json:"login"`
+	Mapped   bool        `json:"mapped"`
+	Provider GitProvider `json:"provider"`
+}
+
 // Session defines model for Session.
 type Session struct {
 	Membership Membership `json:"membership"`
@@ -923,18 +938,28 @@ type StatusRequest struct {
 
 // SyncConflict defines model for SyncConflict.
 type SyncConflict struct {
-	DeliveryId      *string            `json:"deliveryId,omitempty"`
-	ExternalLinkId  openapi_types.UUID `json:"externalLinkId"`
-	Field           string             `json:"field"`
-	Id              openapi_types.UUID `json:"id"`
-	LocalChangedAt  time.Time          `json:"localChangedAt"`
-	LocalValue      interface{}        `json:"localValue"`
-	RemoteChangedAt time.Time          `json:"remoteChangedAt"`
-	RemoteValue     interface{}        `json:"remoteValue"`
-	Resolution      *string            `json:"resolution,omitempty"`
-	Status          SyncConflictStatus `json:"status"`
-	TenantId        openapi_types.UUID `json:"tenantId"`
+	DeliveryId      *string                `json:"deliveryId,omitempty"`
+	ExternalLinkId  openapi_types.UUID     `json:"externalLinkId"`
+	ExternalNumber  *int                   `json:"externalNumber,omitempty"`
+	Field           string                 `json:"field"`
+	Id              openapi_types.UUID     `json:"id"`
+	LocalChangedAt  time.Time              `json:"localChangedAt"`
+	LocalId         *openapi_types.UUID    `json:"localId,omitempty"`
+	LocalTitle      *string                `json:"localTitle,omitempty"`
+	LocalType       *SyncConflictLocalType `json:"localType,omitempty"`
+	LocalValue      interface{}            `json:"localValue"`
+	ProjectId       *openapi_types.UUID    `json:"projectId,omitempty"`
+	Provider        *GitProvider           `json:"provider,omitempty"`
+	RemoteChangedAt time.Time              `json:"remoteChangedAt"`
+	RemoteValue     interface{}            `json:"remoteValue"`
+	RepositoryName  *string                `json:"repositoryName,omitempty"`
+	Resolution      *string                `json:"resolution,omitempty"`
+	Status          SyncConflictStatus     `json:"status"`
+	TenantId        openapi_types.UUID     `json:"tenantId"`
 }
+
+// SyncConflictLocalType defines model for SyncConflict.LocalType.
+type SyncConflictLocalType string
 
 // SyncConflictStatus defines model for SyncConflict.Status.
 type SyncConflictStatus string
@@ -1001,6 +1026,7 @@ type Task struct {
 	Position        *int                `json:"position,omitempty"`
 	Priority        TaskPriority        `json:"priority"`
 	ProjectId       openapi_types.UUID  `json:"projectId"`
+	RemoteAssignees *[]RemoteAssignee   `json:"remoteAssignees,omitempty"`
 	StartDate       *openapi_types.Date `json:"startDate"`
 	StatusCategory  *StatusCategory     `json:"statusCategory,omitempty"`
 	StatusId        openapi_types.UUID  `json:"statusId"`

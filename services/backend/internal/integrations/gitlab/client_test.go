@@ -45,6 +45,28 @@ func TestNewClientRejectsURLsWithQueryOrFragment(t *testing.T) {
 	}
 }
 
+func TestIssueValuesOnlySendsAssigneeWhenRequested(t *testing.T) {
+	client, err := NewClient("https://gitlab.com", "token")
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	unchanged, err := client.issueValues(context.Background(), integrations.IssuePatch{Labels: []string{}})
+	if err != nil {
+		t.Fatalf("issueValues() unchanged error = %v", err)
+	}
+	if _, ok := unchanged["assignee_ids[]"]; ok {
+		t.Fatalf("unchanged assignees should not be sent: %v", unchanged)
+	}
+	empty := []string{}
+	cleared, err := client.issueValues(context.Background(), integrations.IssuePatch{Labels: []string{}, Assignees: &empty})
+	if err != nil {
+		t.Fatalf("issueValues() clear error = %v", err)
+	}
+	if cleared.Get("assignee_ids[]") != "" {
+		t.Fatalf("explicit assignee clear should be sent: %v", cleared)
+	}
+}
+
 func TestClientUsesSelfHostedAPIAndMapsIssues(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("PRIVATE-TOKEN") != "glpat-test" {

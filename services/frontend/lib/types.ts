@@ -172,8 +172,45 @@ export interface Task {
   position: number
   version: number
   labels?: Label[]
+  remoteAssignees?: RemoteAssignee[]
   createdAt?: string
   updatedAt?: string
+}
+
+export interface RemoteAssignee {
+  provider: string
+  login: string
+  mapped: boolean
+}
+
+export interface GitUserMapping {
+  id: string
+  tenantId: string
+  provider: string
+  remoteLogin: string
+  remoteId?: number | null
+  userId: string
+}
+
+export interface SyncConflict {
+  id: string
+  tenantId: string
+  externalLinkId: string
+  field: string
+  localValue: unknown
+  remoteValue: unknown
+  localChangedAt: string
+  remoteChangedAt: string
+  deliveryId?: string
+  status: "open" | "resolved" | "ignored" | string
+  resolution?: string
+  projectId?: string
+  localType?: string
+  localId?: string
+  localTitle?: string
+  repositoryName?: string
+  provider?: string
+  externalNumber?: number
 }
 
 export interface Milestone {

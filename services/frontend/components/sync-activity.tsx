@@ -29,13 +29,20 @@ export function SyncActivity({
   events,
   live = false,
   onRefresh,
+  compact = false,
 }: {
   events: SyncEvent[]
   live?: boolean
   onRefresh?: () => Promise<void> | void
+  compact?: boolean
 }) {
   const { locale, t } = useI18n()
   const [refreshing, setRefreshing] = useState(false)
+  const visibleEvents = compact ? events.slice(0, 3) : events
+  const successfulCount = events.filter(
+    (event) => event.status === "succeeded"
+  ).length
+  const failedCount = events.filter((event) => event.status === "failed").length
 
   const refresh = async () => {
     if (!onRefresh) return
@@ -48,7 +55,49 @@ export function SyncActivity({
   }
 
   return (
-    <div className="space-y-3">
+    <div className={compact ? "space-y-2.5" : "space-y-3"}>
+      {compact && events.length > 0 && (
+        <div
+          className="grid grid-cols-3 divide-x rounded-xl border bg-muted/20"
+          aria-label={t("sync.activitySummary")}
+        >
+          <div className="min-w-0 px-2.5 py-2">
+            <p className="truncate text-[10px] font-medium tracking-[0.1em] text-muted-foreground uppercase">
+              {t("sync.lastSync")}
+            </p>
+            <p className="mt-1 truncate text-xs font-medium">
+              {formatDate(
+                visibleEvents[0]?.updatedAt ??
+                  visibleEvents[0]?.createdAt ??
+                  "",
+                locale
+              )}
+            </p>
+          </div>
+          <div className="min-w-0 px-2.5 py-2">
+            <p className="truncate text-[10px] font-medium tracking-[0.1em] text-muted-foreground uppercase">
+              {t("sync.successful")}
+            </p>
+            <p className="mt-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+              {successfulCount}
+            </p>
+          </div>
+          <div className="min-w-0 px-2.5 py-2">
+            <p className="truncate text-[10px] font-medium tracking-[0.1em] text-muted-foreground uppercase">
+              {t("sync.failedCount")}
+            </p>
+            <p
+              className={
+                failedCount > 0
+                  ? "mt-1 text-xs font-medium text-destructive"
+                  : "mt-1 text-xs font-medium"
+              }
+            >
+              {failedCount}
+            </p>
+          </div>
+        </div>
+      )}
       {(live || onRefresh) && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-muted/20 px-3 py-2">
           <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
@@ -90,9 +139,9 @@ export function SyncActivity({
           {t("sync.noRuns")}
         </div>
       ) : (
-        <Timeline defaultValue={events.length} orientation="vertical">
-          {events.map((event, index) => {
-            const step = events.length - index
+        <Timeline defaultValue={visibleEvents.length} orientation="vertical">
+          {visibleEvents.map((event, index) => {
+            const step = visibleEvents.length - index
             const active =
               event.status === "queued" || event.status === "processing"
             const Icon =
@@ -102,13 +151,29 @@ export function SyncActivity({
                   ? RiLoader4Line
                   : RiCheckLine
             return (
-              <TimelineItem key={event.id} step={step}>
-                <TimelineHeader className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <TimelineItem
+                key={event.id}
+                step={step}
+                className={
+                  compact
+                    ? "group-data-[orientation=vertical]/timeline:not-last:pb-3"
+                    : undefined
+                }
+              >
+                <TimelineHeader
+                  className={
+                    compact
+                      ? "flex flex-wrap items-center gap-x-2 gap-y-0.5"
+                      : "flex flex-wrap items-center gap-x-3 gap-y-1"
+                  }
+                >
                   <TimelineDate
-                    dateTime={event.createdAt}
-                    className="mb-0 shrink-0"
+                    dateTime={event.updatedAt ?? event.createdAt}
+                    className={
+                      compact ? "mb-0 shrink-0 text-[11px]" : "mb-0 shrink-0"
+                    }
                   >
-                    {formatDate(event.createdAt, locale)}
+                    {formatDate(event.updatedAt ?? event.createdAt, locale)}
                   </TimelineDate>
                   <TimelineIndicator>
                     <Icon
@@ -116,11 +181,19 @@ export function SyncActivity({
                       aria-hidden="true"
                     />
                   </TimelineIndicator>
-                  <TimelineTitle className="min-w-0">
+                  <TimelineTitle
+                    className={compact ? "min-w-0 text-xs" : "min-w-0"}
+                  >
                     {eventLabel(event.eventName, t)}
                   </TimelineTitle>
                 </TimelineHeader>
-                <TimelineContent className="flex flex-col items-start gap-2">
+                <TimelineContent
+                  className={
+                    compact
+                      ? "flex flex-col items-start gap-1"
+                      : "flex flex-col items-start gap-2"
+                  }
+                >
                   <div className="flex flex-wrap items-center gap-2">
                     <span>{eventAction(event, t)}</span>
                     <Badge
@@ -142,12 +215,14 @@ export function SyncActivity({
                       />
                     )}
                   </div>
-                  {event.errorMessage && event.status === "failed" && (
-                    <p className="w-full rounded-lg border border-destructive/20 bg-destructive/5 px-2.5 py-2 text-xs leading-relaxed text-destructive">
-                      {event.errorMessage}
-                    </p>
-                  )}
-                  {event.logs?.length ? (
+                  {!compact &&
+                    event.errorMessage &&
+                    event.status === "failed" && (
+                      <p className="w-full rounded-lg border border-destructive/20 bg-destructive/5 px-2.5 py-2 text-xs leading-relaxed text-destructive">
+                        {event.errorMessage}
+                      </p>
+                    )}
+                  {!compact && event.logs?.length ? (
                     <div className="w-full rounded-xl border bg-muted/20 p-2.5">
                       <p className="mb-2 text-[10px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
                         {t("sync.activityLog")}
@@ -158,21 +233,37 @@ export function SyncActivity({
                         ))}
                       </div>
                     </div>
-                  ) : event.status === "queued" || event.status === "processing" ? (
+                  ) : !compact &&
+                    (event.status === "queued" ||
+                      event.status === "processing") ? (
                     <p className="text-xs text-muted-foreground">
                       {t("sync.waitingForLogs")}
                     </p>
-                  ) : (
+                  ) : !compact ? (
                     <p className="text-xs text-muted-foreground">
                       {t("sync.noLogs")}
                     </p>
-                  )}
+                  ) : null}
+                  {compact &&
+                    event.errorMessage &&
+                    event.status === "failed" && (
+                      <p className="w-full rounded-lg border border-destructive/20 bg-destructive/5 px-2.5 py-1.5 text-xs leading-relaxed text-destructive">
+                        {event.errorMessage}
+                      </p>
+                    )}
                 </TimelineContent>
                 <TimelineSeparator />
               </TimelineItem>
             )
           })}
         </Timeline>
+      )}
+      {compact && events.length > visibleEvents.length && (
+        <p className="text-center text-[11px] text-muted-foreground">
+          {t("sync.moreEvents", {
+            count: events.length - visibleEvents.length,
+          })}
+        </p>
       )}
     </div>
   )
@@ -215,9 +306,11 @@ function eventLabel(value: string, t: Translator) {
   const translatedResource =
     resource === "issues"
       ? t("sync.issues")
-      : resource === "milestone"
-        ? t("sync.milestone")
-        : resource
+      : resource === "issue"
+        ? t("sync.issue")
+        : resource === "milestone"
+          ? t("sync.milestone")
+          : resource
   return `${provider === "github" ? "GitHub" : provider === "gitlab" ? "GitLab" : provider} ${translatedResource}`
 }
 

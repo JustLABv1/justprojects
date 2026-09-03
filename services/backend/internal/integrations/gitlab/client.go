@@ -256,15 +256,17 @@ func (c *Client) issueValues(ctx context.Context, patch integrations.IssuePatch)
 	values.Set("description", patch.Body)
 	values.Set("state_event", mapGitLabStateEvent(patch.State))
 	values.Set("labels", strings.Join(patch.Labels, ","))
-	assigneeIDs, err := c.resolveAssigneeIDs(ctx, patch.Assignees)
-	if err != nil {
-		return nil, err
-	}
-	for _, id := range assigneeIDs {
-		values.Add("assignee_ids[]", strconv.FormatInt(id, 10))
-	}
-	if len(assigneeIDs) == 0 {
-		values.Add("assignee_ids[]", "")
+	if patch.Assignees != nil {
+		assigneeIDs, err := c.resolveAssigneeIDs(ctx, *patch.Assignees)
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range assigneeIDs {
+			values.Add("assignee_ids[]", strconv.FormatInt(id, 10))
+		}
+		if len(assigneeIDs) == 0 {
+			values.Add("assignee_ids[]", "")
+		}
 	}
 	if patch.Milestone == nil {
 		values.Set("milestone_id", "0")
