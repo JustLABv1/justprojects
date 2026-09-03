@@ -18,4 +18,6 @@ COPY --from=build /src/internal/db/migrations /app/internal/db/migrations
 RUN apk add --no-cache ca-certificates
 USER app
 EXPOSE 8080
-ENTRYPOINT ["/app/api"]
+# Keep the API as the default process while allowing Compose to select the
+# worker binary with its `command` override.
+CMD ["/app/api"]
