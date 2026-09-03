@@ -11,6 +11,15 @@ export const metadata: Metadata = {
   title: "JustProjects · Delivery, clearly.",
   description:
     "Project management with a trustworthy customer-facing status layer.",
+  icons: {
+    icon: [
+      {
+        url: "/images/logos/justprojects-logo.svg",
+        type: "image/svg+xml",
+        sizes: "any",
+      },
+    ],
+  },
 }
 
 export default function RootLayout({

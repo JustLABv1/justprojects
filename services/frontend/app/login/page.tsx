@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { JustProjectsLogo } from "@/components/justprojects-logo"
 import { Label } from "@/components/ui/label"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { useI18n } from "@/components/language-provider"
@@ -72,10 +73,9 @@ export default function LoginPage() {
     <main className="grid min-h-svh bg-muted/30 lg:grid-cols-[1fr_0.9fr]">
       <section className="hidden flex-col justify-between bg-slate-950 p-10 text-white lg:flex">
         <div className="flex items-center gap-2 text-sm font-semibold">
-          <span className="flex size-8 items-center justify-center rounded-xl bg-white/10">
-            <RiLockPasswordLine className="size-4" aria-hidden="true" />
-          </span>
-          JustProjects
+          <JustProjectsLogo className="text-white" />
+          <span className="font-normal">Just</span>
+          Projects
         </div>
         <div className="max-w-lg">
           <p className="mb-4 text-sm text-white/50">{t("login.heroEyebrow")}</p>

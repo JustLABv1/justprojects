@@ -22,6 +22,7 @@ import {
 } from "@remixicon/react"
 
 import { Button } from "@/components/ui/button"
+import { JustProjectsLogo } from "@/components/justprojects-logo"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { NotificationBell } from "@/components/notification-bell"
 import {
@@ -137,12 +138,11 @@ export function AppShell({
       >
         <div className="flex h-16 items-center justify-between border-b px-4">
           <div className="flex items-center gap-2.5">
-            <span className="flex size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-              <RiLayoutGridLine className="size-4" aria-hidden="true" />
-            </span>
+            <JustProjectsLogo className="text-foreground" />
             <div>
-              <p className="text-sm font-semibold tracking-tight">
-                JustProjects
+              <p className="text-sm tracking-tight">
+                <span className="font-normal">Just</span>
+                <span className="font-semibold">Projects</span>
               </p>
               <p className="text-[10px] text-sidebar-foreground/60">
                 {t("brand.tagline")}
