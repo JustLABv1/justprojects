@@ -24,6 +24,7 @@ import {
 } from "@remixicon/react"
 
 import { Button } from "@/components/ui/button"
+import { JustProjectsLogo } from "@/components/justprojects-logo"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { NotificationBell } from "@/components/notification-bell"
 import {
@@ -121,7 +122,7 @@ export function AppShell({
   }
 
   return (
-    <div className="min-h-svh bg-muted/30 text-foreground">
+    <div className="min-h-svh bg-background text-foreground">
       {sidebarOpen && (
         <button
           type="button"
@@ -139,12 +140,11 @@ export function AppShell({
       >
         <div className="flex h-16 items-center justify-between border-b px-4">
           <div className="flex items-center gap-2.5">
-            <span className="flex size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-              <RiLayoutGridLine className="size-4" aria-hidden="true" />
-            </span>
+            <JustProjectsLogo className="text-foreground" />
             <div>
-              <p className="text-sm font-semibold tracking-tight">
-                JustProjects
+              <p className="text-sm tracking-tight">
+                <span className="font-normal">Just</span>
+                <span className="font-semibold">Projects</span>
               </p>
               <p className="text-[10px] text-sidebar-foreground/60">
                 {t("brand.tagline")}
@@ -335,7 +335,7 @@ export function AppShell({
       </aside>
 
       <div className="min-w-0 lg:ms-[248px]">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b bg-background/90 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b bg-background px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <Button
               variant="ghost"

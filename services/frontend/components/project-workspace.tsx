@@ -843,7 +843,7 @@ export function ProjectWorkspace({
 
   if (!loading && !data.project.id && error) {
     return (
-      <main className="grid min-h-svh place-items-center bg-muted/30 p-6">
+      <main className="grid min-h-svh place-items-center bg-background p-6">
         <Card className="w-full max-w-lg rounded-3xl p-8 text-center shadow-xl shadow-slate-950/5">
           <RiErrorWarningLine
             className="mx-auto size-7 text-destructive"

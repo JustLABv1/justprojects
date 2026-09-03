@@ -165,7 +165,7 @@ export function RequestInbox() {
   }
 
   const inbox = (
-    <div className="min-h-svh bg-muted/30">
+    <div className="min-h-svh">
       <div className="mx-auto max-w-[1500px] space-y-6">
         <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>

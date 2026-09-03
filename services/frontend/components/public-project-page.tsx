@@ -9,12 +9,12 @@ import {
   RiCheckLine,
   RiFlagLine,
   RiLockLine,
-  RiShareBoxLine,
 } from "@remixicon/react"
 
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { FeedbackNotice } from "@/components/feedback-notice"
+import { JustProjectsLogo } from "@/components/justprojects-logo"
 import { NotificationBell } from "@/components/notification-bell"
 import { ProjectRequestDialog } from "@/components/project-request-dialog"
 import { Progress } from "@/components/ui/progress"
@@ -91,10 +91,9 @@ export function PublicProjectPage({
             href="/"
             className="flex items-center gap-2 text-sm font-semibold tracking-tight"
           >
-            <span className="flex size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <RiShareBoxLine className="size-4" aria-hidden="true" />
-            </span>
-            JustProjects
+            <JustProjectsLogo className="text-foreground" />
+            <span className="font-normal">Just</span>
+            Projects
           </Link>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="gap-1.5 bg-background/60">
@@ -152,7 +151,10 @@ export function PublicProjectPage({
                 </div>
               )}
               <div className="mt-7 flex flex-wrap items-center gap-3">
-                <Button className="gap-1.5" onClick={() => setRequestOpen(true)}>
+                <Button
+                  className="gap-1.5"
+                  onClick={() => setRequestOpen(true)}
+                >
                   <RiAddLine className="size-4" aria-hidden="true" />
                   {t("public.requestProject")}
                 </Button>
@@ -349,7 +351,10 @@ export function PublicProjectPage({
                   <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
                     {t("public.updates")}
                   </p>
-                  <h2 id="customer-updates-title" className="mt-2 text-2xl font-semibold tracking-tight">
+                  <h2
+                    id="customer-updates-title"
+                    className="mt-2 text-2xl font-semibold tracking-tight"
+                  >
                     {t("public.updates")}
                   </h2>
                 </div>
@@ -362,12 +367,19 @@ export function PublicProjectPage({
               {payload.updates?.length ? (
                 <div className="grid gap-3 md:grid-cols-2">
                   {payload.updates.map((update) => (
-                    <Card key={update.id} className="rounded-2xl p-5 shadow-sm shadow-slate-950/[0.02]">
+                    <Card
+                      key={update.id}
+                      className="rounded-2xl p-5 shadow-sm shadow-slate-950/[0.02]"
+                    >
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-medium">{update.title}</p>
-                        <Badge variant="outline" className="text-[10px]">{t("updates.postCustomer")}</Badge>
+                        <Badge variant="outline" className="text-[10px]">
+                          {t("updates.postCustomer")}
+                        </Badge>
                       </div>
-                      <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{update.body}</p>
+                      <p className="mt-3 text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                        {update.body}
+                      </p>
                       <p className="mt-4 text-[11px] text-muted-foreground">
                         {update.authorName ? `${update.authorName} · ` : ""}
                         {formatDate(update.createdAt, locale)}
@@ -382,10 +394,16 @@ export function PublicProjectPage({
                 <Card className="mt-4 rounded-2xl border-primary/20 bg-primary/[0.03] p-4 shadow-none">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium">{submittedRequest.title}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{t("public.requestProjectSubmitted")}</p>
+                      <p className="text-sm font-medium">
+                        {submittedRequest.title}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {t("public.requestProjectSubmitted")}
+                      </p>
                     </div>
-                    <Badge variant="secondary">{t("public.requestStatus")}: {submittedRequest.status}</Badge>
+                    <Badge variant="secondary">
+                      {t("public.requestStatus")}: {submittedRequest.status}
+                    </Badge>
                   </div>
                 </Card>
               )}

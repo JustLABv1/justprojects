@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="550"
+  height="530"
+  viewBox="20 -8 550 530"
+  preserveAspectRatio="xMidYMid meet"
+  role="img"
+  aria-labelledby="justprojects-logo-title justprojects-logo-description"
+>
+  <title id="justprojects-logo-title">JustProjects</title>
+  <desc id="justprojects-logo-description">
+    A J-shaped project mark with three task bars.
+  </desc>
+  <style>
+    #justprojects-logo { color: #17181c; }
+    @media (prefers-color-scheme: dark) {
+      #justprojects-logo { color: #f8fafc; }
+    }
+  </style>
+  <g id="justprojects-logo" fill="currentColor">
+    <!-- The angled cap gives the J its distinctive forward motion. -->
+    <path d="M226 173V84c0-16 9-29 24-37L418 0v73c0 14-7 25-20 31L226 173Z" />
+
+    <!-- The stem and rounded hook are one continuous, heavy J form. -->
+    <path
+      d="M226 188 300 158v218c0 82-57 138-144 138-70 0-126-48-130-127h83c4 27 23 47 47 47 41 0 70-27 70-58V188Z"
+    />
+
+    <!-- Three progressively shorter task bars, each with a punched-out status dot. -->
+    <path
+      fill-rule="evenodd"
+      d="
+        M345 151h197a18 18 0 0 1 18 18v36a18 18 0 0 1-18 18H345a18 18 0 0 1-18-18v-36a18 18 0 0 1 18-18Zm17 18a13 13 0 1 0 0 26 13 13 0 0 0 0-26Z
+        M345 245h170a18 18 0 0 1 18 18v32a18 18 0 0 1-18 18H345a18 18 0 0 1-18-18v-32a18 18 0 0 1 18-18Zm17 11a13 13 0 1 0 0 26 13 13 0 0 0 0-26Z
+        M345 337h140a18 18 0 0 1 18 18v30a18 18 0 0 1-18 18H345a18 18 0 0 1-18-18v-30a18 18 0 0 1 18-18Zm17 8a13 13 0 1 0 0 26 13 13 0 0 0 0-26Z
+      "
+    />
+  </g>
+</svg>
